@@ -97,10 +97,10 @@ timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
   enum intr_level old_level;
+  struct timer_sleeping_thread *sleeping_thread;
 
   /* create sleeping data structure */
-  struct timer_sleeping_thread *sleeping_thread =
-    malloc (sizeof (struct timer_sleeping_thread));
+  sleeping_thread = malloc (sizeof (struct timer_sleeping_thread));
   sleeping_thread->wakeup_time = start + ticks;
   sleeping_thread->t = thread_current ();
 
@@ -125,7 +125,10 @@ timer_sleep (int64_t ticks)
   sleeping_thread->next = next;
 
   thread_block ();
+
   intr_set_level (old_level);
+
+  free (sleeping_thread);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -216,9 +219,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
 	  timer_sleeping_threads->wakeup_time <= ticks)
 	{
 	  struct timer_sleeping_thread *sleeping_thread = timer_sleeping_threads;
-	  thread_unblock (sleeping_thread->t);
 	  timer_sleeping_threads = sleeping_thread->next;
-	  free (sleeping_thread);
+	  thread_unblock (sleeping_thread->t);
 	}
 
       intr_set_level (old_level);
