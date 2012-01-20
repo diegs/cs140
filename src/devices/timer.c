@@ -27,8 +27,6 @@ static unsigned loops_per_tick;
 
 /* Linked list of sleeping threads */
 static struct timer_sleeping_thread *timer_sleeping_threads;
-/* Lock to protect writing to the list of sleeping threads */
-static struct lock timer_sleeping_threads_lock;
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
@@ -46,7 +44,6 @@ timer_init (void)
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
   timer_sleeping_threads = NULL;
-  lock_init(&timer_sleeping_threads_lock);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -101,16 +98,15 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
   enum intr_level old_level;
 
-  //  while (timer_elapsed (start) < ticks) 
-
   /* create sleeping data structure */
   struct timer_sleeping_thread *sleeping_thread =
     malloc (sizeof (struct timer_sleeping_thread));
   sleeping_thread->wakeup_time = start + ticks;
   sleeping_thread->t = thread_current ();
 
+  old_level = intr_disable ();
+
   /* insert into correct spot in list */
-  lock_acquire (&timer_sleeping_threads_lock);
 
   struct timer_sleeping_thread *next = timer_sleeping_threads;
   struct timer_sleeping_thread *prev = NULL;
@@ -128,10 +124,6 @@ timer_sleep (int64_t ticks)
 
   sleeping_thread->next = next;
 
-  lock_release (&timer_sleeping_threads_lock);
-
-  /* disable interrupts and block this thread */
-  old_level = intr_disable ();
   thread_block ();
   intr_set_level (old_level);
 }
@@ -210,13 +202,15 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  enum intr_level old_level;
+
   ticks++;
   thread_tick ();
 
   if (timer_sleeping_threads != NULL &&
       timer_sleeping_threads->wakeup_time >= ticks)
     {
-      lock_acquire (&timer_sleeping_threads_lock);
+      old_level = intr_disable ();
 
       while (timer_sleeping_threads != NULL &&
 	  timer_sleeping_threads->wakeup_time <= ticks)
@@ -227,7 +221,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 	  free (sleeping_thread);
 	}
 
-      lock_release (&timer_sleeping_threads_lock);
+      intr_set_level (old_level);
     }
       
 }
