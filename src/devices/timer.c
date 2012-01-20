@@ -107,7 +107,6 @@ timer_sleep (int64_t ticks)
   old_level = intr_disable ();
 
   /* insert into correct spot in list */
-
   struct timer_sleeping_thread *next = timer_sleeping_threads;
   struct timer_sleeping_thread *prev = NULL;
   
@@ -211,7 +210,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_tick ();
 
   if (timer_sleeping_threads != NULL &&
-      timer_sleeping_threads->wakeup_time >= ticks)
+      timer_sleeping_threads->wakeup_time <= ticks)
     {
       old_level = intr_disable ();
 
