@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <list.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -228,6 +229,15 @@ thread_block (void)
   schedule ();
 }
 
+static bool cmp_thread_priority(const struct list_elem *a,
+  const struct list_elem *b, void* aux UNUSED) 
+{
+  const struct thread *a_thread = list_entry(a, struct thread, elem);
+  const struct thread *b_thread = list_entry(b, struct thread, elem);
+
+  return a_thread->priority > b_thread->priority;
+}
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -245,8 +255,11 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority, NULL);
   t->status = THREAD_READY;
+  if(t->priority > thread_get_priority ()) 
+    thread_yield ();
+
   intr_set_level (old_level);
 }
 
@@ -316,7 +329,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, cmp_thread_priority, NULL);
+  
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -339,11 +353,24 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+static int
+highest_thread_priority () 
+{
+  struct list_elem *front = list_front (&ready_list);
+  if(front == NULL) return PRI_MIN;
+
+  struct thread *t = list_entry (front, struct thread, elem);
+  return t->priority;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+ 
+  if(highest_thread_priority () > new_priority) 
+    thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -468,6 +495,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->priority_parent = NULL;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
