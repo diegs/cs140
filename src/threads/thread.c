@@ -255,10 +255,11 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority, NULL);
+  //list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority, NULL);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
-  if(t->priority > thread_get_priority ()) 
-    thread_yield ();
+  //if(t->priority > thread_get_priority ()) 
+  //  thread_yield ();
 
   intr_set_level (old_level);
 }
@@ -329,8 +330,9 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, cmp_thread_priority, NULL);
-  
+    list_push_back (&ready_list, &cur->elem);
+  //list_insert_ordered (&ready_list, &cur->elem, cmp_thread_priority, NULL);
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -354,11 +356,10 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 
 static int
-highest_thread_priority () 
+highest_thread_priority (void) 
 {
   struct list_elem *front = list_front (&ready_list);
   if(front == NULL) return PRI_MIN;
-
   struct thread *t = list_entry (front, struct thread, elem);
   return t->priority;
 }
@@ -369,8 +370,8 @@ thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
  
-  if(highest_thread_priority () > new_priority) 
-    thread_yield ();
+  //  if(highest_thread_priority () > new_priority) 
+  //thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -571,6 +572,7 @@ thread_schedule_tail (struct thread *prev)
       ASSERT (prev != cur);
       palloc_free_page (prev);
     }
+
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and
