@@ -355,11 +355,13 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Returns the highest priority in the ready thread list, or PRI_MIN if
+   the list is empty. Requires interrupts to be disabled. */
 static int
 highest_thread_priority (void) 
 {
   struct list_elem *front = list_front (&ready_list);
-  if(front == NULL) return PRI_MIN;
+  if (front == NULL) return PRI_MIN;
   struct thread *t = list_entry (front, struct thread, elem);
   return t->priority;
 }
@@ -368,10 +370,15 @@ highest_thread_priority (void)
 void
 thread_set_priority (int new_priority) 
 {
+  enum intr_level old_level;
+
   thread_current ()->priority = new_priority;
- 
+
+  /* Check if priority is no longer the highest in the system */
+  old_level = intr_disable ();
   if (highest_thread_priority () > new_priority) 
     thread_yield ();
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
