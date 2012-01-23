@@ -211,20 +211,20 @@ timer_interrupt (struct intr_frame *args UNUSED)
 
   if (timer_sleeping_threads != NULL &&
       timer_sleeping_threads->wakeup_time <= ticks)
+  {
+    old_level = intr_disable ();
+
+    while (timer_sleeping_threads != NULL &&
+        timer_sleeping_threads->wakeup_time <= ticks)
     {
-      old_level = intr_disable ();
-
-      while (timer_sleeping_threads != NULL &&
-	  timer_sleeping_threads->wakeup_time <= ticks)
-	{
-	  struct timer_sleeping_thread *sleeping_thread = timer_sleeping_threads;
-	  timer_sleeping_threads = sleeping_thread->next;
-	  thread_unblock (sleeping_thread->t);
-	}
-
-      intr_set_level (old_level);
+      struct timer_sleeping_thread *sleeping_thread = timer_sleeping_threads;
+      timer_sleeping_threads = sleeping_thread->next;
+      thread_unblock (sleeping_thread->t);
     }
-      
+
+    intr_set_level (old_level);
+  }
+
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
