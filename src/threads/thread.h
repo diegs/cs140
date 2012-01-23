@@ -25,16 +25,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-/* Priority lock structs and functions */
-struct plock 
-{
-  struct lock l;
-  struct list_elem elem;
-};
-
-bool cmp_plock_priority(const struct list_elem* first, 
-    const struct list_elem* second, void* aux);
-
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -110,7 +100,6 @@ struct thread
 
   /* Priority data */
   int priority;                       /* Priority. */
-  struct list plock_list;
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */

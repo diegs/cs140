@@ -499,7 +499,6 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
-  list_init(&t->plock_list);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
@@ -620,15 +619,6 @@ allocate_tid (void)
   return tid;
 }
 
-bool 
-cmp_plock_priority(const struct list_elem* a, 
-    const struct list_elem* b, void* aux UNUSED) 
-{
-  const struct plock *a_plock = list_entry(a, struct plock, elem);
-  const struct plock *b_plock = list_entry(b, struct plock, elem);
-
-  return a_plock->l.holder->priority > b_plock->l.holder->priority;
-}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
