@@ -211,7 +211,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   /* Run immediately if higher priority */
-  if (t->priority > thread_get_priority ()) 
+  if (t->effective_priority > thread_get_priority ()) 
     thread_yield ();
 
   return tid;
@@ -239,7 +239,7 @@ bool cmp_thread_priority(const struct list_elem *a,
   const struct thread *a_thread = list_entry(a, struct thread, elem);
   const struct thread *b_thread = list_entry(b, struct thread, elem);
 
-  return a_thread->priority > b_thread->priority;
+  return a_thread->effective_priority > b_thread->effective_priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -363,7 +363,7 @@ highest_thread_priority (void)
   struct list_elem *front = list_front (&ready_list);
   if (front == NULL) return PRI_MIN;
   struct thread *t = list_entry (front, struct thread, elem);
-  return t->priority;
+  return t->effective_priority;
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -372,11 +372,16 @@ thread_set_priority (int new_priority)
 {
   enum intr_level old_level;
 
-  thread_current ()->priority = new_priority;
+  struct thread *current = thread_current();
+  current->base_priority = new_priority;
+  if (current->effective_priority < current->base_priority) 
+  {
+    current->effective_priority = current->base_priority;
+  }
 
   /* Check if priority is no longer the highest in the system */
   old_level = intr_disable ();
-  if (highest_thread_priority () > new_priority) 
+  if (highest_thread_priority () > current->effective_priority) 
     thread_yield ();
   intr_set_level (old_level);
 }
@@ -385,7 +390,7 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return thread_current ()->effective_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -502,7 +507,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  t->base_priority = priority;
+  t->effective_priority = priority;
   t->magic = THREAD_MAGIC;
 
   list_push_back (&all_list, &t->allelem);

@@ -99,7 +99,9 @@ struct thread
 #endif
 
   /* Priority data */
-  int priority;                       /* Priority. */
+  int base_priority;                       /* Priority. */
+  int effective_priority;
+  struct lock *waiting_lock;
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
