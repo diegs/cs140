@@ -499,12 +499,13 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
+  list_init(&t->plock_list);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->priority_parent = NULL;
   t->magic = THREAD_MAGIC;
+
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -617,6 +618,16 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+bool 
+cmp_plock_priority(const struct list_elem* a, 
+    const struct list_elem* b, void* aux UNUSED) 
+{
+  const struct plock *a_plock = list_entry(a, struct plock, elem);
+  const struct plock *b_plock = list_entry(b, struct plock, elem);
+
+  return a_plock->l.holder->priority > b_plock->l.holder->priority;
 }
 
 /* Offset of `stack' member within `struct thread'.
