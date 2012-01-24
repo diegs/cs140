@@ -242,9 +242,11 @@ lock_acquire (struct lock *lock)
   }
 
   sema_down (&lock->semaphore);
-  intr_set_level (old_level);
 
   transfer_lock (lock);
+
+  intr_set_level (old_level);
+	
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
