@@ -652,13 +652,13 @@ thread_highest_potential_donor_priority (struct thread *t)
 
   if (list_empty (&t->acquired_locks)) return PRI_MIN;
 
-  struct lock *front_lock = list_entry (list_front
-      (&t->acquired_locks), struct lock, tp_elem);
-
-  if (list_empty (&front_lock->semaphore.waiters)) return PRI_MIN;
+  struct lock * max_lock = list_entry (list_max(&t->acquired_locks, 
+	cmp_lock_waiter_priority, NULL), struct lock, tp_elem);
+  
+  if (list_empty (&max_lock->semaphore.waiters)) return PRI_MIN;
 
   struct thread *front_waiter = list_entry (list_front
-      (&front_lock->semaphore.waiters), struct thread, elem);
+      (&max_lock->semaphore.waiters), struct thread, elem);
 
   int donor_priority = front_waiter->effective_priority;
 
