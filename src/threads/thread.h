@@ -25,6 +25,7 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -101,7 +102,7 @@ struct thread
   /* Priority data */
   int base_priority;                       /* Priority. */
   int effective_priority;
-  struct lock *waiting_lock;
+  struct list acquired_locks;
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
@@ -137,6 +138,7 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void thread_update_effective_priority (struct thread *t);
 
 bool cmp_thread_priority(const struct list_elem *a,
 						 const struct list_elem *b, void* aux UNUSED);
