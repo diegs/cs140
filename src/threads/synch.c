@@ -281,7 +281,10 @@ lock_release (struct lock *lock)
   // Remove the lock from the current thread
   list_remove (&lock->tp_elem);
 
-  // TODO: Correct the priority of the holding thread if it was elevated
+  // Correct the priority of the holding thread if it was elevated
+  struct thread *t = thread_current ();
+  thread_set_effective_priority (t,
+				 thread_highest_potential_donor_priority (t));
 
   lock->holder = NULL;
 
