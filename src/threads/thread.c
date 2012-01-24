@@ -627,22 +627,33 @@ allocate_tid (void)
   return tid;
 }
 
-/* Checks the priority of the highest priority lock in the acquired
-   lock list for a priority that is higher than thread t's effective
-   priority. Elevates t's effective priority or sets it back to the
-   base priority if there is no effective priority that is higher.
+/* Checks the priority of the highest priority lock in the acquired lock
+   list for a priority that is higher than thread t's effective
+   priority. Elevates t's effective priority or sets it back to the base
+   priority if there is no effective priority that is higher.
    */
-
 void 
 thread_set_effective_priority (struct thread *t, int priority) 
 {
   t->effective_priority = t->base_priority;
   if (priority > t->base_priority) 
-  {
     t->effective_priority = priority;
+
+  // TODO: Propagate new priority 
+
+  enum intr_level old_level = intr_disable ();
+  if (t->status == THREAD_READY)
+  {
+    // Fix ordering
+    list_remove (&t->elem);
+    list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority,
+			 NULL);
+  } else if (t->status == THREAD_BLOCKED) {
+    // TODO: Update the waiters list of the semaphore this is waiting on
+    ;;
   }
 
-  // Propagate new priority 
+  intr_set_level (old_level);
 }
 
 int 

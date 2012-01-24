@@ -291,6 +291,9 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
 
   sema_up (&lock->semaphore);
+
+  // TODO maybe we should avoid yielding if we don't have to
+  thread_yield ();
 }
 
 /* Returns true if the current thread holds LOCK, false
