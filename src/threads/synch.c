@@ -231,6 +231,13 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  // If there is someone currently holding the lock, we need to update
+  // the priority of the holder
+  if (lock->holder != NULL) 
+  {
+    thread_update_effective_priority (lock->holder);
+  }
+
   sema_down (&lock->semaphore);
 
   transfer_lock (lock);
@@ -268,7 +275,6 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   // Remove the lock from the current thread
-  struct thread *current = thread_current ();
   list_remove (&lock->tp_elem);
 
   // Correct the priority of the holding thread if it was elevated
