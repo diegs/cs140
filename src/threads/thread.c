@@ -367,7 +367,7 @@ highest_thread_priority (void)
   return t->effective_priority;
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* Sets the current thread's base priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
@@ -375,7 +375,7 @@ thread_set_priority (int new_priority)
 
   struct thread *current = thread_current();
   current->base_priority = new_priority;
-  thread_update_effective_priority (current);
+  thread_set_effective_priority (current, current->base_priority);
 
   /* Check if priority is no longer the highest in the system */
   old_level = intr_disable ();
@@ -507,7 +507,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->base_priority = priority;
   t->effective_priority = priority;
+
   list_init (&t->acquired_locks);
+  t->waiting_lock = NULL;
+
   t->magic = THREAD_MAGIC;
 
   list_push_back (&all_list, &t->allelem);
@@ -629,29 +632,37 @@ allocate_tid (void)
    priority. Elevates t's effective priority or sets it back to the
    base priority if there is no effective priority that is higher.
    */
-void
-thread_update_effective_priority (struct thread *t) 
+
+void 
+thread_set_effective_priority (struct thread *t, int priority) 
+{
+  t->effective_priority = t->base_priority;
+  if (priority > t->base_priority) 
+  {
+    t->effective_priority = priority;
+  }
+
+  // Propagate new priority 
+}
+
+int 
+thread_highest_potential_donor_priority (struct thread *t) 
 {
   ASSERT (t != NULL);
 
-  // The effective priority should never drop below the base priority.
-  // Forcing the effective to equal base by default ensures this.
-  t->effective_priority = t->base_priority;
-
-  if (list_empty (&t->acquired_locks)) return;
+  if (list_empty (&t->acquired_locks)) return PRI_MIN;
 
   struct lock *front_lock = list_entry (list_front
       (&t->acquired_locks), struct lock, tp_elem);
 
-  if (list_empty (&front_lock->semaphore.waiters)) return;
+  if (list_empty (&front_lock->semaphore.waiters)) return PRI_MIN;
 
   struct thread *front_waiter = list_entry (list_front
       (&front_lock->semaphore.waiters), struct thread, elem);
 
   int donor_priority = front_waiter->effective_priority;
-  
-  if (donor_priority > t->effective_priority) 
-    t->effective_priority = donor_priority;
+
+  return donor_priority;
 }
 
 

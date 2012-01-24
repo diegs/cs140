@@ -210,10 +210,6 @@ transfer_lock (struct lock *lock)
   list_insert_ordered (&current->acquired_locks, &lock->tp_elem, 
     cmp_lock_waiter_priority, NULL);
   lock->holder = current;
-
-  // Donate priority of the highest priority thread waiting on the
-  // lock we just acquired to the current thread
-  thread_update_effective_priority (current);
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -231,14 +227,22 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
+  struct thread *current = thread_current ();
   // If there is someone currently holding the lock, we need to update
   // the priority of the holder
   if (lock->holder != NULL) 
   {
-    thread_update_effective_priority (lock->holder);
+     int donor_priority = 
+       thread_highest_potential_donor_priority (lock->holder);
+     if (donor_priority < current->effective_priority) 
+       donor_priority = current->effective_priority;
+
+     thread_set_effective_priority (lock->holder, donor_priority);
   }
 
   sema_down (&lock->semaphore);
+  intr_set_level (old_level);
 
   transfer_lock (lock);
 }
@@ -277,8 +281,8 @@ lock_release (struct lock *lock)
   // Remove the lock from the current thread
   list_remove (&lock->tp_elem);
 
-  // Correct the priority of the holding thread if it was elevated
-  thread_update_effective_priority (lock->holder);
+  // TODO: Correct the priority of the holding thread if it was elevated
+
   lock->holder = NULL;
 
   sema_up (&lock->semaphore);

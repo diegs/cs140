@@ -103,6 +103,7 @@ struct thread
   int base_priority;                       /* Priority. */
   int effective_priority;
   struct list acquired_locks;
+  struct lock *waiting_lock;
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
@@ -138,7 +139,8 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
-void thread_update_effective_priority (struct thread *t);
+int thread_highest_potential_donor_priority (struct thread *t);
+void thread_set_effective_priority (struct thread *t, int priority);
 
 bool cmp_thread_priority(const struct list_elem *a,
 						 const struct list_elem *b, void* aux UNUSED);
