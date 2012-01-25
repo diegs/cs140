@@ -229,6 +229,7 @@ thread_block (void)
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
+  printf ("thread %s blocking\n", thread_name ());
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -239,7 +240,7 @@ bool cmp_thread_priority(const struct list_elem *a,
   const struct thread *a_thread = list_entry(a, struct thread, elem);
   const struct thread *b_thread = list_entry(b, struct thread, elem);
 
-  return a_thread->priority > b_thread->priority;
+  return a_thread->effective_priority <= b_thread->effective_priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -259,7 +260,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority, NULL);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
 
   intr_set_level (old_level);
@@ -329,6 +330,7 @@ thread_yield (void)
   
   ASSERT (!intr_context ());
 
+  printf ("thread %s yielding \n", thread_name ());
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, cmp_thread_priority, NULL);
@@ -385,7 +387,70 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return thread_current ()->effective_priority;
+}
+
+/* Computes the maximum priority for a thread including all donated
+   priorities. Does not change any thread state. Must be called with
+   interrupts disabled. */
+int
+thread_get_effective_priority (struct thread *t)
+{
+  /* DEBUG */
+  return t->priority;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  /* Initialize to our priority */
+  int max_priority = t->priority;
+
+  struct list_elem *e;
+  struct lock *l;
+
+  /* Iterate over all locks we're holding and find the max priority of
+     each one's waiters */
+  for (e = list_begin (&t->priority_holding); e != list_end
+  (&t->priority_holding);
+       e = list_next (e))
+  {
+    l = list_entry (e, struct lock, priority_holder);
+    if (!list_empty (&l->semaphore.waiters))
+    {
+      /* Get the max priority from this lock's waiters */
+      struct thread *waiter = list_entry (list_max (&l->semaphore.waiters,
+						    cmp_thread_priority, NULL),
+					  struct thread, elem);
+      if (waiter->effective_priority > max_priority)
+	max_priority = waiter->effective_priority;
+    }
+  }
+
+  return max_priority;
+}
+
+/* Sets the effective priority of this thread. Propagates to all threads
+   that this thread waits on (recursively). Updates the ready queue as
+   needed and waiting lists of all semaphores. Must be called with
+   interrupts disabled.  TODO: update ordered lists to unordered and
+   find_max to aovid this step. */
+void
+thread_set_effective_priority (struct thread *t, int new_priority)
+{
+  /* DEBUG */
+  return;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  /* Update the thread's priority */
+  t->effective_priority = new_priority;
+
+  /* Check if it is depending on other threads */
+  if (t->priority_waiting != NULL)
+  {
+    struct thread *child = t->priority_waiting->holder;
+    if (child->effective_priority < new_priority)
+      thread_set_effective_priority (child, new_priority);
+  }
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -503,7 +568,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->priority_parent = NULL;
+  t->effective_priority = priority;
+  list_init (&t->priority_holding);
+  t->priority_waiting = NULL;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
@@ -532,7 +599,8 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_max (&ready_list, cmp_thread_priority, NULL),
+		       struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -555,7 +623,7 @@ void
 thread_schedule_tail (struct thread *prev)
 {
   struct thread *cur = running_thread ();
-  
+
   ASSERT (intr_get_level () == INTR_OFF);
 
   /* Mark us as running. */
@@ -580,6 +648,8 @@ thread_schedule_tail (struct thread *prev)
       palloc_free_page (prev);
     }
 
+  printf ("Running %s\n", thread_name ());
+  debug_backtrace ();
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and

@@ -54,6 +54,7 @@ timer_calibrate (void)
 
   ASSERT (intr_get_level () == INTR_ON);
   printf ("Calibrating timer...  ");
+  safe_printf ("Here is my backtrace\n");
 
   /* Approximate loops_per_tick as the largest power-of-two
      still less than one timer tick. */
