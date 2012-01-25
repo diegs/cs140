@@ -280,6 +280,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
+  struct thread *current = thread_current ();
   // Remove the lock from the current thread
   list_remove (&lock->tp_elem);
 
@@ -291,7 +293,7 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
 
   sema_up (&lock->semaphore);
-
+  intr_set_level (old_level);
   // TODO maybe we should avoid yielding if we don't have to
   thread_yield ();
 }
