@@ -241,7 +241,9 @@ lock_acquire (struct lock *lock)
      thread_set_effective_priority (lock->holder, donor_priority);
   }
 
+  current->waiting_lock = lock;
   sema_down (&lock->semaphore);
+  current->waiting_lock = NULL;
 
   transfer_lock (lock);
 

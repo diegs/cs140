@@ -211,7 +211,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   /* Run immediately if higher priority */
-  if (t->effective_priority > thread_get_priority ()) 
+  if (t->effective_priority > thread_get_priority ())  
     thread_yield ();
 
   return tid;
@@ -373,6 +373,7 @@ thread_set_priority (int new_priority)
 {
   enum intr_level old_level;
 
+  // TODO: This code will remove a donation. We probably don't want that.
   struct thread *current = thread_current();
   current->base_priority = new_priority;
   thread_set_effective_priority (current, current->base_priority);
@@ -641,16 +642,17 @@ thread_set_effective_priority (struct thread *t, int priority)
 
   // TODO: Propagate new priority 
 
+  // Fix orderings for ready and waiting threads
   enum intr_level old_level = intr_disable ();
   if (t->status == THREAD_READY)
   {
-    // Fix ordering
     list_remove (&t->elem);
     list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority,
 			 NULL);
-  } else if (t->status == THREAD_BLOCKED) {
-    // TODO: Update the waiters list of the semaphore this is waiting on
-    ;;
+  } else if (t->status == THREAD_BLOCKED && t->waiting_lock != NULL) {
+    list_remove (&t->elem);
+    list_insert_ordered (&t->waiting_lock->semaphore.waiters, &t->elem,
+        cmp_thread_priority, NULL);
   }
 
   intr_set_level (old_level);
