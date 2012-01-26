@@ -416,7 +416,6 @@ thread_get_effective_priority (struct thread *t)
     {
       /* Get the max priority from this lock's waiters */
       struct list_elem *max_item = list_max (&l->semaphore.waiters, cmp_thread_priority, NULL);
-      list_remove (max_item);
       struct thread *waiter = list_entry (max_item, struct thread, elem);
       if (waiter->effective_priority > max_priority)
 	max_priority = waiter->effective_priority;
@@ -692,9 +691,25 @@ print_thread_list (struct list *list)
   int i=0;
   for (e = list_begin (list); e != list_end (list); e = list_next (e))
   {
-    t = list_entry (e, struct list, elem);
+    t = list_entry (e, struct thread, elem);
     printf ("thread %d: %s [pri=%d, eff_pri=%d]\n", i++, t->name, t->priority,
 	    t->effective_priority);
+  }
+}
+
+void
+print_lock_list (struct list *list)
+{
+  struct list_elem *e;
+  struct lock *l;
+  int i=0;
+  for (e = list_begin (list); e != list_end (list); e = list_next (e))
+  {
+    l = list_entry (e, struct lock, priority_holder);
+    printf ("lock %d: holder=%s, waiters empty: %d\n", i++, (l->holder == NULL
+							     ? "[NULL]" :
+							     l->holder->name),
+	    list_empty (&l->semaphore.waiters));
   }
 }
 
