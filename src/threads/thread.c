@@ -683,6 +683,21 @@ allocate_tid (void)
 
   return tid;
 }
+
+void
+print_thread_list (struct list *list)
+{
+  struct list_elem *e;
+  struct thread *t;
+  int i=0;
+  for (e = list_begin (list); e != list_end (list); e = list_next (e))
+  {
+    t = list_entry (e, struct list, elem);
+    printf ("thread %d: %s [pri=%d, eff_pri=%d]\n", i++, t->name, t->priority,
+	    t->effective_priority);
+  }
+}
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
