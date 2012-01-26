@@ -113,10 +113,12 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_max (&sema->waiters,
-					  cmp_thread_priority, NULL),
-                                struct thread, elem));
+  if (!list_empty (&sema->waiters))
+  {
+    struct list_elem *max_item = list_max (&sema->waiters, cmp_thread_priority, NULL);
+    list_remove (max_item);
+    thread_unblock (list_entry (max_item, struct thread, elem));
+  }
   sema->value++;
   intr_set_level (old_level);
 }
@@ -261,7 +263,7 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   //  enum intr_level old_level = intr_disable ();
-  struct thread *t = thread_current ();
+  //struct thread *t = thread_current ();
 
   lock->holder = NULL;
   /* Priority Donation: remove from list of locks we hold */
@@ -360,8 +362,12 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters)) 
-    sema_up (&list_entry (list_max (&cond->waiters, cmp_thread_priority, NULL),
-                          struct semaphore_elem, elem)->semaphore);
+  {
+    struct list_elem *max_item = list_max (&cond->waiters, cmp_thread_priority, NULL);
+    list_remove (max_item);
+    sema_up (&list_entry (max_item, struct semaphore_elem,
+			  elem)->semaphore);
+  }
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

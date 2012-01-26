@@ -229,7 +229,6 @@ thread_block (void)
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
-  printf ("thread %s blocking\n", thread_name ());
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -240,7 +239,7 @@ bool cmp_thread_priority(const struct list_elem *a,
   const struct thread *a_thread = list_entry(a, struct thread, elem);
   const struct thread *b_thread = list_entry(b, struct thread, elem);
 
-  return a_thread->effective_priority <= b_thread->effective_priority;
+  return a_thread->effective_priority < b_thread->effective_priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -330,7 +329,6 @@ thread_yield (void)
   
   ASSERT (!intr_context ());
 
-  printf ("thread %s yielding \n", thread_name ());
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, cmp_thread_priority, NULL);
@@ -375,6 +373,9 @@ thread_set_priority (int new_priority)
   enum intr_level old_level;
 
   thread_current ()->priority = new_priority;
+  // DEBUG
+  // TODO: handle donation properly
+  thread_current ()->effective_priority = new_priority;
 
   /* Check if priority is no longer the highest in the system */
   old_level = intr_disable ();
@@ -417,9 +418,9 @@ thread_get_effective_priority (struct thread *t)
     if (!list_empty (&l->semaphore.waiters))
     {
       /* Get the max priority from this lock's waiters */
-      struct thread *waiter = list_entry (list_max (&l->semaphore.waiters,
-						    cmp_thread_priority, NULL),
-					  struct thread, elem);
+      struct list_elem *max_item = list_max (&l->semaphore.waiters, cmp_thread_priority, NULL);
+      list_remove (max_item);
+      struct thread *waiter = list_entry (max_item, struct thread, elem);
       if (waiter->effective_priority > max_priority)
 	max_priority = waiter->effective_priority;
     }
@@ -597,10 +598,13 @@ static struct thread *
 next_thread_to_run (void) 
 {
   if (list_empty (&ready_list))
+  {
     return idle_thread;
-  else
-    return list_entry (list_max (&ready_list, cmp_thread_priority, NULL),
-		       struct thread, elem);
+  } else {
+    struct list_elem *max_item = list_max (&ready_list, cmp_thread_priority, NULL);
+    list_remove (max_item);
+    return list_entry (max_item, struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -647,9 +651,6 @@ thread_schedule_tail (struct thread *prev)
       ASSERT (prev != cur);
       palloc_free_page (prev);
     }
-
-  printf ("Running %s\n", thread_name ());
-  debug_backtrace ();
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and
