@@ -211,7 +211,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   /* Run immediately if higher priority */
-  if (t->effective_priority > thread_get_priority ())  
+  if (t->priority > thread_get_priority ()) 
     thread_yield ();
 
   return tid;
@@ -239,7 +239,7 @@ bool cmp_thread_priority(const struct list_elem *a,
   const struct thread *a_thread = list_entry(a, struct thread, elem);
   const struct thread *b_thread = list_entry(b, struct thread, elem);
 
-  return a_thread->effective_priority > b_thread->effective_priority;
+  return a_thread->priority > b_thread->priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -360,27 +360,23 @@ thread_foreach (thread_action_func *func, void *aux)
 static int
 highest_thread_priority (void) 
 {
-  if (list_empty (&ready_list)) return PRI_MIN;
-  struct thread *t = list_entry (list_front (&ready_list), struct
-      thread, elem);
-
-  return t->effective_priority;
+  struct list_elem *front = list_front (&ready_list);
+  if (front == NULL) return PRI_MIN;
+  struct thread *t = list_entry (front, struct thread, elem);
+  return t->priority;
 }
 
-/* Sets the current thread's base priority to NEW_PRIORITY. */
+/* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
   enum intr_level old_level;
 
-  // TODO: This code will remove a donation. We probably don't want that.
-  struct thread *current = thread_current();
-  current->base_priority = new_priority;
-  thread_set_effective_priority (current, current->base_priority);
+  thread_current ()->priority = new_priority;
 
   /* Check if priority is no longer the highest in the system */
   old_level = intr_disable ();
-  if (highest_thread_priority () > current->effective_priority) 
+  if (highest_thread_priority () > new_priority) 
     thread_yield ();
   intr_set_level (old_level);
 }
@@ -389,7 +385,7 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->effective_priority;
+  return thread_current ()->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -506,14 +502,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->base_priority = priority;
-  t->effective_priority = priority;
-
-  list_init (&t->acquired_locks);
-  t->waiting_lock = NULL;
-
+  t->priority = priority;
+  t->priority_parent = NULL;
   t->magic = THREAD_MAGIC;
-
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -627,57 +618,6 @@ allocate_tid (void)
 
   return tid;
 }
-
-/* Checks the priority of the highest priority lock in the acquired lock
-   list for a priority that is higher than thread t's effective
-   priority. Elevates t's effective priority or sets it back to the base
-   priority if there is no effective priority that is higher.
-   */
-void 
-thread_set_effective_priority (struct thread *t, int priority) 
-{
-  t->effective_priority = t->base_priority;
-  if (priority > t->base_priority) 
-    t->effective_priority = priority;
-
-  // TODO: Propagate new priority 
-
-  // Fix orderings for ready and waiting threads
-  enum intr_level old_level = intr_disable ();
-  if (t->status == THREAD_READY)
-  {
-    list_remove (&t->elem);
-    list_insert_ordered (&ready_list, &t->elem, cmp_thread_priority,
-			 NULL);
-  } else if (t->status == THREAD_BLOCKED && t->waiting_lock != NULL) {
-    list_remove (&t->elem);
-    list_insert_ordered (&t->waiting_lock->semaphore.waiters, &t->elem,
-        cmp_thread_priority, NULL);
-  }
-
-  intr_set_level (old_level);
-}
-
-int 
-thread_highest_potential_donor_priority (struct thread *t) 
-{
-  ASSERT (t != NULL);
-
-  if (list_empty (&t->acquired_locks)) return PRI_MIN;
-
-  struct lock * max_lock = list_entry (list_max(&t->acquired_locks, 
-	cmp_lock_waiter_priority, NULL), struct lock, tp_elem);
-  
-  if (list_empty (&max_lock->semaphore.waiters)) return PRI_MIN;
-
-  struct thread *front_waiter = list_entry (list_front
-      (&max_lock->semaphore.waiters), struct thread, elem);
-
-  int donor_priority = front_waiter->effective_priority;
-
-  return donor_priority;
-}
-
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
