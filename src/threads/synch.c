@@ -353,6 +353,16 @@ cond_wait (struct condition *cond, struct lock *lock)
   lock_acquire (lock);
 }
 
+static bool
+cmp_waiter_priority(const struct list_elem *a, const struct list_elem *b, void* aux UNUSED) 
+{
+  struct semaphore *a_semaphore = &list_entry(a, struct semaphore_elem, elem)->semaphore;
+  struct semaphore *b_semaphore = &list_entry(b, struct semaphore_elem, elem)->semaphore;
+  int a_priority = list_entry (list_front (&a_semaphore->waiters), struct thread, elem)->effective_priority;
+  int b_priority = list_entry (list_front (&b_semaphore->waiters), struct thread, elem)->effective_priority;
+  return a_priority < b_priority;
+}
+
 /* If any threads are waiting on COND (protected by LOCK), then
    this function signals one of them to wake up from its wait.
    LOCK must be held before calling this function.
@@ -370,10 +380,13 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 
   if (!list_empty (&cond->waiters)) 
   {
-    struct list_elem *max_item = list_max (&cond->waiters, cmp_thread_priority, NULL);
+    enum intr_level old_level = intr_disable ();
+    struct list_elem *max_item = list_max (&cond->waiters,
+					   cmp_waiter_priority, NULL);
     list_remove (max_item);
     sema_up (&list_entry (max_item, struct semaphore_elem,
 			  elem)->semaphore);
+    intr_set_level (old_level);
   }
 }
 

@@ -233,7 +233,8 @@ thread_block (void)
   schedule ();
 }
 
-bool cmp_thread_priority(const struct list_elem *a,
+bool
+cmp_thread_priority(const struct list_elem *a,
   const struct list_elem *b, void* aux UNUSED) 
 {
   const struct thread *a_thread = list_entry(a, struct thread, elem);
