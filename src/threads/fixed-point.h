@@ -38,6 +38,5 @@ static inline fp_t fpdiv(fp_t first, fp_t second) {
 }
 
 
-
 #endif
 

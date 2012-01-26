@@ -69,12 +69,23 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority);
+static void init_thread (struct thread *, const char *name, int
+    priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+
+static int clamp (int val, int min, int max);
+
+static int 
+clamp (int val, int min, int max)
+{
+  if (val < min) return min;
+  if (val > max) return max;
+  return val;
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -130,26 +141,47 @@ thread_start (void)
 void
 thread_tick (void) 
 {
-  struct thread *t = thread_current ();
+  struct thread *cur_thread = thread_current ();
 
   /* Update statistics. */
-  if (t == idle_thread)
+  if (cur_thread == idle_thread)
     idle_ticks++;
 #ifdef USERPROG
-  else if (t->pagedir != NULL)
+  else if (cur_thread->pagedir != NULL)
     user_ticks++;
 #endif
   else
     kernel_ticks++;
 
+  /* Update MLFQS statistics for the current thread */
+  if (cur_thread != idle_thread) 
+  {
+    cur_thread->recent_cpu = 
+      fpadd (cur_thread->recent_cpu, int2fp (1));
+  }
+
   /* Update MLFQS statistics only once every second */
   if (timer_ticks () % TIMER_FREQ == 0)
   {
+    /* Update load_avg */
     int current_load = list_size (&ready_list);
-    if (t != idle_thread) current_load ++;
+    if (cur_thread != idle_thread) current_load ++;
     load_avg = fpadd( 
                 fpmul (fpdiv (int2fp(59), int2fp (60)), load_avg), 
                 fpdiv (int2fp (current_load), int2fp (60)));
+
+    /* Update recent_cpu for all threads */
+    struct list_elem* e;
+    for (e = list_begin (&all_list); e != list_end (&all_list);
+          e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+
+      fp_t numerator = fpmul (int2fp (2), load_avg);
+      fp_t denominator = fpadd (numerator, int2fp (1));
+      fp_t coeff = fpdiv (numerator, denominator);
+      t->recent_cpu = fpmul (coeff, t->recent_cpu) + int2fp (t->nice);
+    }
   }
 
   /* Enforce preemption. */
@@ -201,6 +233,12 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  /* Handle MLFQS initialization specific to threads making other
+     threads */
+  struct thread *cur_thread = thread_current ();
+  t->nice = clamp (cur_thread->nice, NICE_MIN, NICE_MAX);
+  t->recent_cpu = cur_thread->recent_cpu;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -469,17 +507,20 @@ thread_set_effective_priority (struct thread *t, int new_priority)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  struct thread *cur_thread = thread_current();
+
+  cur_thread->nice = clamp (nice, NICE_MIN, NICE_MAX);
+
+  // TODO: recompute mlfqs_priority
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -493,8 +534,9 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  struct thread *t = thread_current ();
+
+  return fp2int (fpmul (int2fp(100), t->recent_cpu));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -584,6 +626,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->effective_priority = priority;
   list_init (&t->priority_holding);
   t->priority_waiting = NULL;
+  t->nice = 0;
+  t->recent_cpu = int2fp (0);
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
