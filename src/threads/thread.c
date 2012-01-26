@@ -361,7 +361,9 @@ static int
 highest_thread_priority (void) 
 {
   if (list_empty (&ready_list)) return PRI_MIN;
-  struct thread *t = list_entry (list_front (&ready_list), struct thread, elem);
+  struct thread *t = list_entry (list_max (&ready_list,
+					   cmp_thread_priority, NULL),
+				 struct thread, elem);
   return t->priority;
 }
 
@@ -369,18 +371,19 @@ highest_thread_priority (void)
 void
 thread_set_priority (int new_priority) 
 {
-  enum intr_level old_level;
+  enum intr_level old_level = intr_disable ();
+  struct thread *t = thread_current ();
+  t->priority = new_priority;
+  int new_effective_priority = thread_get_effective_priority (t);
+  if (t->effective_priority != new_effective_priority)
+  {
+    thread_set_effective_priority (t, new_priority);
 
-  thread_current ()->priority = new_priority;
-  // DEBUG
-  // TODO: handle donation properly
-  thread_current ()->effective_priority = new_priority;
-
-  /* Check if priority is no longer the highest in the system */
-  old_level = intr_disable ();
-  if (highest_thread_priority () > new_priority) 
-    thread_yield ();
-  intr_set_level (old_level);
+    /* Check if priority is no longer the highest in the system */
+    if (highest_thread_priority () > new_priority) 
+      thread_yield ();
+    intr_set_level (old_level);
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -680,36 +683,6 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
-}
-
-void
-print_thread_list (struct list *list)
-{
-  struct list_elem *e;
-  struct thread *t;
-  int i=0;
-  for (e = list_begin (list); e != list_end (list); e = list_next (e))
-  {
-    t = list_entry (e, struct thread, elem);
-    printf ("thread %d: %s [pri=%d, eff_pri=%d]\n", i++, t->name, t->priority,
-	    t->effective_priority);
-  }
-}
-
-void
-print_lock_list (struct list *list)
-{
-  struct list_elem *e;
-  struct lock *l;
-  int i=0;
-  for (e = list_begin (list); e != list_end (list); e = list_next (e))
-  {
-    l = list_entry (e, struct lock, priority_holder);
-    printf ("lock %d: holder=%s, waiters empty: %d\n", i++, (l->holder == NULL
-							     ? "[NULL]" :
-							     l->holder->name),
-	    list_empty (&l->semaphore.waiters));
-  }
 }
 
 
