@@ -397,9 +397,6 @@ thread_get_priority (void)
 int
 thread_get_effective_priority (struct thread *t)
 {
-  /* DEBUG */
-  return t->priority;
-
   ASSERT (intr_get_level () == INTR_OFF);
 
   /* Initialize to our priority */
@@ -437,9 +434,6 @@ thread_get_effective_priority (struct thread *t)
 void
 thread_set_effective_priority (struct thread *t, int new_priority)
 {
-  /* DEBUG */
-  return;
-
   ASSERT (intr_get_level () == INTR_OFF);
 
   /* Update the thread's priority */

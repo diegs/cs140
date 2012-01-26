@@ -199,11 +199,11 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  //  enum intr_level old_level = intr_disable ();
+  enum intr_level old_level = intr_disable ();
   struct thread *t = thread_current ();
 
   /* Priority Donation: donate our priority if necessary */
-  if (false && lock->holder != NULL)
+  if (lock->holder != NULL)
   {
     /* Update what we're waiting on */
     t->priority_waiting = lock;
@@ -217,11 +217,11 @@ lock_acquire (struct lock *lock)
   lock->holder = t;
 
   /* Priority Donation: no longer waiting on this lock */
-  //t->priority_waiting = NULL;
+  t->priority_waiting = NULL;
   /* Priority Donation: add to list of locks we hold */
-  //list_push_back (&t->priority_holding, &lock->priority_holder);
+  list_push_back (&t->priority_holding, &lock->priority_holder);
 
-  //  intr_set_level (old_level);
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -245,7 +245,7 @@ lock_try_acquire (struct lock *lock)
     lock->holder = t;
 
     /* Priority Donation: add to list of locks we hold */
-    //list_push_back (&t->priority_holding, &lock->priority_holder);
+    list_push_back (&t->priority_holding, &lock->priority_holder);
   }
 
   return success;
@@ -262,22 +262,22 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  //  enum intr_level old_level = intr_disable ();
-  //struct thread *t = thread_current ();
+  enum intr_level old_level = intr_disable ();
+  struct thread *t = thread_current ();
 
   lock->holder = NULL;
   /* Priority Donation: remove from list of locks we hold */
-  //list_remove (&lock->priority_holder);
+  list_remove (&lock->priority_holder);
 
   /* Interrupts are disabled so this will not preempt */
   sema_up (&lock->semaphore);
 
   /* Priority Donation: update our effective priority if necessary */
-  //int new_priority = thread_get_effective_priority (t);
-  //if (false && t->effective_priority != new_priority)
-  //thread_set_effective_priority (t, new_priority);
+  int new_priority = thread_get_effective_priority (t);
+  if (t->effective_priority != new_priority)
+    thread_set_effective_priority (t, new_priority);
 
-  //intr_set_level (old_level);
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
