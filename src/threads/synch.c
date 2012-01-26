@@ -113,14 +113,19 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+
+  sema->value++;
+
   if (!list_empty (&sema->waiters))
   {
     struct list_elem *max_item = list_max (&sema->waiters, cmp_thread_priority, NULL);
     list_remove (max_item);
     struct thread *t = list_entry (max_item, struct thread, elem);
     thread_unblock (t);
+    if (t->effective_priority > thread_current ()->effective_priority)
+      thread_yield ();
   }
-  sema->value++;
+
   intr_set_level (old_level);
 }
 
@@ -270,18 +275,14 @@ lock_release (struct lock *lock)
   /* Priority Donation: remove from list of locks we hold */
   list_remove (&lock->priority_holder);
 
-  /* Interrupts are disabled so this will not preempt */
-  sema_up (&lock->semaphore);
-
   /* Priority Donation: update our effective priority if necessary */
   int old_priority = thread_get_priority ();
   int new_priority = thread_get_effective_priority (t);
-  if (t->effective_priority != new_priority)
+  if (old_priority != new_priority)
     thread_set_effective_priority (t, new_priority);
 
-  /* Priority Donation: if our new priority has decreased, yield */
-  if (new_priority < old_priority)
-    thread_yield ();
+  /* Interrupts are disabled so this will not preempt */
+  sema_up (&lock->semaphore);
 
   intr_set_level (old_level);
 }

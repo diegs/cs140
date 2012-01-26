@@ -360,9 +360,8 @@ thread_foreach (thread_action_func *func, void *aux)
 static int
 highest_thread_priority (void) 
 {
-  struct list_elem *front = list_front (&ready_list);
-  if (front == NULL) return PRI_MIN;
-  struct thread *t = list_entry (front, struct thread, elem);
+  if (list_empty (&ready_list)) return PRI_MIN;
+  struct thread *t = list_entry (list_front (&ready_list), struct thread, elem);
   return t->priority;
 }
 
