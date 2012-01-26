@@ -98,8 +98,10 @@ struct thread
 #endif
 
   /* Priority data */
-  int priority;                       /* Priority. */
-  struct thread *priority_parent;
+  int priority;                       /* 'Internal' Priority. */
+  int effective_priority;             /* Effective Priority. */
+  struct list priority_holding;       /* Locks this thread is holding. */
+  struct lock *priority_waiting;       /* Lock this thread is waiting on */
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
@@ -135,6 +137,9 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+
+int thread_get_effective_priority (struct thread *t);
+void thread_set_effective_priority (struct thread *t, int new_priority);
 
 bool cmp_thread_priority(const struct list_elem *a,
 						 const struct list_elem *b, void* aux UNUSED);

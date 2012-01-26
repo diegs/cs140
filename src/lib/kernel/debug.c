@@ -121,3 +121,20 @@ debug_backtrace_all (void)
   thread_foreach (print_stacktrace, 0);
   intr_set_level (oldlevel);
 }
+
+int
+safe_printf (const char *format, ...) 
+{
+  enum intr_level old_level = intr_disable ();
+  va_list args;
+  int retval;
+
+  va_start (args, format);
+  retval = vprintf (format, args);
+  va_end (args);
+
+  debug_backtrace ();
+
+  intr_set_level (old_level);
+  return retval;
+}

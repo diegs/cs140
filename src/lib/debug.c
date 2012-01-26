@@ -12,7 +12,7 @@
 void
 debug_backtrace (void) 
 {
-  static bool explained;
+  static bool explained = true; /* NEVER AGAIN */
   void **frame;
   
   printf ("Call stack: %p", __builtin_return_address (0));
