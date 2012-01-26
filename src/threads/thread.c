@@ -211,7 +211,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   /* Run immediately if higher priority */
-  if (t->priority > thread_get_priority ()) 
+  if (t->effective_priority > thread_get_priority ()) 
     thread_yield ();
 
   return tid;
@@ -331,7 +331,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, cmp_thread_priority, NULL);
+    list_push_back (&ready_list, &cur->elem);
 
   cur->status = THREAD_READY;
   schedule ();
