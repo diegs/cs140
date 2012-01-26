@@ -4,6 +4,7 @@
 #include <round.h>
 #include <stdint.h>
 #include "threads/thread.h"
+#include <list.h>
 
 /* Number of timer interrupts per second. */
 #define TIMER_FREQ 100
@@ -32,7 +33,7 @@ struct timer_sleeping_thread
 {
   int64_t wakeup_time;
   struct thread *t;
-  struct timer_sleeping_thread *next;
+  struct list_elem elem;
 };
 
 #endif /* devices/timer.h */

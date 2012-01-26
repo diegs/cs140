@@ -26,13 +26,15 @@ static int64_t ticks;
 static unsigned loops_per_tick;
 
 /* Linked list of sleeping threads */
-static struct timer_sleeping_thread *timer_sleeping_threads;
+static struct list timer_sleeping_threads;
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
+static bool cmp_sleeping_threads (const struct list_elem *a, 
+    const struct list_elem *b, void* aux);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. Also initializes
@@ -43,7 +45,7 @@ timer_init (void)
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
-  timer_sleeping_threads = NULL;
+  list_init (&timer_sleeping_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -91,6 +93,19 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+static bool
+cmp_sleeping_threads (const struct list_elem *a, 
+    const struct list_elem *b, void* aux UNUSED)
+{
+  struct timer_sleeping_thread *a_timer_sleeping_thread = 
+    list_entry (a, struct timer_sleeping_thread, elem);
+  struct timer_sleeping_thread *b_timer_sleeping_thread = 
+    list_entry (b, struct timer_sleeping_thread, elem);
+
+  return a_timer_sleeping_thread->wakeup_time < 
+          b_timer_sleeping_thread->wakeup_time;
+}
+
 /* Sleeps for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) 
@@ -107,21 +122,9 @@ timer_sleep (int64_t ticks)
   old_level = intr_disable ();
 
   /* insert into correct spot in list */
-  struct timer_sleeping_thread *next = timer_sleeping_threads;
-  struct timer_sleeping_thread *prev = NULL;
-  
-  while (next != NULL && next->wakeup_time < sleeping_thread->wakeup_time)
-  {
-    prev = next;
-    next = next->next;
-  }
-
-  if (prev != NULL)
-    prev->next = sleeping_thread;
-  else
-    timer_sleeping_threads = sleeping_thread;
-
-  sleeping_thread->next = next;
+  list_insert_ordered (&timer_sleeping_threads, 
+                       &sleeping_thread->elem,
+                       cmp_sleeping_threads, NULL);
 
   thread_block ();
 
@@ -209,22 +212,24 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
 
-  if (timer_sleeping_threads != NULL &&
-      timer_sleeping_threads->wakeup_time <= ticks)
+  old_level = intr_disable ();
+  struct list_elem* cur_elem = NULL;
+  for (cur_elem  = list_begin (&timer_sleeping_threads);
+        cur_elem  != list_end (&timer_sleeping_threads); 
+        cur_elem  = list_next (cur_elem )) 
   {
-    old_level = intr_disable ();
+    struct timer_sleeping_thread *sleeping_thread =
+      list_entry (cur_elem , struct timer_sleeping_thread, elem);
 
-    while (timer_sleeping_threads != NULL &&
-        timer_sleeping_threads->wakeup_time <= ticks)
+    if (sleeping_thread->wakeup_time <= ticks) 
     {
-      struct timer_sleeping_thread *sleeping_thread = timer_sleeping_threads;
-      timer_sleeping_threads = sleeping_thread->next;
+      list_remove (cur_elem);
       thread_unblock (sleeping_thread->t);
+      
     }
-
-    intr_set_level (old_level);
   }
-
+  intr_set_level (old_level);
+    
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

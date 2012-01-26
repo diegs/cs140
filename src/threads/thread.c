@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <list.h>
+#include "devices/timer.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -55,6 +56,9 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
+/* MLFQS scheduling variables */
+static fp_t load_avg;
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -99,6 +103,9 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  /* Prepare MLFQS global variables */
+  load_avg = int2fp (0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -134,6 +141,16 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  /* Update MLFQS statistics only once every second */
+  if (timer_ticks () % TIMER_FREQ == 0)
+  {
+    int current_load = list_size (&ready_list);
+    if (t != idle_thread) current_load ++;
+    load_avg = fpadd( 
+                fpmul (fpdiv (int2fp(59), int2fp (60)), load_avg), 
+                fpdiv (int2fp (current_load), int2fp (60)));
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -469,8 +486,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return fp2int (fpmul (int2fp(100), load_avg));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */

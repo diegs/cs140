@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/fixed-point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -102,6 +103,10 @@ struct thread
   int effective_priority;             /* Effective Priority. */
   struct list priority_holding;       /* Locks this thread is holding. */
   struct lock *priority_waiting;       /* Lock this thread is waiting on */
+
+  /* 4.4BSD scheduling data */
+  int nice;
+  fp_t mlfqs_priority;
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
