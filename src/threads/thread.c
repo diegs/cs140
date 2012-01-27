@@ -114,19 +114,22 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
-  /* MLFQS initialization */
-  int i;
-  for (i = 0; i < PRI_MAX + 1; i++)
-    list_init (&mlfqs_lists[i]);
+  if (thread_mlfqs)
+  {
+    /* MLFQS initialization */
+    int i;
+    for (i = 0; i < PRI_MAX + 1; i++)
+      list_init (&mlfqs_lists[i]);
 
+    /* Prepare MLFQS global variables */
+    load_avg = int2fp (0);
+  }
+  
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-
-  /* Prepare MLFQS global variables */
-  load_avg = int2fp (0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -160,11 +163,9 @@ static void
 set_mlfqs_priority (struct thread *t, int new_priority) 
 {
   /* Do not allow the idle thread mlfqs_priority to change */
-  if (t == idle_thread) return;
+  if (!idle_thread || t == idle_thread) return;
 
-  //t->mlfqs_priority = clamp (new_priority, PRI_MIN, PRI_MAX);
-  t->mlfqs_priority = PRI_DEFAULT;
-  t->priority = t->mlfqs_priority;
+  t->mlfqs_priority = clamp (new_priority, PRI_MIN, PRI_MAX);
 
   /* Move the element to the list corresponding to its new
      priority if it is in a ready queue */
@@ -176,17 +177,10 @@ set_mlfqs_priority (struct thread *t, int new_priority)
     intr_set_level (old_level);
   }
 
-
-}
-
-int 
-get_mlfqs_num_ready () 
-{
-  return mlfqs_num_ready;
 }
 
 static void
-mlfqs_action_update_thread_priority (struct thread *t, void*aux UNUSED)
+mlfqs_action_update_thread_priority (struct thread *t, void *aux UNUSED)
 {
   set_mlfqs_priority (t, compute_mlfqs_priority (t));
 }
@@ -213,22 +207,24 @@ mlfqs_scheduler_tick (void)
       fpadd (cur_thread->recent_cpu, int2fp (1));
   }
 
-  /* Update MLFQS: priority for all threads */
-  thread_foreach (mlfqs_action_update_thread_priority, NULL);
+  /* Update MLFQS: priority for all threads, once every 4 ticks */
+  if (timer_ticks () % TIME_SLICE == 0)
+    thread_foreach (mlfqs_action_update_thread_priority, NULL);
 
-  /* Update MLFQS: statistics only once every second */
+  /* Update MLFQS: recent CPU, once every second */
   if (timer_ticks () % TIMER_FREQ == 0)
   {
     /* Update load_avg */
     int current_load = mlfqs_num_ready;
-    if (cur_thread != idle_thread) current_load ++;
-    load_avg = fpadd( 
-                fpmul (fpdiv (int2fp(59), int2fp (60)), load_avg), 
-                fpdiv (int2fp (current_load), int2fp (60)));
+    if (cur_thread != idle_thread) current_load++;
+    load_avg = fpadd(fpmul (fpdiv (int2fp(59), int2fp (60)), load_avg),
+		     fpdiv (int2fp (current_load), int2fp (60)));
 
     /* Update recent_cpu for all threads */
     thread_foreach (mlfqs_action_update_recent_cpu, NULL);
   }
+
+
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -335,7 +331,6 @@ thread_create (const char *name, int priority,
   /* Run immediately if higher priority */
   if (t->effective_priority > thread_get_priority ())
     thread_yield ();
-  
 
   return tid;
 }
@@ -468,8 +463,7 @@ thread_yield (void)
     if (!thread_mlfqs) list_push_back (&ready_list, &cur->elem);
     else 
     {
-      list_push_back (&mlfqs_lists[cur->mlfqs_priority], 
-                        &cur->mlfqs_elem);
+      list_push_back (&mlfqs_lists[cur->mlfqs_priority], &cur->mlfqs_elem);
       mlfqs_num_ready++;
     }
   }
