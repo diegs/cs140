@@ -112,25 +112,22 @@ timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
   enum intr_level old_level;
-  struct timer_sleeping_thread *sleeping_thread;
+  struct timer_sleeping_thread sleeping_thread;
 
   /* create sleeping data structure */
-  sleeping_thread = malloc (sizeof (struct timer_sleeping_thread));
-  sleeping_thread->wakeup_time = start + ticks;
-  sleeping_thread->t = thread_current ();
+  sleeping_thread.wakeup_time = start + ticks;
+  sleeping_thread.t = thread_current ();
 
   old_level = intr_disable ();
 
   /* insert into correct spot in list */
   list_insert_ordered (&timer_sleeping_threads, 
-                       &sleeping_thread->elem,
+                       &sleeping_thread.elem,
                        cmp_sleeping_threads, NULL);
 
   thread_block ();
 
   intr_set_level (old_level);
-
-  free (sleeping_thread);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be

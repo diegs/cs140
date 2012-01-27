@@ -154,14 +154,14 @@ test_mlfqs_load_avg (void)
 
 static void
 load_thread (void *seq_no_) 
-{
+{ 
   int seq_no = (int) seq_no_;
   int sleep_time = TIMER_FREQ * (10 + seq_no);
   int spin_time = sleep_time + TIMER_FREQ * THREAD_CNT;
   int exit_time = TIMER_FREQ * (THREAD_CNT * 2);
 
   timer_sleep (sleep_time - timer_elapsed (start_time));
-  while (timer_elapsed (start_time) < spin_time)
+  while (timer_elapsed (start_time) < spin_time) 
     continue;
   timer_sleep (exit_time - timer_elapsed (start_time));
 }

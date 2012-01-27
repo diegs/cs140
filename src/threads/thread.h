@@ -110,8 +110,9 @@ struct thread
 
   /* 4.4BSD scheduling data */
   int nice;
-  fp_t mlfqs_priority;
+  int mlfqs_priority;
   fp_t recent_cpu;
+  struct list_elem mlfqs_elem;
 
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
