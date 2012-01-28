@@ -30,13 +30,42 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct timer_sleeping_thread 
+{
+  int64_t wakeup_time;
+  struct thread *t;
+  struct list_elem elem;
+};
+
+Struct representing a sleeping thread.  wakeup_time is the earliest tick
+that this thread can wake up.
+
+static struct list timer_sleeping_threads;
+List of current sleeping threads, managed by the timer.  This list is
+ordered by wakeup times, with the soonest wake-up times at the front of
+the list.
+
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+In timer_sleep(), we create a timer_sleeping_thread struct for the current
+thread, and calculate the earliest wake up time (in ticks).  We then add
+this to the global list of sleeping threads, and block the thread.
+
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
+
+The global list of sleeping threads is ordered, with the soonest wake-up
+times at the front.  The time interrupt handler only has to look at the
+head of the list, check to see if the wake-up time for that thread has
+passed, and if it has: wake up that thread, and traverse the list until we
+see a thread whose wakeup time has not passed.  At most, the interrupt
+handler examines one thread which does not need to be woken, making the
+runtime O(number of threads that need to be woken + 1).
 
 ---- SYNCHRONIZATION ----
 
