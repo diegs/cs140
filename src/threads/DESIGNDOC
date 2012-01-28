@@ -1,8 +1,8 @@
-			+--------------------+
+			--------------------
 			|        CS 140      |
 			| PROJECT 1: THREADS |
 			|   DESIGN DOCUMENT  |
-			+--------------------+
+			--------------------
 				   
 ---- GROUP ----
 
@@ -95,6 +95,35 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+The following global variables were declared:
+
+  struct list mlfqs_lists[PRI_MAX + 1];
+This global array is the MLFQS equivalent of the ready_list. There is one
+list for each possible priority.
+
+  int mlfqs_num_ready;
+This global variable maintains the total number of threads in the mlfqs_lists
+array. 
+
+  fp_t load_avg;
+This global variable maintains the load_avg as described in the assignment
+description.
+
+The following fields were added to the thread struct.
+  /* 4.4BSD scheduling data */
+  int nice;
+  int mlfqs_priority;
+  fp_t recent_cpu;
+  struct list_elem mlfqs_elem;
+
+The nice field stores the current nice value of the thread.
+
+The mlfqs_priority field stores the current mlfqs priority based on recent_cpu
+and the global load_avg as described in the assignment description.
+
+The recent_cpu field stores a value that approximates how much the thread
+has been using the CPU recently. 
+
 ---- ALGORITHMS ----
 
 >> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
@@ -105,7 +134,7 @@ Diego Pontoriero <dpontori@stanford.edu>
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0
+ 0     
  4
  8
 12
@@ -130,12 +159,49 @@ ticks   A   B   C   A   B   C   to run
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
 
+Our design uses an array of ready lists for each possible priority. Since the 
+library list implementation is a doubly linked, this means that insertion
+into and removal from a ready list are constant time operations. We maintain
+a count of the number of threads in the MLFQS so that computing the load 
+average does not require a linear time operation. The difficulty with this is
+that we must remember to update this value every time a thread changes to or
+from the THREAD_READY state. 
+
+We implemented the MLFQS system in parallel with the original priority
+scheduling system. We did this because we wanted to reduce the likelihood of
+introducing bugs into the first scheduler. We switch between the two systems at
+only a few key points in the code that relate to scheduling: thread_unblock,
+thread_yield, next_thread_to_run. Unfortunately we could not separate the two
+systems entirely. In order to prevent priority donation from happening under
+MLFQS, we do not update effective priorities when thread_mlfqs is set.  This is
+implemented simply as a return case in a single function
+(thread_set_effective_priority).  On the other hand, we actually want the
+influence of yielding based on priorities in the case of locks. Because of
+this, our MLFQS system keeps a thread's effective_priority and its
+mlfqs_priority the same.
+
+Given additional time we might maintain a variable that stores the highest
+priority of any thread at any given moment. This would allow us to find the
+next thread during scheduling slightly faster. As it stands now, finding the
+next thread involves checking all of the ready lists in decreasing order of
+priority until a thread is found. 
+
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
 >> decide to implement it the way you did?  If you created an
 >> abstraction layer for fixed-point math, that is, an abstract data
 >> type and/or a set of functions or macros to manipulate fixed-point
 >> numbers, why did you do so?  If not, why not?
+
+We implemented fixed point in the simplest way possible. We back the fixed 
+point value with a signed integer using a typedef and center the range at 0
+(i.e. no bias).  By using a signed integer, we get signedness for free and
+multiplication and division work as described in the assignment description.
+By using a typedef, we can replace the fixed point representation in the
+future if desired. We expose fixed point operations as a set of inlined
+functions. We did not use macros because they can introduce subtle bugs. For
+example, the order of operations may not be as intended when nesting macros
+because of their simple text replacement behavior.
 
 			   SURVEY QUESTIONS
 			   ================

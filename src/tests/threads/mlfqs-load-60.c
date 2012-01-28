@@ -148,8 +148,12 @@ load_thread (void *aux UNUSED)
   int64_t exit_time = spin_time + 60 * TIMER_FREQ;
 
   thread_set_nice (20);
+  //printf ("Thread %d before first sleep\n", thread_tid ());
   timer_sleep (sleep_time - timer_elapsed (start_time));
-  while (timer_elapsed (start_time) < spin_time)
+  //printf ("Thread %d after first sleep\n", thread_tid ());
+  while (timer_elapsed (start_time) < spin_time) {
+    //printf ("Thread %d spinning\n", thread_tid ());
     continue;
+  }
   timer_sleep (exit_time - timer_elapsed (start_time));
 }
