@@ -219,11 +219,14 @@ mlfqs_scheduler_tick (void)
 
     /* Update recent_cpu for all threads */
     thread_foreach (mlfqs_action_update_recent_cpu, NULL);
-  }
 
-  /* Update MLFQS: priority for all threads, once every 4 ticks */
-  if (timer_ticks () % TIME_SLICE == 0)
+    /* Update priority for all threads */
     thread_foreach (mlfqs_action_update_thread_priority, NULL);
+  } else if (timer_ticks () % TIME_SLICE == 0) {
+    /* Theoretically we should update all priorities every 4 ticks, but
+       the only thing that's changed is our ticks so only update us */
+    mlfqs_action_update_thread_priority (thread_current (), NULL);
+  }
 }
 
 /* Called by the timer interrupt handler at each timer tick.
