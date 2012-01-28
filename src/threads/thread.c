@@ -153,7 +153,7 @@ static int
 compute_mlfqs_priority (struct thread *t) 
 {
   fp_t recent_contrib = fpdiv (t->recent_cpu, int2fp (4));
-  fp_t nice_contrib = fpmul (t->recent_cpu, int2fp (2));
+  fp_t nice_contrib = fpmul (int2fp (t->nice), int2fp (2));
   int new_priority = PRI_MAX - fp2int (recent_contrib) 
                       - fp2int (nice_contrib);
   return clamp (new_priority, PRI_MIN, PRI_MAX);
@@ -166,6 +166,7 @@ set_mlfqs_priority (struct thread *t, int new_priority)
   if (!idle_thread || t == idle_thread) return;
 
   t->mlfqs_priority = clamp (new_priority, PRI_MIN, PRI_MAX);
+  t->effective_priority = t->mlfqs_priority;
 
   /* Move the element to the list corresponding to its new
      priority if it is in a ready queue */
@@ -207,11 +208,7 @@ mlfqs_scheduler_tick (void)
       fpadd (cur_thread->recent_cpu, int2fp (1));
   }
 
-  /* Update MLFQS: priority for all threads, once every 4 ticks */
-  if (timer_ticks () % TIME_SLICE == 0)
-    thread_foreach (mlfqs_action_update_thread_priority, NULL);
-
-  /* Update MLFQS: recent CPU, once every second */
+  /* Update MLFQS: load average and recent CPU, once every second */
   if (timer_ticks () % TIMER_FREQ == 0)
   {
     /* Update load_avg */
@@ -224,7 +221,9 @@ mlfqs_scheduler_tick (void)
     thread_foreach (mlfqs_action_update_recent_cpu, NULL);
   }
 
-
+  /* Update MLFQS: priority for all threads, once every 4 ticks */
+  if (timer_ticks () % TIME_SLICE == 0)
+    thread_foreach (mlfqs_action_update_thread_priority, NULL);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -589,15 +588,39 @@ thread_set_effective_priority (struct thread *t, int new_priority)
   }
 }
 
+static
+struct thread *mlfqs_get_highest_priority_thread (void)
+{
+   int i;
+   for (i = PRI_MAX; i >= PRI_MIN; i--) 
+   {
+     struct list *cur_list = &mlfqs_lists[i];
+     if (!list_empty (cur_list)) 
+     {
+       return list_entry (list_front (cur_list), 
+			  struct thread, mlfqs_elem);
+     }
+   }
+
+   return NULL;
+}
+
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice) 
 {
   struct thread *cur_thread = thread_current();
-
   cur_thread->nice = clamp (nice, NICE_MIN, NICE_MAX);
   enum intr_level old_level = intr_disable ();
   set_mlfqs_priority (cur_thread, compute_mlfqs_priority (cur_thread));
+
+  /* if no longer highest priority, yield */
+  struct thread *highest_priority = mlfqs_get_highest_priority_thread ();
+  if (highest_priority && highest_priority->mlfqs_priority >
+      cur_thread->mlfqs_priority)
+  {
+    thread_yield ();
+  }
   intr_set_level (old_level);
 }
 
@@ -751,16 +774,12 @@ next_thread_to_run (void)
       return list_entry (max_item, struct thread, elem);
     }
   } else {
-    int i;
-    for (i = PRI_MAX; i >= PRI_MIN; i--) 
+    struct thread *next = mlfqs_get_highest_priority_thread ();
+    if (next)
     {
-      struct list *cur_list = &mlfqs_lists[i];
-      if (!list_empty (cur_list)) 
-      {
-        mlfqs_num_ready--;
-        return list_entry (list_pop_front (cur_list), 
-                          struct thread, mlfqs_elem);
-      }
+      mlfqs_num_ready--;
+      list_remove (&next->mlfqs_elem);
+      return next;
     }
   }
   return idle_thread;
