@@ -265,8 +265,17 @@ ticks   A   B   C   A		B		C	  to run
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
+If a thread's priority is changed to a priority equal to the current
+thread's priority, there was ambiguity about whether we should switch to
+the other thread.
+
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+
+Though the design doc specifies updating all threads' priorities every
+four ticks, we only update the current thread's priority, since the
+factors that influence the priorities of other threads cannot change until
+the load average changes.
 
 ---- RATIONALE ----
 
