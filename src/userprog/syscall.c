@@ -1,10 +1,13 @@
-#include "userprog/syscall.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <syscall-nr.h>
+#include "devices/shutdown.h"
+#include "userprog/process.h"
+#include "userprog/syscall.h"
 #include "threads/interrupt.h"
+#include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include <stdint.h>
 
 static void syscall_handler (struct intr_frame *);
 
@@ -63,12 +66,115 @@ put_byte (uint8_t *udst, uint8_t byte)
     return false;
 }
 
-void
-syscall_init (void) 
+/* Like strlcpy in string.c but uses the safe kernel-user methods */
+static size_t
+user_strlcpy (char *dst, const char *src, size_t size)
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  size_t i;
+  int result;
+  char byte;
+
+  ASSERT (dst != NULL);
+  ASSERT (src != NULL);
+
+  if (size == 0) return 0;
+
+  byte = 0;
+  for (i = 0; i < size; i++)
+  {
+    /* Make sure memory access was valid */
+    result = get_byte ((uint8_t*)src + i);
+    if (result == -1) break;
+
+    /* Read the byte */
+    byte = *((char*)result);
+    if (result == '\0') break;
+
+    dst[i] = byte;
+  }
+
+  dst[i-1] = '\0';
+  return i;
 }
 
+/**
+ * Terminates Pintos by calling shutdown_power_off().
+ *
+ * Arguments:
+ * - none
+ * Returns: 
+ * - none
+ */
+static void
+sys_halt (struct intr_frame *f UNUSED)
+{
+  shutdown_power_off ();
+}
+
+/**
+ * Terminates the current user program, returning status to the kernel.
+ *
+ * Arguments: 
+ * - int status: status that is returned to the parent process
+ * Returns: 
+ * - none
+ */
+static void
+sys_exit (struct intr_frame *f UNUSED)
+{
+  int status = *((int*)frame_arg (f, 0));
+  struct process_status *ps = thread_current ()->p_status;
+  if (ps != NULL)
+  {
+    /* Update status and notify any waiting parent of this */
+    lock_acquire (&ps->l);
+    ps->status = status;
+    cond_signal (&ps->cond, &ps->l);
+    lock_release (&ps->l);
+  }
+  process_exit ();
+}
+
+/**
+ * Runs the executable whose name is given in cmd_line, passing any given
+ * arguments, and returns the new process's program id (pid).
+ *
+ * Arguments: 
+ * - const char *cmd_line: the command line to invoke.
+ * Returns: 
+ * - the new process' pid, or -1 if the program cannot load or run.
+ */
+static int
+sys_exec (struct intr_frame *f)
+{
+  /* Copy commandline from user to kernel space */
+  char *user_cmdline = *((char**)frame_arg (f, 0));
+  char *kern_cmdline = palloc_get_page (0);
+  if (kern_cmdline == NULL) return -1;
+  user_strlcpy (kern_cmdline, user_cmdline, PGSIZE);
+
+  /* Execute the process */
+  tid_t tid = process_execute (kern_cmdline);
+
+  /* Clean up and return results */
+  palloc_free_page (kern_cmdline); 
+  return (tid == TID_ERROR) ? -1 : tid;
+}
+
+/**
+ * Waits for a child process pid and retrieves the child's exit status.
+ *
+ * Arguments: 
+ * - int pid: the pid of the child process to wait on
+ * Returns: 
+ * - the exit status of the child process, or -1 if it not a valid child process
+ */
+static int
+sys_wait (struct intr_frame *f UNUSED)
+{
+  int tid = *((int*)frame_arg (f, 0));
+  return process_wait (tid);
+}
 
 static uint32_t
 sys_write (struct intr_frame *f) 
@@ -97,26 +203,41 @@ sys_write (struct intr_frame *f)
   return result; 
 }
 
+
+/* Registers the system call handler for internal interrupts. */
+void
+syscall_init (void) 
+{
+  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+}
+
+/* Convenience bit-mashing method */
+static uint32_t int_to_uint32_t (int i)
+{
+  return *((uint32_t*)i);
+}
+
+/* Handles system calls using the internal interrupt mechanism. The
+   supported system calls are defined in lib/user/syscall.h */
 static void
 syscall_handler (struct intr_frame *f) 
 {
   uint32_t syscall = get_frame_syscall (f);
-
   uint32_t eax = f->eax;
 
   switch (syscall) 
   {
     case SYS_HALT:
-      printf ("Calling SYS_HALT, not implemented.\n");
+      sys_halt (f);
       break;
     case SYS_EXIT:
-      printf ("Calling SYS_EXIT, not implemented.\n");
+      sys_exit (f);
       break;
     case SYS_EXEC:
-      printf ("Calling SYS_EXEC, not implemented.\n");
+      eax = int_to_uint32_t (sys_exec (f));
       break;
     case SYS_WAIT:
-      printf ("Calling SYS_WAIT, not implemented.\n");
+      eax = int_to_uint32_t (sys_wait (f));
       break;
     case SYS_CREATE:
       printf ("Calling SYS_CREATE, not implemented.\n");

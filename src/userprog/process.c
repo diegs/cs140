@@ -1,6 +1,7 @@
 #include "userprog/process.h"
 #include <debug.h>
 #include <inttypes.h>
+#include <list.h>
 #include <round.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
@@ -43,6 +45,7 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+
   return tid;
 }
 
@@ -87,12 +90,39 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  /* TODO implement. Infinite loops for now. */
-  while (1)
-    ;
-  /*return -1;*/
+  struct list_elem *e;
+  struct process_status *p_status = NULL;
+  struct thread *cur = thread_current ();
+  int status;
+
+  /* Check if tid is one of children */
+  for (e = list_begin (&cur->p_children); e != list_end
+	 (&cur->p_children); e = list_next (e))
+  {
+    p_status = list_entry (e, struct process_status, elem);
+    if (p_status->t->tid == child_tid)
+      break;
+  }
+
+  /* If not a valid child, or has already been removed, return -1 */
+  if (e == list_end (&cur->p_children)) return -1;
+
+  /* If still running, wait for a signal */
+  lock_acquire (&p_status->l);
+  while (p_status->status == PROCESS_RUNNING)
+    cond_wait (&p_status->cond, &p_status->l);
+  status = p_status->status;
+  p_status->t->p_status = NULL; /* Prevent child from attempting to
+				   dereference dead memory */
+
+  /* Clean up the status struct since it is now dead */
+  list_remove (&p_status->elem);
+  lock_release (&p_status->l);
+  palloc_free_page (p_status);
+
+  return status;
 }
 
 /* Free the current process's resources. */

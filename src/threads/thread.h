@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/fixed-point.h"
 
+
 /* States in a thread's life cycle. */
 enum thread_status
 {
@@ -99,7 +100,9 @@ struct thread
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
-  uint32_t *pagedir;                  /* Page directory. */
+  uint32_t *pagedir;                   /* Page directory. */
+  struct process_status *p_status;     /* Process control status info */
+  struct list p_children;              /* List of children */
 #endif
 
   /* Priority data */
