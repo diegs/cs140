@@ -131,6 +131,7 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
+  struct list_elem *e;
   struct thread *cur = thread_current ();
   struct process_status *ps = NULL;
   uint32_t *pd;
