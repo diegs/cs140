@@ -287,7 +287,6 @@ load (struct process_info * pinfo, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
-
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
