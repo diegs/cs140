@@ -129,6 +129,7 @@ sys_exit (struct intr_frame *f UNUSED)
     /* Update status and notify any waiting parent of this */
     lock_acquire (&ps->l);
     ps->status = status;
+    ps->t = NULL;
     cond_signal (&ps->cond, &ps->l);
     lock_release (&ps->l);
   }
