@@ -29,7 +29,7 @@ struct process_info {
 };
 
 static bool load (struct process_info *pinfo, void (**eip) (void), void **esp);
-void push_args(struct process_info * pinfo, void **esp);
+static void push_args(struct process_info * pinfo, void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -268,6 +268,7 @@ struct Elf32_Phdr
 #define PF_R 4          /* Readable. */
 
 static bool setup_stack (void **esp);
+static void stack_push (void ** esp, void * data, size_t size);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -501,7 +502,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Push arguments, their references, and argc onto the stack */
-void 
+static void 
 push_args(struct process_info * pinfo, void **esp) {
 
   /* Build up the index of where text is located */
@@ -525,12 +526,12 @@ push_args(struct process_info * pinfo, void **esp) {
   for (i = pinfo->argc - 1; i >= 0; i--) {
 	stack_push(esp, &argv[i], sizeof(char *));
   }
-  int saved_esp = *esp;
+  void * saved_esp = *esp;
   stack_push(esp, &saved_esp, sizeof(void *));
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
 
 }
-void
+static void
 stack_push (void ** esp, void * data, size_t size)
 {
   *(char *)esp -= size;
