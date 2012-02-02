@@ -102,7 +102,7 @@ process_wait (tid_t child_tid)
 	 (&cur->p_children); e = list_next (e))
   {
     p_status = list_entry (e, struct process_status, elem);
-    if (p_status->t->tid == child_tid)
+    if (p_status->tid == child_tid)
       break;
   }
 
@@ -114,8 +114,6 @@ process_wait (tid_t child_tid)
   while (p_status->status == PROCESS_RUNNING)
     cond_wait (&p_status->cond, &p_status->l);
   status = p_status->status;
-  p_status->t->p_status = NULL; /* Prevent child from attempting to
-				   dereference dead memory */
 
   /* Clean up the status struct since it is now dead */
   list_remove (&p_status->elem);

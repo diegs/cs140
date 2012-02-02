@@ -122,7 +122,7 @@ sys_halt (struct intr_frame *f UNUSED)
 static void
 sys_exit (struct intr_frame *f UNUSED)
 {
-  int status = *((int*)frame_arg (f, 0));
+  int status = *((int*)frame_arg (f, 1));
   struct process_status *ps = thread_current ()->p_status;
   if (ps != NULL)
   {
@@ -148,7 +148,7 @@ static int
 sys_exec (struct intr_frame *f)
 {
   /* Copy commandline from user to kernel space */
-  char *user_cmdline = *((char**)frame_arg (f, 0));
+  char *user_cmdline = *((char**)frame_arg (f, 1));
   char *kern_cmdline = palloc_get_page (0);
   if (kern_cmdline == NULL) return -1;
   user_strlcpy (kern_cmdline, user_cmdline, PGSIZE);
@@ -172,7 +172,7 @@ sys_exec (struct intr_frame *f)
 static int
 sys_wait (struct intr_frame *f UNUSED)
 {
-  int tid = *((int*)frame_arg (f, 0));
+  int tid = *((int*)frame_arg (f, 1));
   return process_wait (tid);
 }
 
