@@ -123,7 +123,7 @@ process_wait (tid_t child_tid)
 	 (&cur->p_children); e = list_next (e))
   {
     p_status = list_entry (e, struct process_status, elem);
-    if (p_status->t->tid == child_tid)
+    if (p_status->tid == child_tid)
       break;
   }
 
@@ -135,8 +135,10 @@ process_wait (tid_t child_tid)
   while (p_status->status == PROCESS_RUNNING)
     cond_wait (&p_status->cond, &p_status->l);
   status = p_status->status;
-  p_status->t->p_status = NULL; /* Prevent child from attempting to
-				   dereference dead memory */
+
+  /* Set child's pointer to NULL */
+  if (p_status->t != NULL)
+    p_status->t->p_status = NULL;
 
   /* Clean up the status struct since it is now dead */
   list_remove (&p_status->elem);
@@ -150,8 +152,23 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
+  struct list_elem *e;
   struct thread *cur = thread_current ();
+  struct process_status *ps = NULL;
   uint32_t *pd;
+
+  /* Destroy all the remaining child process_status objects */
+  for (e = list_begin (&cur->p_children); e != list_end
+	 (&cur->p_children); e = list_next (e))
+  {
+    ps = list_entry (e, struct process_status, elem);
+    lock_acquire (&ps->l); 
+    list_remove (&ps->elem); /* Remove from list */
+    if (ps->t != NULL)       /* Tell child to stop worrying */
+      ps->t->p_status = NULL;
+    lock_release (&ps->l);
+    palloc_free_page (ps);   /* Delete status struct */
+  }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
