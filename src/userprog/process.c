@@ -521,14 +521,18 @@ push_args(struct process_info * pinfo, void **esp) {
 	stack_push(esp, &b, sizeof(b));
   }
 
-
+  /* Push the references to the args, in reverse order */
+  int zero = 0;
+  stack_push(esp, &zero, sizeof(zero));	
   for (i = pinfo->argc - 1; i >= 0; i--) {
 	stack_push(esp, &argv[i], sizeof(char *));
   }
   void * saved_esp = *esp;
   stack_push(esp, &saved_esp, sizeof(void *));
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
-
+  /* Push the return address */
+  stack_push(esp, &zero, sizeof(zero));	
+  printf("done pushing args \n");
 }
 static void
 stack_push (void ** esp, void * data, size_t size)
