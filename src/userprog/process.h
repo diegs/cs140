@@ -10,8 +10,8 @@
 struct process_status
 {
   tid_t tid;                 /* Child thread id */
-  struct thread *t;          /* Child thread pointer */
   int status;                /* Exit status */
+  bool parent_alive;         /* Flag for parent waiting */
   struct condition cond;     /* Condition for signaling parent */
   struct lock l;             /* Lock for managing access to struct */
   struct list_elem elem;     /* List placement in parent */

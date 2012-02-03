@@ -41,7 +41,7 @@ process_execute (const char *file_name)
 {
   tid_t tid;
 
-  struct process_info * pinfo =  malloc(sizeof(pinfo));
+  struct process_info *pinfo =  malloc(sizeof(pinfo));
   memset(pinfo, 0, sizeof (struct process_info));
   
   /* Make a copy of FILE_NAME.
@@ -66,7 +66,7 @@ process_execute (const char *file_name)
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
   if (tid == TID_ERROR) {
     palloc_free_page (pinfo->args_copy); 
-	free(pinfo);
+    free(pinfo);
   }
   return tid;
 }
@@ -88,9 +88,10 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (pinfo, &if_.eip, &if_.esp);
 
-  /* If load failed, quit. */
   palloc_free_page (file_name);
   free(pinfo);
+
+  /* If load failed, quit. */
   if (!success) 
     thread_exit ();
 
@@ -140,10 +141,6 @@ process_wait (tid_t child_tid)
 
   status = p_status->status;
 
-  /* Set child's pointer to NULL */
-  if (p_status->t != NULL)
-    p_status->t->p_status = NULL;
-
   /* Clean up the status struct since it is now dead */
   list_remove (&p_status->elem);
   lock_release (&p_status->l);
@@ -160,18 +157,32 @@ process_exit (void)
   struct thread *cur = thread_current ();
   struct process_status *ps = NULL;
   uint32_t *pd;
+  bool ok_to_delete;
 
-  /* Destroy all the remaining child process_status objects */
+  /* Interact with status object */
+  lock_acquire (&cur->p_status->l);
+
+  /* Print exit message */
+  printf ("%s: exit(%d)\n", cur->name, cur->p_status->status);
+
+  /* Clean up status item if applicable */
+  ok_to_delete = (!cur->p_status->parent_alive);
+  lock_release (&cur->p_status->l);
+  if (ok_to_delete)
+    palloc_free_page (cur->p_status);
+
+  /* Unlink all the remaining child process_status objects */
   for (e = list_begin (&cur->p_children); e != list_end
 	 (&cur->p_children); e = list_next (e))
   {
     ps = list_entry (e, struct process_status, elem);
     lock_acquire (&ps->l); 
     list_remove (&ps->elem); /* Remove from list */
-    if (ps->t != NULL)       /* Tell child to stop worrying */
-      ps->t->p_status = NULL;
+    ok_to_delete = (ps->status != PROCESS_RUNNING);
+    ps->parent_alive = false; /* Avoid race condition */
     lock_release (&ps->l);
-    palloc_free_page (ps);   /* Delete status struct */
+    if (ok_to_delete)
+      palloc_free_page (ps);   /* Delete status struct */
   }
 
   /* Destroy the current process's page directory and switch back

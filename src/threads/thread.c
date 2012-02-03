@@ -321,8 +321,8 @@ thread_create (const char *name, int priority,
   /* Initialize PCB */
   list_init (&t->p_children);   /* List of child processes */
   t->p_status->tid = t->tid;
-  t->p_status->t = t;
   t->p_status->status = PROCESS_RUNNING;
+  t->p_status->parent_alive = true;
   lock_init (&t->p_status->l);
   cond_init (&t->p_status->cond);
 

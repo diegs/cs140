@@ -127,7 +127,6 @@ sys_exit (struct intr_frame *f)
     /* Update status and notify any waiting parent of this */
     lock_acquire (&ps->l);
     ps->status = status;
-    ps->t = NULL;
     cond_signal (&ps->cond, &ps->l);
     lock_release (&ps->l);
   }
@@ -255,6 +254,10 @@ static uint32_t int_to_uint32_t (int i)
 static void
 syscall_handler (struct intr_frame *f) 
 {
+  if (get_byte (f->esp) == -1) {
+    sys_exit (f); /* This doesn't work */
+  }
+
   uint32_t syscall = get_frame_syscall (f);
   uint32_t eax = f->eax;
 
@@ -302,4 +305,5 @@ syscall_handler (struct intr_frame *f)
   }
 
   f->eax = eax;
+
 }
