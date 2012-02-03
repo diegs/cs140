@@ -175,6 +175,16 @@ sys_wait (struct intr_frame *f UNUSED)
   return process_wait (tid);
 }
 
+
+static struct process_status*
+get_cur_process (void) 
+{
+  // TODO: Verify that it is actually possible to grab the current
+  // thread like this here
+  struct thread *cur_thread = thread_current ();
+  return cur_thread->p_status;
+}
+
 static bool
 sys_create (struct intr_frame *f)
 {
@@ -199,13 +209,20 @@ sys_open (struct intr_frame *f)
 
   if (file == NULL) return -1;
 
-  // TODO: Verify that it is actually possible to grab the current
-  // thread like this here
-  struct thread *cur_thread = thread_current ();
-  int fd = process_add_file (cur_thread->p_status, file);
+  int fd = process_add_file (get_cur_process (), file);
   return fd;
 }
 
+static int32_t
+sys_filesize (struct intr_frame *f) 
+{
+  int fd = *(int*)frame_arg(f, 1);
+
+  struct file* file = process_get_file (get_cur_process (), fd);
+  if (file == NULL) return -1;
+
+  return file_length (file);
+}
 
 static uint32_t
 sys_write (struct intr_frame *f) 
@@ -287,7 +304,7 @@ syscall_handler (struct intr_frame *f)
       eax = sys_open (f);
       break;
     case SYS_FILESIZE:
-      printf ("Calling SYS_FILESIZE, not implemented.\n");
+      eax = sys_filesize (f);
       break;
     case SYS_READ:
       printf ("Calling SYS_READ, not implemented.\n");
