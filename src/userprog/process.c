@@ -120,35 +120,62 @@ int
 process_wait (tid_t child_tid) 
 {
   struct list_elem *e;
-  struct process_status *p_status = NULL;
+  struct process_status *pcb = NULL;
   struct thread *cur = thread_current ();
   int status;
 
   /* Check if tid is one of children */
-  for (e = list_begin (&cur->p_children); e != list_end
-	 (&cur->p_children); e = list_next (e))
+  for (e = list_begin (&cur->pcb_children); e != list_end
+	 (&cur->pcb_children); e = list_next (e))
   {
-    p_status = list_entry (e, struct process_status, elem);
-    if (p_status->tid == child_tid)
+    pcb = list_entry (e, struct process_status, elem);
+    if (pcb->tid == child_tid)
       break;
   }
 
   /* If not a valid child, or has already been removed, return -1 */
-  if (e == list_end (&cur->p_children)) return -1;
+  if (e == list_end (&cur->pcb_children)) return -1;
 
   /* If still running, wait for a signal */
-  lock_acquire (&p_status->l);
-  while (p_status->status == PROCESS_RUNNING)
-    cond_wait (&p_status->cond, &p_status->l);
+  lock_acquire (&pcb->l);
+  while (pcb->status == PROCESS_RUNNING)
+    cond_wait (&pcb->cond, &pcb->l);
 
-  status = p_status->status;
+  status = pcb->status;
 
   /* Clean up the status struct since it is now dead */
-  list_remove (&p_status->elem);
-  lock_release (&p_status->l);
-  palloc_free_page (p_status);
+  list_remove (&pcb->elem);
+  if (pcb->t != NULL)
+    pcb->t->pcb = NULL;
+  lock_release (&pcb->l);
+  free (pcb);
 
   return status;
+}
+
+/* Creates a PCB for a thread and initialize relevant fields */
+void
+process_create_pcb (struct thread *t)
+{
+  /* Allocate object */
+  t->pcb = malloc (sizeof (struct process_status));
+  if (t->pcb == NULL) return;
+
+  /* Initialize object */
+  t->pcb->tid = t->tid;
+  t->pcb->t = t;
+  t->pcb->status = PROCESS_RUNNING;
+  lock_init (&t->pcb->l);
+  cond_init (&t->pcb->cond);
+
+   /* Initialize list of child processes */
+  list_init (&t->pcb_children);
+
+  /* Set invalid exit code */
+  t->exit_code = PROCESS_RUNNING;
+
+  /* Link new thread's PCB up to its parent thread */
+  list_push_back (&thread_current ()->pcb_children, &t->pcb->elem);
 }
 
 /* Free the current process's resources. */
@@ -157,34 +184,33 @@ process_exit (void)
 {
   struct list_elem *e;
   struct thread *cur = thread_current ();
-  struct process_status *ps = NULL;
+  struct process_status *pcb = NULL;
   uint32_t *pd;
-  bool ok_to_delete;
-
-  /* Interact with status object */
-  lock_acquire (&cur->p_status->l);
 
   /* Print exit message */
-  printf ("%s: exit(%d)\n", cur->name, cur->p_status->status);
+  printf ("%s: exit(%d)\n", cur->name, cur->exit_code);
 
-  /* Clean up status item if applicable */
-  ok_to_delete = (!cur->p_status->parent_alive);
-  lock_release (&cur->p_status->l);
-  if (ok_to_delete)
-    palloc_free_page (cur->p_status);
-
-  /* Unlink all the remaining child process_status objects */
-  for (e = list_begin (&cur->p_children); e != list_end
-	 (&cur->p_children); e = list_next (e))
+  /* Interact with our pcb object */
+  if (cur->pcb != NULL)
   {
-    ps = list_entry (e, struct process_status, elem);
-    lock_acquire (&ps->l); 
-    list_remove (&ps->elem); /* Remove from list */
-    ok_to_delete = (ps->status != PROCESS_RUNNING);
-    ps->parent_alive = false; /* Avoid race condition */
-    lock_release (&ps->l);
-    if (ok_to_delete)
-      palloc_free_page (ps);   /* Delete status struct */
+    lock_acquire (&cur->pcb->l);
+    cur->pcb->status = cur->exit_code;
+    cur->pcb->t = NULL;
+    cond_signal (&cur->pcb->cond, &cur->pcb->l);
+    lock_release (&cur->pcb->l);
+  }
+
+  /* Kill all the remaining child pcb objects */
+  for (e = list_begin (&cur->pcb_children); e != list_end
+	 (&cur->pcb_children); e = list_next (e))
+  {
+    pcb = list_entry (e, struct process_status, elem);
+    lock_acquire (&pcb->l); 
+    list_remove (&pcb->elem);
+    if (pcb->t != NULL)
+      pcb->t->pcb = NULL;
+    lock_release (&pcb->l);
+    free (pcb);
   }
 
   /* Destroy the current process's page directory and switch back
