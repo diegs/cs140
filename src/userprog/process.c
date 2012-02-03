@@ -65,7 +65,7 @@ process_execute (const char *file_name)
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
   if (tid == TID_ERROR) {
     palloc_free_page (pinfo->args_copy); 
-	palloc_page_free(pinfo);
+	palloc_free_page(pinfo);
   }
   return tid;
 }
