@@ -63,9 +63,10 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR) {
     palloc_free_page (pinfo->args_copy); 
-
+	palloc_page_free(pinfo);
+  }
   return tid;
 }
 
@@ -88,6 +89,7 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
+  palloc_free_page(pinfo);
   if (!success) 
     thread_exit ();
 
@@ -532,7 +534,6 @@ push_args(struct process_info * pinfo, void **esp) {
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
   /* Push the return address */
   stack_push(esp, &zero, sizeof(zero));	
-  printf("done pushing args \n");
 }
 static void
 stack_push (void ** esp, void * data, size_t size)
