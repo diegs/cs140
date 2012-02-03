@@ -16,6 +16,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -40,7 +41,7 @@ process_execute (const char *file_name)
 {
   tid_t tid;
 
-  struct process_info * pinfo =  palloc_get_page (0);
+  struct process_info * pinfo =  malloc(sizeof(pinfo));
   memset(pinfo, 0, sizeof (struct process_info));
   
   /* Make a copy of FILE_NAME.
@@ -65,7 +66,7 @@ process_execute (const char *file_name)
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
   if (tid == TID_ERROR) {
     palloc_free_page (pinfo->args_copy); 
-	palloc_free_page(pinfo);
+	free(pinfo);
   }
   return tid;
 }
@@ -89,7 +90,7 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  palloc_free_page(pinfo);
+  free(pinfo);
   if (!success) 
     thread_exit ();
 
@@ -380,7 +381,7 @@ load (struct process_info * pinfo, void (**eip) (void), void **esp)
   if (!setup_stack (esp))
     goto done;
   /* Push arg info onto the stack */
-  push_args(pinfo, esp);
+  //push_args(pinfo, esp);
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -555,7 +556,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE - 12;
       else
         palloc_free_page (kpage);
     }
