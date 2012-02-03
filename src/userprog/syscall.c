@@ -177,7 +177,7 @@ sys_wait (struct intr_frame *f UNUSED)
 
 
 static struct process_status*
-get_cur_process (void) 
+get_cur_process (struct intr_frame *f UNUSED) 
 {
   // TODO: Verify that it is actually possible to grab the current
   // thread like this here
@@ -197,34 +197,79 @@ sys_create (struct intr_frame *f)
 static bool 
 sys_remove (struct intr_frame *f) 
 {
-  const char *filename = *(char**)frame_arg(f, 1);
+  const char *filename = *(char**)frame_arg (f, 1);
   return filesys_remove (filename);
 }
 
 static int32_t 
 sys_open (struct intr_frame *f) 
 {
-  const char *filename = *(char**)frame_arg(f, 1);
+  const char *filename = *(char**)frame_arg (f, 1);
   struct file* file = filesys_open (filename); 
 
   if (file == NULL) return -1;
 
-  int fd = process_add_file (get_cur_process (), file);
+  int fd = process_add_file (get_cur_process (f), file);
   return fd;
 }
 
 static int32_t
 sys_filesize (struct intr_frame *f) 
 {
-  int fd = *(int*)frame_arg(f, 1);
+  int fd = *(int*)frame_arg (f, 1);
 
-  struct file* file = process_get_file (get_cur_process (), fd);
+  struct file* file = process_get_file (get_cur_process (f), fd);
   if (file == NULL) return -1;
 
   return file_length (file);
 }
 
+
+static void
+sys_seek (struct intr_frame *f) 
+{
+  int fd = *(int*)frame_arg (f, 1);
+  off_t pos = *(off_t*)frame_arg (f, 2);
+
+  struct file* file = process_get_file (get_cur_process (f), fd);
+  if (file == NULL) return -1;
+ 
+  file_seek (file, pos);
+}
+
+
 static uint32_t
+sys_tell (struct intr_frame *f) 
+{
+  int fd = *(int*)frame_arg (f, 1);
+
+  struct file* file = process_get_file (get_cur_process (f), fd);
+  if (file == NULL) return -1;
+ 
+  return file_tell (file);
+}
+
+static void
+sys_close (struct intr_frame *f) 
+{
+  int fd = *(int*)frame_arg (f, 1);
+
+  struct file* file = process_get_file (get_cur_process (f), fd);
+  if (file == NULL) return;
+
+  file_close (file);
+  process_remove_file (get_cur_process (f), fd);
+}
+
+
+static int32_t 
+sys_read (struct intr_frame *f UNUSED) 
+{
+  // TODO: Actually implement sys_read
+  return -1;
+}
+
+static int32_t
 sys_write (struct intr_frame *f) 
 {
   int fd = *(int*)frame_arg (f, 1);
@@ -307,19 +352,19 @@ syscall_handler (struct intr_frame *f)
       eax = sys_filesize (f);
       break;
     case SYS_READ:
-      printf ("Calling SYS_READ, not implemented.\n");
+      eax = sys_read (f);
       break;
     case SYS_WRITE:
       eax = sys_write (f);
       break;
     case SYS_SEEK:
-      printf ("Calling SYS_SEEK, not implemented.\n");
+      sys_seek (f);
       break;
     case SYS_TELL:
-      printf ("Calling SYS_TELL, not implemented.\n");
+      sys_tell (f);
       break;
     case SYS_CLOSE:
-      printf ("Calling SYS_CLOSE, not implemented.\n");
+      sys_close (f);
       break;
   }
 
