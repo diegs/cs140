@@ -270,7 +270,7 @@ thread has been using the CPU recently.
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
 
-timer  recent_cpu  priority    thread
+timer  recent_cpu      priority        thread
 ticks   A   B   C     A      B     C   to run
 -----  --  --   --   ---   ---   ---   ------
 0      0   0    0   63.00 61.00 59.00   A
@@ -288,9 +288,15 @@ ticks   A   B   C     A      B     C   to run
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
-If a thread's priority is changed to a priority equal to the current
-thread's priority, there was ambiguity about whether we should switch to
-the other thread.
+The specification did not specify whether recent_cpu is to be updated
+before or after updating the priorities.  In both the table and our
+implementation, we update recent_cpu before updating the priority.
+
+The specification is also not clear about whether we should yield
+when the current thread's priority becomes equal to the priority of
+another thread; "greater than" is not necessarily "greater than or
+equal to" nor "strictly greater". In both the table and our
+implementation, we do not yield in this case.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
@@ -298,7 +304,16 @@ the other thread.
 Though the design doc specifies updating all threads' priorities every
 four ticks, we only update the current thread's priority, since the
 factors that influence the priorities of other threads cannot change
-until the load average changes.
+until the load average changes. This implementation improves
+performance by reducing the amount of time in timer interrupts.
+
+Most of our MLFQS scheduling (updating statistics and prioirties)
+happens in an interrupt context. The only code that potentially runs
+outside an interrupt context involves selecting the next thread to run,
+which is at most a small constant number of operations (see below for
+more details). This means that a thread can not lose time due to 
+scheduler bookkeeping. This prevents the scheduler from stealing time
+from a thread (i.e. through spuriously incrementing its recent_cpu).
 
 ---- RATIONALE ----
 
