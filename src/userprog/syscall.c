@@ -232,7 +232,7 @@ sys_seek (struct intr_frame *f)
   off_t pos = *(off_t*)frame_arg (f, 2);
 
   struct file* file = process_get_file (get_cur_process (f), fd);
-  if (file == NULL) return -1;
+  if (file == NULL) return;
  
   file_seek (file, pos);
 }
@@ -269,38 +269,73 @@ sys_read (struct intr_frame *f UNUSED)
   return -1;
 }
 
+
+/* This defines the prototype for functions that write out to some
+   destination. The first argument is the address of the data,
+   the second is the size of the data, and the third is auxiliary.
+   The function should return the number of bytes it was able 
+   to write. */
+typedef int (*write_blocks_fn) (char*, size_t, void*);
+
+static int
+write_blocks_fd1 (char* kernel_buffer, size_t size, void *aux UNUSED) 
+{
+  putbuf (kernel_buffer, size);
+  return size;
+}
+
+static int
+write_blocks_fdgen (char* kernel_buffer, size_t size, void* aux) 
+{
+  struct file *file = (struct file*) aux;
+  return 0;
+}
+
+static int32_t
+sys_write_blocks (char* user_buffer, size_t size_total, 
+                    write_blocks_fn writer, void *aux) 
+{
+  size_t size_remain = size_total;
+  
+  uint32_t result = 0;
+  char kernel_buffer[SYSWRITE_BSIZE];
+  while (size_remain > 0)
+  {
+    size_t bytes_attempt = 
+      SYSWRITE_BSIZE > size_remain ? size_remain : SYSWRITE_BSIZE;
+
+    size_t bytes_copied = 
+      user_memcpy (kernel_buffer, user_buffer, bytes_attempt);
+
+    size_t bytes_written = writer (kernel_buffer, bytes_copied, aux);
+
+    result += bytes_written;
+    if (bytes_written < bytes_attempt) break;
+
+    size_remain -= bytes_copied;
+  }
+
+  return result;
+}
+
 static int32_t
 sys_write (struct intr_frame *f) 
 {
   int fd = *(int*)frame_arg (f, 1);
-  uint32_t result = 0;
+  char* user_buffer = *(char**) frame_arg (f, 2);
+  size_t size_total = *(size_t*) frame_arg (f, 3);
+
   if (fd == 1) 
   {
-    char* user_buffer = *(char**) frame_arg (f, 2);
-    size_t size_total = *(size_t*) frame_arg (f, 3);
-    size_t size_remain = size_total;
-    
-    char kernel_buffer[SYSWRITE_BSIZE];
-    while (size_remain > 0)
-    {
-      size_t bytes_attempt = 
-        SYSWRITE_BSIZE > size_remain ? size_remain : SYSWRITE_BSIZE;
+    return sys_write_blocks (user_buffer, size_total, 
+        write_blocks_fd1, NULL);
+  } 
 
-      size_t bytes_copied = 
-        user_memcpy (kernel_buffer, user_buffer, bytes_attempt);
+  struct file* file = process_get_file (get_cur_process (f), fd);
+  if (file == NULL) return 0;
 
-      putbuf (kernel_buffer, bytes_copied);
-
-      result += bytes_copied;
-      if (bytes_copied < bytes_attempt) break;
-
-      size_remain -= bytes_copied;
-    }
-  }
-
-  // TODO: Handle other file descriptors
-
-  return result; 
+  return sys_write_blocks (user_buffer, size_total, 
+      write_blocks_fdgen, file);
 }
 
 
