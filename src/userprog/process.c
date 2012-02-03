@@ -582,3 +582,61 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
+
+
+static struct process_fd*
+get_process_fd (struct process_status *p_status, int fd) 
+{
+  if (fd < PFD_OFFSET) return NULL;
+
+  struct list *fd_list = &p_status->fd_list;
+  struct list_elem *elem = list_begin (fd_list);
+  for (; elem != list_end (fd_list); elem = list_next (elem))
+  {
+    struct process_fd *pfd = 
+      list_entry (elem, struct process_fd, elem);
+
+    if (pfd->fd == fd) return pfd;
+  }
+
+  return NULL;
+}
+
+int 
+process_add_file (struct process_status *p_status, struct file *file)
+{
+  struct list *fd_list = &p_status->fd_list;
+
+  struct process_fd *new_fd = malloc (sizeof (struct process_fd));
+  new_fd->file = file;
+  new_fd->fd = p_status->next_fd++;
+
+  list_push_back (fd_list, &new_fd->elem);
+
+  return new_fd->fd;
+}
+
+struct file* 
+process_get_file (struct process_status *p_status, int fd) 
+{
+  struct process_fd* pfd = get_process_fd (p_status, fd);
+  
+  if (pfd == NULL) return NULL;
+  return pfd->file;
+}
+
+
+void
+process_remove_file (struct process_status *p_status, int fd) 
+{
+  struct process_fd* pfd = get_process_fd (p_status, fd);
+
+  if (pfd == NULL) return;
+  list_remove (&pfd->elem);
+  free (pfd);
+}
+
+
+
+

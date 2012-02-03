@@ -4,8 +4,17 @@
 #include <list.h>
 #include "threads/thread.h"
 #include "threads/synch.h"
+#include "filesys/file.h"
 
 #define PROCESS_RUNNING -2
+#define PFD_OFFSET 2
+
+struct process_fd 
+{
+  struct list_elem elem;     /* List placement in owning process */
+  struct file *file;
+  int fd;
+};
 
 struct process_status
 {
@@ -15,11 +24,22 @@ struct process_status
   struct condition cond;     /* Condition for signaling parent */
   struct lock l;             /* Lock for managing access to struct */
   struct list_elem elem;     /* List placement in parent */
+
+  /* File system information */
+  struct list fd_list;       /* List of file descriptors open in this
+                                process */
+  int next_fd;
 };
 
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
+ 
+/* Functions for manipulating the mapping between fd and file* for
+   a given process */
+int process_add_file (struct process_status *, struct file *);
+struct file* process_get_file (struct process_status *, int);
+void process_remove_file (struct process_status *, int);
 
 #endif /* userprog/process.h */

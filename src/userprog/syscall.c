@@ -196,14 +196,19 @@ sys_remove (struct intr_frame *f)
   return filesys_remove (filename);
 }
 
-static uint32_t 
+static int32_t 
 sys_open (struct intr_frame *f) 
 {
   const char *filename = *(char**)frame_arg(f, 1);
+  struct file* file = filesys_open (filename); 
 
-  // TODO: implement this correctly
+  if (file == NULL) return -1;
 
-  return 0;
+  // TODO: Verify that it is actually possible to grab the current
+  // thread like this here
+  struct thread *cur_thread = thread_current ();
+  int fd = process_add_file (cur_thread->p_status, file);
+  return fd;
 }
 
 
@@ -284,7 +289,7 @@ syscall_handler (struct intr_frame *f)
       eax = sys_remove (f);
       break;
     case SYS_OPEN:
-      printf ("Calling SYS_OPEN, not implemented.\n");
+      eax = sys_open (f);
       break;
     case SYS_FILESIZE:
       printf ("Calling SYS_FILESIZE, not implemented.\n");

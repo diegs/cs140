@@ -323,6 +323,10 @@ thread_create (const char *name, int priority,
   t->p_status->tid = t->tid;
   t->p_status->t = t;
   t->p_status->status = PROCESS_RUNNING;
+  
+  list_init (&t->p_status->fd_list);
+  t->p_status->next_fd = PFD_OFFSET;
+
   lock_init (&t->p_status->l);
   cond_init (&t->p_status->cond);
 
