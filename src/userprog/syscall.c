@@ -69,9 +69,9 @@ put_byte (uint8_t *udst, uint8_t byte)
     return false;
 }
 
-/* Like strlcpy in string.c but uses the safe kernel-user methods */
+/* Like memcpy, but copies from userland */
 static size_t
-user_strlcpy (char *dst, const char *src, size_t size)
+user_memcpy (void *dst, const void *src, size_t size)
 {
   size_t i;
   int result;
@@ -79,8 +79,6 @@ user_strlcpy (char *dst, const char *src, size_t size)
 
   ASSERT (dst != NULL);
   ASSERT (src != NULL);
-
-  if (size == 0) return 0;
 
   byte = 0;
   for (i = 0; i < size; i++)
@@ -90,13 +88,10 @@ user_strlcpy (char *dst, const char *src, size_t size)
     if (result == -1) break;
 
     /* Read the byte */
-    byte = *((char*)result);
-    if (result == '\0') break;
-
-    dst[i] = byte;
+    byte = (char)result;
+    ((char*)dst)[i] = byte;
   }
 
-  dst[i-1] = '\0';
   return i;
 }
 
@@ -123,7 +118,7 @@ sys_halt (struct intr_frame *f UNUSED)
  * - none
  */
 static void
-sys_exit (struct intr_frame *f UNUSED)
+sys_exit (struct intr_frame *f)
 {
   int status = *((int*)frame_arg (f, 1));
   struct process_status *ps = thread_current ()->p_status;
@@ -155,7 +150,7 @@ sys_exec (struct intr_frame *f)
   char *user_cmdline = *((char**)frame_arg (f, 1));
   char *kern_cmdline = palloc_get_page (0);
   if (kern_cmdline == NULL) return -1;
-  user_strlcpy (kern_cmdline, user_cmdline, PGSIZE);
+  user_memcpy (kern_cmdline, user_cmdline, PGSIZE);
 
   /* Execute the process */
   tid_t tid = process_execute (kern_cmdline);
@@ -230,7 +225,7 @@ sys_write (struct intr_frame *f)
         SYSWRITE_BSIZE > size_remain ? size_remain : SYSWRITE_BSIZE;
 
       size_t bytes_copied = 
-        user_strlcpy (kernel_buffer, user_buffer, bytes_attempt);
+        user_memcpy (kernel_buffer, user_buffer, bytes_attempt);
 
       putbuf (kernel_buffer, bytes_copied);
 
