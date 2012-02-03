@@ -23,6 +23,7 @@
 
 static thread_func start_process NO_RETURN;
 
+/* Info about the process' name and args */
 struct process_info {
   int argc;		//number of arguments
   char * prog_name;
@@ -40,7 +41,6 @@ tid_t
 process_execute (const char *file_name) 
 {
   tid_t tid;
-
   struct process_info *pinfo =  malloc(sizeof(pinfo));
   memset(pinfo, 0, sizeof (struct process_info));
   
@@ -51,6 +51,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (pinfo->args_copy, file_name, PGSIZE);
 
+  /* Count the number of args and null-terminate each (strtok
+  null-terminates auctomaticlly) */
   char *token, *save_ptr;
   int i = 0;
   for (token = strtok_r (pinfo->args_copy, " ", &save_ptr); token != NULL;
@@ -521,30 +523,31 @@ push_args(struct process_info *pinfo, void **esp) {
 
   /* Build up the index of where text is located */
   char *argv[pinfo->argc];
-  char *data_ptr = pinfo->args_copy;
-	
+  char *str_ptr = pinfo->args_copy;
   int i;
   for (i = 0; i < pinfo->argc; i++) {	
-    char *cur_str = data_ptr;
-    stack_push(esp, cur_str, strlen(cur_str) + 1);
-    data_ptr = strchr(data_ptr, '\0') + 1;
-	while (*data_ptr == ' ') data_ptr++;
+    stack_push(esp, str_ptr, strlen(str_ptr) + 1);
+    str_ptr = strchr(str_ptr, '\0') + 1;
+	//skip all delimiters
+	while (*str_ptr == ' ') str_ptr++;
     argv[i] = *esp;
   }
-
+  /* pad to 4-bytes */
   for (i = 0; i < ((int)(*esp) % 4); i++) {
     char c = 0;
     stack_push(esp, &c, sizeof(c));
   }
-
   /* Push the references to the args, in reverse order */
   int zero = 0;
+  //start with a null ptr at args[argc]
   stack_push(esp, &zero, sizeof(zero));	
   for (i = pinfo->argc - 1; i >= 0; i--)
     stack_push(esp, &argv[i], sizeof(char*));
 
+  /* Push the address of the first arg reference */
   void *saved_esp = *esp;
   stack_push(esp, &saved_esp, sizeof(void*));
+  /* Push argc */
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
   /* Push the return address */
   stack_push(esp, &zero, sizeof(zero));
