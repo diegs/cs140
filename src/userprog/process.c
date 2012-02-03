@@ -553,6 +553,7 @@ push_args(struct process_info *pinfo, void **esp) {
   stack_push(esp, &zero, sizeof(zero));
 }
 
+/* Push an element of size 'size' onto a stack.  Decrements esp first */
 static void
 stack_push (void **esp, void *data, size_t size)
 {
