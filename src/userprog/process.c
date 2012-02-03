@@ -530,7 +530,9 @@ push_args(struct process_info * pinfo, void **esp) {
   void * saved_esp = *esp;
   stack_push(esp, &saved_esp, sizeof(void *));
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
-
+  /* Push the return address */
+  stack_push(esp, &zero, sizeof(zero));	
+  printf("done pushing args \n");
 }
 static void
 stack_push (void ** esp, void * data, size_t size)
