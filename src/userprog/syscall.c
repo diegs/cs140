@@ -4,6 +4,7 @@
 #include "devices/shutdown.h"
 #include "userprog/process.h"
 #include "userprog/syscall.h"
+#include "filesys/filesys.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
@@ -179,6 +180,33 @@ sys_wait (struct intr_frame *f UNUSED)
   return process_wait (tid);
 }
 
+static bool
+sys_create (struct intr_frame *f)
+{
+  const char *filename = *(char**)frame_arg (f, 1);
+  uint32_t initial_size = *(uint32_t*)frame_arg (f, 2);
+
+  return filesys_create (filename, initial_size);
+}
+
+static bool 
+sys_remove (struct intr_frame *f) 
+{
+  const char *filename = *(char**)frame_arg(f, 1);
+  return filesys_remove (filename);
+}
+
+static uint32_t 
+sys_open (struct intr_frame *f) 
+{
+  const char *filename = *(char**)frame_arg(f, 1);
+
+  // TODO: implement this correctly
+
+  return 0;
+}
+
+
 static uint32_t
 sys_write (struct intr_frame *f) 
 {
@@ -250,10 +278,10 @@ syscall_handler (struct intr_frame *f)
       eax = int_to_uint32_t (sys_wait (f));
       break;
     case SYS_CREATE:
-      printf ("Calling SYS_CREATE, not implemented.\n");
+      eax = sys_create (f);
       break;
     case SYS_REMOVE:
-      printf ("Calling SYS_REMOVE, not implemented.\n");
+      eax = sys_remove (f);
       break;
     case SYS_OPEN:
       printf ("Calling SYS_OPEN, not implemented.\n");
