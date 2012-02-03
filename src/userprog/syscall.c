@@ -109,6 +109,21 @@ sys_halt (struct intr_frame *f UNUSED)
   shutdown_power_off ();
 }
 
+static void
+sys_exit_internal (const int status)
+{
+  struct process_status *ps = thread_current ()->p_status;
+  if (ps != NULL)
+  {
+    /* Update status and notify any waiting parent of this */
+    lock_acquire (&ps->l);
+    ps->status = status;
+    cond_signal (&ps->cond, &ps->l);
+    lock_release (&ps->l);
+  }
+  thread_exit ();
+}
+
 /**
  * Terminates the current user program, returning status to the kernel.
  *
@@ -120,17 +135,7 @@ sys_halt (struct intr_frame *f UNUSED)
 static void
 sys_exit (struct intr_frame *f)
 {
-  int status = *((int*)frame_arg (f, 1));
-  struct process_status *ps = thread_current ()->p_status;
-  if (ps != NULL)
-  {
-    /* Update status and notify any waiting parent of this */
-    lock_acquire (&ps->l);
-    ps->status = status;
-    cond_signal (&ps->cond, &ps->l);
-    lock_release (&ps->l);
-  }
-  thread_exit ();
+  sys_exit_internal (*((int*)frame_arg (f, 1)));
 }
 
 /**
@@ -254,9 +259,8 @@ static uint32_t int_to_uint32_t (int i)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  if (get_byte (f->esp) == -1) {
-    sys_exit (f); /* This doesn't work */
-  }
+  if (get_byte (f->esp) == -1)
+    sys_exit_internal (-1);
 
   uint32_t syscall = get_frame_syscall (f);
   uint32_t eax = f->eax;
