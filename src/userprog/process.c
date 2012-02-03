@@ -528,6 +528,7 @@ push_args(struct process_info *pinfo, void **esp) {
     char *cur_str = data_ptr;
     stack_push(esp, cur_str, strlen(cur_str) + 1);
     data_ptr = strchr(data_ptr, '\0') + 1;
+	while (*data_ptr == ' ') data_ptr++;
     argv[i] = *esp;
   }
 
