@@ -130,7 +130,7 @@ sys_exit (struct intr_frame *f)
     cond_signal (&ps->cond, &ps->l);
     lock_release (&ps->l);
   }
-  process_exit ();
+  thread_exit ();
 }
 
 /**
