@@ -521,7 +521,9 @@ push_args(struct process_info * pinfo, void **esp) {
 	stack_push(esp, &b, sizeof(b));
   }
 
-
+  /* Push the references to the args, in reverse order */
+  int zero = 0;
+  stack_push(esp, &zero, sizeof(zero));	
   for (i = pinfo->argc - 1; i >= 0; i--) {
 	stack_push(esp, &argv[i], sizeof(char *));
   }
