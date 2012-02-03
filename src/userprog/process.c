@@ -54,12 +54,12 @@ process_execute (const char *file_name)
   char *token, *save_ptr;
   int i = 0;
   for (token = strtok_r (pinfo->args_copy, " ", &save_ptr); token != NULL;
-	token = strtok_r (NULL, " ", &save_ptr)) {
-	pinfo->argc++;
-	if (i == 0) {
-		pinfo->prog_name = token;
-	}
-	i++;
+       token = strtok_r (NULL, " ", &save_ptr)) {
+    pinfo->argc++;
+    if (i == 0) {
+      pinfo->prog_name = token;
+    }
+    i++;
   }
 
   /* Create a new thread to execute FILE_NAME. */
@@ -382,7 +382,7 @@ load (struct process_info * pinfo, void (**eip) (void), void **esp)
   if (!setup_stack (esp))
     goto done;
   /* Push arg info onto the stack */
-  //push_args(pinfo, esp);
+  push_args(pinfo, esp);
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -506,42 +506,44 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 /* Push arguments, their references, and argc onto the stack */
 static void 
-push_args(struct process_info * pinfo, void **esp) {
+push_args(struct process_info *pinfo, void **esp) {
 
   /* Build up the index of where text is located */
-  char * argv[pinfo->argc];
-  char * data_ptr = pinfo->args_copy;
+  char *argv[pinfo->argc];
+  char *data_ptr = pinfo->args_copy;
 	
   int i;
   for (i = 0; i < pinfo->argc; i++) {	
-	char * cur_str = data_ptr;
-	stack_push(esp, cur_str, strlen(cur_str) + 1);
-	data_ptr = strchr(data_ptr, '\0') + 1;
-	argv[i] = *esp;
+    char *cur_str = data_ptr;
+    stack_push(esp, cur_str, strlen(cur_str) + 1);
+    data_ptr = strchr(data_ptr, '\0') + 1;
+    argv[i] = *esp;
   }
 
   for (i = 0; i < ((int)(*esp) % 4); i++) {
-	bool b = false;
-	stack_push(esp, &b, sizeof(b));
+    char c = 0;
+    stack_push(esp, &c, sizeof(c));
   }
 
   /* Push the references to the args, in reverse order */
   int zero = 0;
   stack_push(esp, &zero, sizeof(zero));	
-  for (i = pinfo->argc - 1; i >= 0; i--) {
-	stack_push(esp, &argv[i], sizeof(char *));
-  }
-  void * saved_esp = *esp;
-  stack_push(esp, &saved_esp, sizeof(void *));
+  for (i = pinfo->argc - 1; i >= 0; i--)
+    stack_push(esp, &argv[i], sizeof(char*));
+
+  void *saved_esp = *esp;
+  stack_push(esp, &saved_esp, sizeof(void*));
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
   /* Push the return address */
-  stack_push(esp, &zero, sizeof(zero));	
+  stack_push(esp, &zero, sizeof(zero));
 }
+
 static void
-stack_push (void ** esp, void * data, size_t size)
+stack_push (void **esp, void *data, size_t size)
 {
-  *(char *)esp -= size;
-  memcpy(*esp, data, size);
+  char **c_esp = (char**)esp;
+  *c_esp -= size;
+  memcpy(*c_esp, data, size);
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -557,7 +559,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
