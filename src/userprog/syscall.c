@@ -9,6 +9,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#define SYSWRITE_BSIZE 256
+
 static void syscall_handler (struct intr_frame *);
 
 static inline void* frame_arg (struct intr_frame *f, int i) 
@@ -184,18 +186,25 @@ sys_write (struct intr_frame *f)
   uint32_t result = 0;
   if (fd == 1) 
   {
-    uint8_t* buffer = *(uint8_t**) frame_arg (f, 2);
-    uint32_t size = *(uint32_t*) frame_arg (f, 3);
-    uint32_t i = 0;
-    for (i = 0; i < size; i++) 
+    char* user_buffer = *(char**) frame_arg (f, 2);
+    size_t size_total = *(size_t*) frame_arg (f, 3);
+    size_t size_remain = size_total;
+    
+    char kernel_buffer[SYSWRITE_BSIZE];
+    while (size_remain > 0)
     {
-      int byte = get_byte (buffer + i);
-      if (byte == -1) break;
-      
-      // TODO: Write characters to an intermediate buffer for
-      // a single call to putbuf
-      putbuf ((char*)&byte, 1);
-      result++;
+      size_t bytes_attempt = 
+        SYSWRITE_BSIZE > size_remain ? size_remain : SYSWRITE_BSIZE;
+
+      size_t bytes_copied = 
+        user_strlcpy (kernel_buffer, user_buffer, bytes_attempt);
+
+      putbuf (kernel_buffer, bytes_copied);
+
+      result += bytes_copied;
+      if (bytes_copied < bytes_attempt) break;
+
+      size_remain -= bytes_copied;
     }
   }
 
