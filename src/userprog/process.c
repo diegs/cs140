@@ -137,6 +137,7 @@ process_wait (tid_t child_tid)
   lock_acquire (&p_status->l);
   while (p_status->status == PROCESS_RUNNING)
     cond_wait (&p_status->cond, &p_status->l);
+
   status = p_status->status;
 
   /* Set child's pointer to NULL */
