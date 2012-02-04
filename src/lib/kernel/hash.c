@@ -300,6 +300,7 @@ hash_int (int i)
 {
   return hash_bytes (&i, sizeof i);
 }
+
 
 /* Returns the bucket in H that E belongs in. */
 static struct list *

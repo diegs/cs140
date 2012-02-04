@@ -133,6 +133,7 @@ thread_init (void)
 
 #ifdef USERPROG
   list_init (&initial_thread->pcb_children);   /* List of child processes */
+  list_init (&initial_thread->fd_list);
 #endif
 }
 

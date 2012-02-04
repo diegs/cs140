@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <hash.h>
 #include "devices/shutdown.h"
 #include "userprog/process.h"
 #include "userprog/syscall.h"
@@ -10,6 +11,31 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+struct fd_hash
+{
+  const char *filename;
+  int count;
+  bool delete;
+  struct hash_elem elem;
+};
+
+struct hash fd_all;
+
+unsigned hash_hash_func (const struct hash_elem *e, void *aux) 
+{
+  struct fd_hash *e_fd = hash_entry (e, struct fd_hash, elem);
+  return hash_string (e_fd->filename);
+}
+
+bool hash_less_func (const struct hash_elem *a,
+                             const struct hash_elem *b,
+                             void *aux)
+{
+  struct fd_hash *a_fd = hash_entry (a, struct fd_hash, elem);
+  struct fd_hash *b_fd = hash_entry (b, struct fd_hash, elem);
+
+  return strcmp (a_fd->filename, b_fd->filename) < 0;
+}
 
 static void syscall_handler (struct intr_frame *);
 
@@ -195,7 +221,7 @@ sys_create (const struct intr_frame *f)
   const char *filename = frame_arg_ptr (f, 1);
   uint32_t initial_size = frame_arg_int (f, 2);
 
-  if (filename == NULL) process_kill ();
+  memory_verify_string (filename);
 
   return filesys_create (filename, initial_size);
 }
@@ -211,6 +237,8 @@ static int
 sys_open (const struct intr_frame *f) 
 {
   const char *filename = frame_arg_ptr (f, 1);
+  memory_verify_string (filename);
+
   struct file* file = filesys_open (filename); 
 
   if (file == NULL) return -1;
@@ -301,6 +329,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+
 }
 
 /* Handles system calls using the internal interrupt mechanism. The
