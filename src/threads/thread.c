@@ -458,6 +458,18 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
+
+  /* Release all locks this thread holds */
+  struct list * locks = &thread_current ()->priority_holding;
+  while (!list_empty (locks))
+	{
+	  struct list_elem *e = list_pop_front (locks);
+	  struct lock * l = list_entry (e, struct lock, priority_holder);
+	  lock_release(l);
+	}  
+
+  /* TODO: release all file handles */
+
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
