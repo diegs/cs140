@@ -387,21 +387,37 @@ sys_close (struct intr_frame *f)
 static int32_t 
 sys_read (struct intr_frame *f UNUSED) 
 {
-  // TODO: Actually implement sys_read
-  return -1;
+  int fd = frame_arg_int (f, 1);
+  char * buffer = frame_arg_ptr (f, 2);
+  size_t size = frame_arg_int (f, 3);
+  memory_verify (buffer, size);
+ // Handle special case for reading from keyboard
+  if (fd == 0) 
+  {
+	uint32_t i;
+	for (i = 0; i < size; i++)
+	{
+	  buffer[i] = input_getc();
+	}
+	return size;
+  }
+  // Handle rest of file descriptors
+  struct process_fd *pfd = process_get_file (thread_current (), fd);
+  if (pfd == NULL) return -1;
+  return file_read(pfd->file, buffer, size);
 }
 
 static int
 sys_write (const struct intr_frame *f) 
 {
   int fd = frame_arg_int (f, 1);
+  const char* buffer = frame_arg_ptr (f, 2);
+  memory_verify_string (buffer);
+  size_t size = frame_arg_int (f, 3);
 
   // Handle special case for writing to the console
   if (fd == 1) 
   {
-    const char* buffer = frame_arg_ptr (f, 2);
-    memory_verify_string (buffer);
-    size_t size = frame_arg_int (f, 3);
     putbuf (buffer, size);
     return size;
   } 
@@ -410,7 +426,7 @@ sys_write (const struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return 0;
 
-  return 0;
+  return file_write(pfd->file, buffer, size);
 }
 
 /* Registers the system call handler for internal interrupts. */
