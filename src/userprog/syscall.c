@@ -14,16 +14,6 @@
 
 static void syscall_handler (struct intr_frame *);
 
-static inline void* frame_arg (struct intr_frame *f, int i) 
-{
-  return ((uint32_t*)f->esp) + i;
-}
-
-static uint32_t get_frame_syscall (struct intr_frame *f) 
-{
-  return *(uint32_t*)frame_arg (f, 0);
-}
-
 /* Reads a byte at user virtual address UADDR. UADDR must be below
    PHYS_BASE.  Returns the byte value if successful, -1 if a segfault
    occurred. */
@@ -69,8 +59,44 @@ put_byte (uint8_t *udst, uint8_t byte)
     return false;
 }
 
-/* Like memcpy, but copies from userland */
-static size_t
+/* Kills a process with error code -1 */
+static void
+process_kill (void)
+{
+  thread_current ()->exit_code = -1;
+  thread_exit ();
+}
+
+/* Verifies that size memory at ptr is valid */
+static void
+memory_verify (void *ptr, size_t size)
+{
+  size_t i;
+  for (i=0; i<size; i++)
+  {
+    if (get_byte (((unsigned char*)ptr) + i) == -1)
+      process_kill ();
+  }
+}
+
+/* Verifies that an entire string is vald memory */
+static void
+memory_verify_string (char *str)
+{
+  while (true)
+  {
+    int result = get_byte ((unsigned char*)str);
+    if (result == -1)
+      process_kill ();
+    else if ((char)result == '\0')
+      return;
+    str++;
+  }
+}
+
+/* Like memcpy, but copies from userland. Returns number of bytes copied,
+   or -1 if error occurred */
+static int
 user_memcpy (void *dst, const void *src, size_t size)
 {
   size_t i;
@@ -85,7 +111,7 @@ user_memcpy (void *dst, const void *src, size_t size)
   {
     /* Make sure memory access was valid */
     result = get_byte ((uint8_t*)src + i);
-    if (result == -1) break;
+    if (result == -1) return -1;
 
     /* Read the byte */
     byte = (char)result;
@@ -93,6 +119,20 @@ user_memcpy (void *dst, const void *src, size_t size)
   }
 
   return i;
+}
+
+/* Convenience method for dereferencing a frame argument */
+static inline void* frame_arg (struct intr_frame *f, int i) 
+{
+  return ((uint32_t*)f->esp) + i;
+}
+
+/* Convenience method for accessing the syscall safely */
+static uint32_t get_frame_syscall (struct intr_frame *f) 
+{
+  void *arg0 = frame_arg (f, 0);
+  memory_verify (arg0, sizeof (uint32_t));
+  return *((uint32_t*)arg0);
 }
 
 /**
@@ -120,7 +160,9 @@ sys_halt (struct intr_frame *f UNUSED)
 static void
 sys_exit (struct intr_frame *f)
 {
-  thread_current ()->exit_code = *((int*)frame_arg (f, 1));
+  void *arg1 = frame_arg (f, 1);
+  memory_verify (arg1, sizeof (int));
+  thread_current ()->exit_code = *((int*)arg1);
   thread_exit ();
 }
 
@@ -136,17 +178,14 @@ sys_exit (struct intr_frame *f)
 static int
 sys_exec (struct intr_frame *f)
 {
-  /* Copy commandline from user to kernel space */
-  char *user_cmdline = *((char**)frame_arg (f, 1));
-  char *kern_cmdline = palloc_get_page (0);
-  if (kern_cmdline == NULL) return -1;
-  user_memcpy (kern_cmdline, user_cmdline, PGSIZE);
+  /* Check the argument */
+  void *arg1 = frame_arg (f, 1);
+  memory_verify (arg1, sizeof (char**));
+  char *cmdline = *((char**)arg1);
+  memory_verify_string (cmdline);
 
   /* Execute the process */
-  tid_t tid = process_execute (kern_cmdline);
-
-  /* Clean up and return results */
-  palloc_free_page (kern_cmdline); 
+  tid_t tid = process_execute (cmdline);
   return (tid == TID_ERROR) ? -1 : tid;
 }
 
@@ -161,8 +200,9 @@ sys_exec (struct intr_frame *f)
 static int
 sys_wait (struct intr_frame *f UNUSED)
 {
-  int tid = *((int*)frame_arg (f, 1));
-  return process_wait (tid);
+  void *arg1 = frame_arg (f, 1);
+  memory_verify (arg1, sizeof (int));
+  return process_wait (*((int*)arg1));
 }
 
 static bool
@@ -234,22 +274,13 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-/* Convenience bit-mashing method */
-static uint32_t int_to_uint32_t (int i)
-{
-  return *((uint32_t*)i);
-}
-
 /* Handles system calls using the internal interrupt mechanism. The
    supported system calls are defined in lib/user/syscall.h */
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  if (get_byte (f->esp) == -1)
-  {
-    thread_current ()->exit_code = -1;
-    thread_exit ();
-  }
+  /* Sanity check the return pointer */
+  memory_verify ((void*)f->esp, sizeof (void*));
 
   uint32_t syscall = get_frame_syscall (f);
   uint32_t eax = f->eax;
@@ -263,10 +294,10 @@ syscall_handler (struct intr_frame *f)
       sys_exit (f);
       break;
     case SYS_EXEC:
-      eax = int_to_uint32_t (sys_exec (f));
+      eax = sys_exec (f);
       break;
     case SYS_WAIT:
-      eax = int_to_uint32_t (sys_wait (f));
+      eax = sys_wait (f);
       break;
     case SYS_CREATE:
       eax = sys_create (f);
@@ -297,6 +328,6 @@ syscall_handler (struct intr_frame *f)
       break;
   }
 
+  /* Set return value */
   f->eax = eax;
-
 }
