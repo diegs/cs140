@@ -95,7 +95,10 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   if (!success) 
+  {
+    thread_current ()->exit_code = -1;
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
