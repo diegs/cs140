@@ -36,10 +36,13 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
  
+void process_create_pcb (struct thread *t);
+
 /* Functions for manipulating the mapping between fd and file* for
    a given process */
 int process_add_file (struct process_status *, struct file *);
 struct file* process_get_file (struct process_status *, int);
 void process_remove_file (struct process_status *, int);
+
 
 #endif /* userprog/process.h */

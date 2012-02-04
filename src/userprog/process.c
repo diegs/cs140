@@ -23,6 +23,7 @@
 
 static thread_func start_process NO_RETURN;
 
+/* Info about the process' name and args */
 struct process_info {
   int argc;		//number of arguments
   char * prog_name;
@@ -40,8 +41,7 @@ tid_t
 process_execute (const char *file_name) 
 {
   tid_t tid;
-
-  struct process_info * pinfo =  malloc(sizeof(pinfo));
+  struct process_info *pinfo =  malloc(sizeof(pinfo));
   memset(pinfo, 0, sizeof (struct process_info));
   
   /* Make a copy of FILE_NAME.
@@ -51,6 +51,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (pinfo->args_copy, file_name, PGSIZE);
 
+  /* Count the number of args and null-terminate each (strtok
+  null-terminates auctomaticlly) */
   char *token, *save_ptr;
   int i = 0;
   for (token = strtok_r (pinfo->args_copy, " ", &save_ptr); token != NULL;
@@ -66,7 +68,7 @@ process_execute (const char *file_name)
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
   if (tid == TID_ERROR) {
     palloc_free_page (pinfo->args_copy); 
-	free(pinfo);
+    free(pinfo);
   }
   return tid;
 }
@@ -88,9 +90,10 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (pinfo, &if_.eip, &if_.esp);
 
-  /* If load failed, quit. */
   palloc_free_page (file_name);
   free(pinfo);
+
+  /* If load failed, quit. */
   if (!success) 
     thread_exit ();
 
@@ -117,39 +120,62 @@ int
 process_wait (tid_t child_tid) 
 {
   struct list_elem *e;
-  struct process_status *p_status = NULL;
+  struct process_status *pcb = NULL;
   struct thread *cur = thread_current ();
   int status;
 
   /* Check if tid is one of children */
-  for (e = list_begin (&cur->p_children); e != list_end
-	 (&cur->p_children); e = list_next (e))
+  for (e = list_begin (&cur->pcb_children); e != list_end
+	 (&cur->pcb_children); e = list_next (e))
   {
-    p_status = list_entry (e, struct process_status, elem);
-    if (p_status->tid == child_tid)
+    pcb = list_entry (e, struct process_status, elem);
+    if (pcb->tid == child_tid)
       break;
   }
 
   /* If not a valid child, or has already been removed, return -1 */
-  if (e == list_end (&cur->p_children)) return -1;
+  if (e == list_end (&cur->pcb_children)) return -1;
 
   /* If still running, wait for a signal */
-  lock_acquire (&p_status->l);
-  while (p_status->status == PROCESS_RUNNING)
-    cond_wait (&p_status->cond, &p_status->l);
+  lock_acquire (&pcb->l);
+  while (pcb->status == PROCESS_RUNNING)
+    cond_wait (&pcb->cond, &pcb->l);
 
-  status = p_status->status;
-
-  /* Set child's pointer to NULL */
-  if (p_status->t != NULL)
-    p_status->t->p_status = NULL;
+  status = pcb->status;
 
   /* Clean up the status struct since it is now dead */
-  list_remove (&p_status->elem);
-  lock_release (&p_status->l);
-  palloc_free_page (p_status);
+  list_remove (&pcb->elem);
+  if (pcb->t != NULL)
+    pcb->t->pcb = NULL;
+  lock_release (&pcb->l);
+  free (pcb);
 
   return status;
+}
+
+/* Creates a PCB for a thread and initialize relevant fields */
+void
+process_create_pcb (struct thread *t)
+{
+  /* Allocate object */
+  t->pcb = malloc (sizeof (struct process_status));
+  if (t->pcb == NULL) return;
+
+  /* Initialize object */
+  t->pcb->tid = t->tid;
+  t->pcb->t = t;
+  t->pcb->status = PROCESS_RUNNING;
+  lock_init (&t->pcb->l);
+  cond_init (&t->pcb->cond);
+
+   /* Initialize list of child processes */
+  list_init (&t->pcb_children);
+
+  /* Set invalid exit code */
+  t->exit_code = PROCESS_RUNNING;
+
+  /* Link new thread's PCB up to its parent thread */
+  list_push_back (&thread_current ()->pcb_children, &t->pcb->elem);
 }
 
 /* Free the current process's resources. */
@@ -158,20 +184,33 @@ process_exit (void)
 {
   struct list_elem *e;
   struct thread *cur = thread_current ();
-  struct process_status *ps = NULL;
+  struct process_status *pcb = NULL;
   uint32_t *pd;
 
-  /* Destroy all the remaining child process_status objects */
-  for (e = list_begin (&cur->p_children); e != list_end
-	 (&cur->p_children); e = list_next (e))
+  /* Print exit message */
+  printf ("%s: exit(%d)\n", cur->name, cur->exit_code);
+
+  /* Interact with our pcb object */
+  if (cur->pcb != NULL)
   {
-    ps = list_entry (e, struct process_status, elem);
-    lock_acquire (&ps->l); 
-    list_remove (&ps->elem); /* Remove from list */
-    if (ps->t != NULL)       /* Tell child to stop worrying */
-      ps->t->p_status = NULL;
-    lock_release (&ps->l);
-    palloc_free_page (ps);   /* Delete status struct */
+    lock_acquire (&cur->pcb->l);
+    cur->pcb->status = cur->exit_code;
+    cur->pcb->t = NULL;
+    cond_signal (&cur->pcb->cond, &cur->pcb->l);
+    lock_release (&cur->pcb->l);
+  }
+
+  /* Kill all the remaining child pcb objects */
+  for (e = list_begin (&cur->pcb_children); e != list_end
+	 (&cur->pcb_children); e = list_next (e))
+  {
+    pcb = list_entry (e, struct process_status, elem);
+    lock_acquire (&pcb->l); 
+    list_remove (&pcb->elem);
+    if (pcb->t != NULL)
+      pcb->t->pcb = NULL;
+    lock_release (&pcb->l);
+    free (pcb);
   }
 
   /* Destroy the current process's page directory and switch back
@@ -510,34 +549,37 @@ push_args(struct process_info *pinfo, void **esp) {
 
   /* Build up the index of where text is located */
   char *argv[pinfo->argc];
-  char *data_ptr = pinfo->args_copy;
-	
+  char *str_ptr = pinfo->args_copy;
   int i;
   for (i = 0; i < pinfo->argc; i++) {	
-    char *cur_str = data_ptr;
-    stack_push(esp, cur_str, strlen(cur_str) + 1);
-    data_ptr = strchr(data_ptr, '\0') + 1;
+    stack_push(esp, str_ptr, strlen(str_ptr) + 1);
+    str_ptr = strchr(str_ptr, '\0') + 1;
+	//skip all delimiters
+	while (*str_ptr == ' ') str_ptr++;
     argv[i] = *esp;
   }
-
+  /* pad to 4-bytes */
   for (i = 0; i < ((int)(*esp) % 4); i++) {
     char c = 0;
     stack_push(esp, &c, sizeof(c));
   }
-
   /* Push the references to the args, in reverse order */
   int zero = 0;
+  //start with a null ptr at args[argc]
   stack_push(esp, &zero, sizeof(zero));	
   for (i = pinfo->argc - 1; i >= 0; i--)
     stack_push(esp, &argv[i], sizeof(char*));
 
+  /* Push the address of the first arg reference */
   void *saved_esp = *esp;
   stack_push(esp, &saved_esp, sizeof(void*));
+  /* Push argc */
   stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
   /* Push the return address */
   stack_push(esp, &zero, sizeof(zero));
 }
 
+/* Push an element of size 'size' onto a stack.  Decrements esp first */
 static void
 stack_push (void **esp, void *data, size_t size)
 {

@@ -132,7 +132,7 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 
 #ifdef USERPROG
-  list_init (&initial_thread->p_children);   /* List of child processes */
+  list_init (&initial_thread->pcb_children);   /* List of child processes */
 #endif
 }
 
@@ -311,27 +311,12 @@ thread_create (const char *name, int priority,
 
 #ifdef USERPROG
   /* Allocate PCB */
-  t->p_status = palloc_get_page (0);
-  if (t->p_status == NULL)
+  process_create_pcb (t);
+  if (t->pcb == NULL)
   {
     palloc_free_page (t);
     return TID_ERROR;
   }
-
-  /* Initialize PCB */
-  list_init (&t->p_children);   /* List of child processes */
-  t->p_status->tid = t->tid;
-  t->p_status->t = t;
-  t->p_status->status = PROCESS_RUNNING;
-  
-  list_init (&t->p_status->fd_list);
-  t->p_status->next_fd = PFD_OFFSET;
-
-  lock_init (&t->p_status->l);
-  cond_init (&t->p_status->cond);
-
-  /* Link new thread's PCB up to its parent thread */
-  list_push_back (&thread_current ()->p_children, &t->p_status->elem);
 #endif
 
   /* Prepare thread for first run by initializing its stack.
@@ -558,7 +543,6 @@ thread_get_priority (void)
 {
   return thread_current ()->effective_priority;
 }
-
 
 /* Computes the maximum priority for a thread including all donated
    priorities. Does not change any thread state. Must be called with

@@ -101,8 +101,9 @@ struct thread
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir;                   /* Page directory. */
-  struct process_status *p_status;     /* Process control status info */
-  struct list p_children;              /* List of children */
+  struct process_status *pcb;          /* Parent status info */
+  struct list pcb_children;              /* List of children */
+  int exit_code;                       /* Exit code */
 #endif
 
   /* Priority data */
