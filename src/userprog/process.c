@@ -41,7 +41,7 @@ tid_t
 process_execute (const char *file_name) 
 {
   tid_t tid;
-  struct process_info *pinfo =  malloc(sizeof(pinfo));
+  struct process_info *pinfo =  malloc(sizeof(struct process_info));
   memset(pinfo, 0, sizeof (struct process_info));
   
   /* Make a copy of FILE_NAME.
