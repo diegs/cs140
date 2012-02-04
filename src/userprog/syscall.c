@@ -203,6 +203,9 @@ sys_create (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   uint32_t initial_size = frame_arg_int (f, 2);
+
+  if (filename == NULL) process_kill ();
+
   return filesys_create (filename, initial_size);
 }
 
