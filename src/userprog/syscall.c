@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include <hash.h>
+#include <string.h>
 #include "devices/shutdown.h"
 #include "userprog/process.h"
 #include "userprog/syscall.h"
@@ -21,15 +22,16 @@ struct fd_hash
 
 struct hash fd_all;
 
-unsigned hash_hash_func (const struct hash_elem *e, void *aux) 
+static unsigned hash_hash_fd_hash (const struct hash_elem *e, 
+                            void *aux UNUSED) 
 {
   struct fd_hash *e_fd = hash_entry (e, struct fd_hash, elem);
   return hash_string (e_fd->filename);
 }
 
-bool hash_less_func (const struct hash_elem *a,
+static bool hash_less_fd_hash (const struct hash_elem *a,
                              const struct hash_elem *b,
-                             void *aux)
+                             void *aux UNUSED)
 {
   struct fd_hash *a_fd = hash_entry (a, struct fd_hash, elem);
   struct fd_hash *b_fd = hash_entry (b, struct fd_hash, elem);
