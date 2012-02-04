@@ -141,7 +141,7 @@ process_wait (tid_t child_tid)
 
   /* If still running, wait for a signal */
   lock_acquire (&pcb->l);
-  while (pcb->status == PROCESS_RUNNING)
+  while (pcb->t != NULL)
     cond_wait (&pcb->cond, &pcb->l);
 
   status = pcb->status;
@@ -167,15 +167,11 @@ process_create_pcb (struct thread *t)
   /* Initialize object */
   t->pcb->tid = t->tid;
   t->pcb->t = t;
-  t->pcb->status = PROCESS_RUNNING;
   lock_init (&t->pcb->l);
   cond_init (&t->pcb->cond);
 
    /* Initialize list of child processes */
   list_init (&t->pcb_children);
-
-  /* Set invalid exit code */
-  t->exit_code = PROCESS_RUNNING;
 
   /* Link new thread's PCB up to its parent thread */
   list_push_back (&thread_current ()->pcb_children, &t->pcb->elem);
