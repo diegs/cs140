@@ -93,14 +93,14 @@ memory_verify_string (char *str)
 }
 
 /* Convenience method for dereferencing a frame argument */
-static inline void* frame_arg (struct intr_frame *f, int i) 
+static inline void* frame_arg (const struct intr_frame *f, const int i) 
 {
   return ((uint32_t*)f->esp) + i;
 }
 
 /* Convenience method for getting an int out of a frame argument safely */
 static inline int 
-frame_arg_int (struct intr_frame *f, int i)
+frame_arg_int (const struct intr_frame *f, const int i)
 {
   void *arg = frame_arg (f, i);
   memory_verify (arg, sizeof (int));
@@ -109,7 +109,7 @@ frame_arg_int (struct intr_frame *f, int i)
 
 /* Convenience method for getting a pointer out of a frame argument safely */
 static inline void *
-frame_arg_ptr (struct intr_frame *f, int i)
+frame_arg_ptr (const struct intr_frame *f, const int i)
 {
   void *arg = frame_arg (f, i);
   memory_verify (arg, sizeof (void**));
@@ -117,7 +117,8 @@ frame_arg_ptr (struct intr_frame *f, int i)
 }
 
 /* Convenience method for accessing the syscall safely */
-static uint32_t get_frame_syscall (struct intr_frame *f) 
+static uint32_t
+get_frame_syscall (const struct intr_frame *f) 
 {
   return frame_arg_int (f, 0);
 }
@@ -131,7 +132,7 @@ static uint32_t get_frame_syscall (struct intr_frame *f)
  * - none
  */
 static void
-sys_halt (struct intr_frame *f UNUSED)
+sys_halt (const struct intr_frame *f UNUSED)
 {
   shutdown_power_off ();
 }
@@ -145,7 +146,7 @@ sys_halt (struct intr_frame *f UNUSED)
  * - none
  */
 static void
-sys_exit (struct intr_frame *f)
+sys_exit (const struct intr_frame *f)
 {
   thread_current ()->exit_code = frame_arg_int (f, 1);
   thread_exit ();
@@ -161,7 +162,7 @@ sys_exit (struct intr_frame *f)
  * - the new process' pid, or -1 if the program cannot load or run.
  */
 static int
-sys_exec (struct intr_frame *f)
+sys_exec (const struct intr_frame *f)
 {
   /* Check the argument */
   char *cmdline = frame_arg_ptr (f, 1);
@@ -181,13 +182,13 @@ sys_exec (struct intr_frame *f)
  * - the exit status of the child process, or -1 if it not a valid child process
  */
 static int
-sys_wait (struct intr_frame *f UNUSED)
+sys_wait (const struct intr_frame *f UNUSED)
 {
   return process_wait (frame_arg_int (f, 1));
 }
 
 static bool
-sys_create (struct intr_frame *f)
+sys_create (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   uint32_t initial_size = frame_arg_int (f, 2);
@@ -195,41 +196,75 @@ sys_create (struct intr_frame *f)
 }
 
 static bool 
-sys_remove (struct intr_frame *f) 
+sys_remove (const struct intr_frame *f) 
 {
   const char *filename = frame_arg_ptr (f, 1);
   return filesys_remove (filename);
 }
 
-static uint32_t 
-sys_open (struct intr_frame *f) 
+static int
+sys_open (const struct intr_frame *f) 
 {
   const char *filename = frame_arg_ptr (f, 1);
 
-  // TODO: implement this correctly
+  /* open file */
+  struct file *f = filesys_open (filename);
+  if (f == NULL) return -1;
+
+  /* associate file descriptor */
 
   return 0;
 }
 
-static uint32_t
-sys_write (struct intr_frame *f) 
+static int
+sys_filesize (const struct intr_frame *f)
+{
+  
+}
+
+static int
+sys_read (const struct intr_frame *f)
+{
+  
+}
+
+static int
+sys_write (const struct intr_frame *f) 
 {
   int fd = frame_arg_int (f, 1);
-  uint32_t result = 0;
 
   if (fd == 1) 
   {
-    char* user_buffer = frame_arg_ptr (f, 2);
-    memory_verify_string (user_buffer);
+    const char* buffer = frame_arg_ptr (f, 2);
+    memory_verify_string (buffer);
     size_t size = frame_arg_int (f, 3);
-    putbuf (user_buffer, size);
+    putbuf (buffer, size);
+    return size;
+  } else {
+    int result = 0;
+    // TODO: Handle other file descriptors
+
+    return result; 
   }
-
-  // TODO: Handle other file descriptors
-
-  return result; 
 }
 
+static void
+sys_seek (const struct intr_frame *f)
+{
+  
+}
+
+static uint32_t
+sys_tell (const struct intr_frame *f)
+{
+  
+}
+
+static void
+sys_close (const struct intr_frame *f)
+{
+  
+}
 
 /* Registers the system call handler for internal interrupts. */
 void
@@ -243,7 +278,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  /* Integrity check the return pointer */
+  /* Integrity-check the return pointer */
   memory_verify ((void*)f->esp, sizeof (void*));
 
   uint32_t syscall = get_frame_syscall (f);
@@ -270,25 +305,25 @@ syscall_handler (struct intr_frame *f)
       eax = sys_remove (f);
       break;
     case SYS_OPEN:
-      printf ("Calling SYS_OPEN, not implemented.\n");
+      eax = sys_open (f);
       break;
     case SYS_FILESIZE:
-      printf ("Calling SYS_FILESIZE, not implemented.\n");
+      eax = sys_filesize (f);
       break;
     case SYS_READ:
-      printf ("Calling SYS_READ, not implemented.\n");
+      eax = sys_read (f);
       break;
     case SYS_WRITE:
       eax = sys_write (f);
       break;
     case SYS_SEEK:
-      printf ("Calling SYS_SEEK, not implemented.\n");
+      sys_seek (f);
       break;
     case SYS_TELL:
-      printf ("Calling SYS_TELL, not implemented.\n");
+      eax = sys_tell (f);
       break;
     case SYS_CLOSE:
-      printf ("Calling SYS_CLOSE, not implemented.\n");
+      sys_close (f);
       break;
   }
 
