@@ -7,7 +7,6 @@
 #include "filesys/file.h"
 
 #define PROCESS_RUNNING -2
-#define PFD_OFFSET 2
 
 struct process_fd 
 {
@@ -40,9 +39,9 @@ void process_create_pcb (struct thread *t);
 
 /* Functions for manipulating the mapping between fd and file* for
    a given process */
-int process_add_file (struct process_status *, struct file *);
-struct file* process_get_file (struct process_status *, int);
-void process_remove_file (struct process_status *, int);
+int process_add_file (struct thread *t, struct file *file);
+struct file* process_get_file (struct thread *t, int fd);
+void process_remove_file (struct thread *t, int fd);
 
 
 #endif /* userprog/process.h */

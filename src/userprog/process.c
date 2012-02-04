@@ -634,11 +634,11 @@ install_page (void *upage, void *kpage, bool writable)
 
 
 static struct process_fd*
-get_process_fd (struct process_status *p_status, int fd) 
+get_process_fd (struct thread *t, int fd) 
 {
   if (fd < PFD_OFFSET) return NULL;
 
-  struct list *fd_list = &p_status->fd_list;
+  struct list *fd_list = &t->fd_list;
   struct list_elem *elem = list_begin (fd_list);
   for (; elem != list_end (fd_list); elem = list_next (elem))
   {
@@ -652,13 +652,13 @@ get_process_fd (struct process_status *p_status, int fd)
 }
 
 int 
-process_add_file (struct process_status *p_status, struct file *file)
+process_add_file (struct thread *t, struct file *file)
 {
-  struct list *fd_list = &p_status->fd_list;
+  struct list *fd_list = &t->fd_list;
 
   struct process_fd *new_fd = malloc (sizeof (struct process_fd));
   new_fd->file = file;
-  new_fd->fd = p_status->next_fd++;
+  new_fd->fd = t->next_fd++;
 
   list_push_back (fd_list, &new_fd->elem);
 
@@ -666,9 +666,9 @@ process_add_file (struct process_status *p_status, struct file *file)
 }
 
 struct file* 
-process_get_file (struct process_status *p_status, int fd) 
+process_get_file (struct thread *t, int fd) 
 {
-  struct process_fd* pfd = get_process_fd (p_status, fd);
+  struct process_fd* pfd = get_process_fd (t, fd);
   
   if (pfd == NULL) return NULL;
   return pfd->file;
@@ -676,9 +676,9 @@ process_get_file (struct process_status *p_status, int fd)
 
 
 void
-process_remove_file (struct process_status *p_status, int fd) 
+process_remove_file (struct thread *t, int fd) 
 {
-  struct process_fd* pfd = get_process_fd (p_status, fd);
+  struct process_fd* pfd = get_process_fd (t, fd);
 
   if (pfd == NULL) return;
   list_remove (&pfd->elem);

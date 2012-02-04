@@ -317,6 +317,11 @@ thread_create (const char *name, int priority,
     palloc_free_page (t);
     return TID_ERROR;
   }
+
+  /* Process file descriptor variables */
+  list_init (&t->fd_list);
+  t->next_fd = PFD_OFFSET;
+
 #endif
 
   /* Prepare thread for first run by initializing its stack.

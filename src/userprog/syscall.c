@@ -189,15 +189,6 @@ sys_wait (const struct intr_frame *f UNUSED)
 }
 
 
-static struct process_status*
-get_cur_process (const struct intr_frame *f UNUSED) 
-{
-  // TODO: Verify that it is actually possible to grab the current
-  // thread like this here
-  struct thread *cur_thread = thread_current ();
-  return cur_thread->pcb;
-}
-
 static bool
 sys_create (const struct intr_frame *f)
 {
@@ -224,7 +215,7 @@ sys_open (const struct intr_frame *f)
 
   if (file == NULL) return -1;
 
-  int fd = process_add_file (get_cur_process (f), file);
+  int fd = process_add_file (thread_current (), file);
   return fd;
 }
 
@@ -233,7 +224,7 @@ sys_filesize (struct intr_frame *f)
 {
   int fd = *(int*)frame_arg (f, 1);
 
-  struct file* file = process_get_file (get_cur_process (f), fd);
+  struct file* file = process_get_file (thread_current (), fd);
   if (file == NULL) return -1;
 
   return file_length (file);
@@ -246,7 +237,7 @@ sys_seek (struct intr_frame *f)
   int fd = *(int*)frame_arg (f, 1);
   off_t pos = *(off_t*)frame_arg (f, 2);
 
-  struct file* file = process_get_file (get_cur_process (f), fd);
+  struct file* file = process_get_file (thread_current (), fd);
   if (file == NULL) return;
  
   file_seek (file, pos);
@@ -257,7 +248,7 @@ sys_tell (struct intr_frame *f)
 {
   int fd = *(int*)frame_arg (f, 1);
 
-  struct file* file = process_get_file (get_cur_process (f), fd);
+  struct file* file = process_get_file (thread_current (), fd);
   if (file == NULL) return -1;
  
   return file_tell (file);
@@ -268,11 +259,11 @@ sys_close (struct intr_frame *f)
 {
   int fd = *(int*)frame_arg (f, 1);
 
-  struct file* file = process_get_file (get_cur_process (f), fd);
+  struct file* file = process_get_file (thread_current (), fd);
   if (file == NULL) return;
 
   file_close (file);
-  process_remove_file (get_cur_process (f), fd);
+  process_remove_file (thread_current (), fd);
 }
 
 
@@ -299,7 +290,7 @@ sys_write (const struct intr_frame *f)
   } 
 
   // Handle rest of file descriptors
-  struct file* file = process_get_file (get_cur_process (f), fd);
+  struct file* file = process_get_file (thread_current (), fd);
   if (file == NULL) return 0;
 
   return 0;

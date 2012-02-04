@@ -30,6 +30,8 @@ typedef int tid_t;
 #define NICE_MIN -20
 #define NICE_MAX 20
 
+#define PFD_OFFSET 2
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -104,6 +106,9 @@ struct thread
   struct process_status *pcb;          /* Parent status info */
   struct list pcb_children;              /* List of children */
   int exit_code;                       /* Exit code */
+
+  struct list fd_list;
+  int next_fd;
 #endif
 
   /* Priority data */
