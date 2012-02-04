@@ -127,12 +127,26 @@ static inline void* frame_arg (struct intr_frame *f, int i)
   return ((uint32_t*)f->esp) + i;
 }
 
+static inline int 
+frame_arg_int (struct intr_frame *f, int i)
+{
+  void *arg = frame_arg (f, i);
+  memory_verify (arg, sizeof (int));
+  return *((int*)arg);
+}
+
+static inline void *
+frame_arg_ptr (struct intr_frame *f, int i)
+{
+  void *arg = frame_arg (f, i);
+  memory_verify (arg, sizeof (void**));
+  return *((void**)arg);
+}
+
 /* Convenience method for accessing the syscall safely */
 static uint32_t get_frame_syscall (struct intr_frame *f) 
 {
-  void *arg0 = frame_arg (f, 0);
-  memory_verify (arg0, sizeof (uint32_t));
-  return *((uint32_t*)arg0);
+  return frame_arg_int (f, 0);
 }
 
 /**
@@ -160,9 +174,7 @@ sys_halt (struct intr_frame *f UNUSED)
 static void
 sys_exit (struct intr_frame *f)
 {
-  void *arg1 = frame_arg (f, 1);
-  memory_verify (arg1, sizeof (int));
-  thread_current ()->exit_code = *((int*)arg1);
+  thread_current ()->exit_code = frame_arg_int (f, 1);
   thread_exit ();
 }
 
@@ -179,9 +191,7 @@ static int
 sys_exec (struct intr_frame *f)
 {
   /* Check the argument */
-  void *arg1 = frame_arg (f, 1);
-  memory_verify (arg1, sizeof (char**));
-  char *cmdline = *((char**)arg1);
+  char *cmdline = frame_arg_ptr (f, 1);
   memory_verify_string (cmdline);
 
   /* Execute the process */
@@ -200,47 +210,44 @@ sys_exec (struct intr_frame *f)
 static int
 sys_wait (struct intr_frame *f UNUSED)
 {
-  void *arg1 = frame_arg (f, 1);
-  memory_verify (arg1, sizeof (int));
-  return process_wait (*((int*)arg1));
+  return process_wait (frame_arg_int (f, 1));
 }
 
 static bool
 sys_create (struct intr_frame *f)
 {
-  const char *filename = *(char**)frame_arg (f, 1);
-  uint32_t initial_size = *(uint32_t*)frame_arg (f, 2);
-
+  const char *filename = frame_arg_ptr (f, 1);
+  uint32_t initial_size = frame_arg_int (f, 2);
   return filesys_create (filename, initial_size);
 }
 
 static bool 
 sys_remove (struct intr_frame *f) 
 {
-  const char *filename = *(char**)frame_arg(f, 1);
+  const char *filename = frame_arg_ptr (f, 1);
   return filesys_remove (filename);
 }
 
 static uint32_t 
 sys_open (struct intr_frame *f) 
 {
-  const char *filename = *(char**)frame_arg(f, 1);
+  const char *filename = frame_arg_ptr (f, 1);
 
   // TODO: implement this correctly
 
   return 0;
 }
 
-
 static uint32_t
 sys_write (struct intr_frame *f) 
 {
-  int fd = *(int*)frame_arg (f, 1);
+  int fd = frame_arg_int (f, 1);
   uint32_t result = 0;
+
   if (fd == 1) 
   {
-    char* user_buffer = *(char**) frame_arg (f, 2);
-    size_t size_total = *(size_t*) frame_arg (f, 3);
+    char* user_buffer = frame_arg_ptr (f, 2);
+    size_t size_total = frame_arg_int (f, 3);
     size_t size_remain = size_total;
     
     char kernel_buffer[SYSWRITE_BSIZE];
@@ -279,7 +286,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  /* Sanity check the return pointer */
+  /* Integrity check the return pointer */
   memory_verify ((void*)f->esp, sizeof (void*));
 
   uint32_t syscall = get_frame_syscall (f);
