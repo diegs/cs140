@@ -10,8 +10,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-#define SYSWRITE_BSIZE 256
-
 static void syscall_handler (struct intr_frame *);
 
 /* Reads a byte at user virtual address UADDR. UADDR must be below
@@ -92,33 +90,6 @@ memory_verify_string (char *str)
       return;
     str++;
   }
-}
-
-/* Like memcpy, but copies from userland. Returns number of bytes copied,
-   or -1 if error occurred */
-static int
-user_memcpy (void *dst, const void *src, size_t size)
-{
-  size_t i;
-  int result;
-  char byte;
-
-  ASSERT (dst != NULL);
-  ASSERT (src != NULL);
-
-  byte = 0;
-  for (i = 0; i < size; i++)
-  {
-    /* Make sure memory access was valid */
-    result = get_byte ((uint8_t*)src + i);
-    if (result == -1) return -1;
-
-    /* Read the byte */
-    byte = (char)result;
-    ((char*)dst)[i] = byte;
-  }
-
-  return i;
 }
 
 /* Convenience method for dereferencing a frame argument */
@@ -247,25 +218,8 @@ sys_write (struct intr_frame *f)
   if (fd == 1) 
   {
     char* user_buffer = frame_arg_ptr (f, 2);
-    size_t size_total = frame_arg_int (f, 3);
-    size_t size_remain = size_total;
-    
-    char kernel_buffer[SYSWRITE_BSIZE];
-    while (size_remain > 0)
-    {
-      size_t bytes_attempt = 
-        SYSWRITE_BSIZE > size_remain ? size_remain : SYSWRITE_BSIZE;
-
-      size_t bytes_copied = 
-        user_memcpy (kernel_buffer, user_buffer, bytes_attempt);
-
-      putbuf (kernel_buffer, bytes_copied);
-
-      result += bytes_copied;
-      if (bytes_copied < bytes_attempt) break;
-
-      size_remain -= bytes_copied;
-    }
+    size_t size = frame_arg_int (f, 3);
+    putbuf (user_buffer, size);
   }
 
   // TODO: Handle other file descriptors
