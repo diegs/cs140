@@ -274,16 +274,16 @@ sys_remove (const struct intr_frame *f)
   memory_verify_string (filename);
   lock_acquire (&fd_all_lock);
   struct fd_hash *fd_found = get_fd_hash (filename); 
-  fd_found->count--;
   fd_found->delete = true;
   if (fd_found->count == 0)
   {
 	hash_delete(&fd_all, &fd_found->elem);
-	fd_hash_destroy(fd_found);	
+	fd_hash_destroy(fd_found);
+	lock_release (&fd_all_lock);
+	return filesys_remove (filename);
   }
-  bool ret = filesys_remove (filename);
   lock_release (&fd_all_lock);
-  return ret;
+  return true;
 }
 
 
