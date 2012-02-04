@@ -362,6 +362,7 @@ sys_close (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
 
+<<<<<<< HEAD
 
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) {
@@ -379,6 +380,25 @@ sys_close (struct intr_frame *f)
 	 filesys_remove (pfd->filename);
   }
   process_remove_file (thread_current (), fd);
+=======
+  lock_acquire (&fd_all_lock);
+  struct process_fd *pfd = process_get_file (thread_current (), fd);
+  if (pfd == NULL) return;
+
+  struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
+
+  /* Perform syscall level bookkeeping */
+  fd_found->count--;
+  if (fd_found->count == 0) 
+  {
+    file_close (pfd->file);
+    if (fd_found->delete) filesys_remove (pfd->filename);
+  }
+
+  /* Remove the file from the process */
+  process_remove_file (thread_current (), fd);
+
+>>>>>>> d3243a66bc2627cdba4832492de353eff037b22e
   lock_release (&fd_all_lock);
 
 }
