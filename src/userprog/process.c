@@ -658,7 +658,7 @@ process_add_file (struct thread *t, struct file *file,
   struct process_fd *new_fd = malloc (sizeof (struct process_fd));
   new_fd->file = file;
   new_fd->fd = t->next_fd++;
-
+  new_fd->filename = filename;
   list_push_back (fd_list, &new_fd->elem);
 
   return new_fd->fd;
