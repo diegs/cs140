@@ -659,10 +659,6 @@ process_add_file (struct thread *t, struct file *file,
   new_fd->file = file;
   new_fd->fd = t->next_fd++;
   new_fd->filename = filename;
-<<<<<<< HEAD
-=======
-
->>>>>>> d3243a66bc2627cdba4832492de353eff037b22e
   list_push_back (fd_list, &new_fd->elem);
 
   return new_fd->fd;
