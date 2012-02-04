@@ -373,3 +373,12 @@ strlcat (char *dst, const char *src, size_t size)
   return src_len + dst_len;
 }
 
+/* Makes a copy of src on the heap and returns it. */
+char *
+strdup (const char *src)
+{
+  size_t len = strlen (src) + 1;
+  char *dst = malloc (len);
+  strlcpy (dst, src, len);
+  return dst;
+}
