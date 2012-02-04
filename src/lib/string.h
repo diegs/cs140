@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include_next <string.h>
+
 /* Standard. */
 void *memcpy (void *, const void *, size_t);
 void *memmove (void *, const void *, size_t);
