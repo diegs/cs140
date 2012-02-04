@@ -98,6 +98,7 @@ static inline void* frame_arg (struct intr_frame *f, int i)
   return ((uint32_t*)f->esp) + i;
 }
 
+/* Convenience method for getting an int out of a frame argument safely */
 static inline int 
 frame_arg_int (struct intr_frame *f, int i)
 {
@@ -106,6 +107,7 @@ frame_arg_int (struct intr_frame *f, int i)
   return *((int*)arg);
 }
 
+/* Convenience method for getting a pointer out of a frame argument safely */
 static inline void *
 frame_arg_ptr (struct intr_frame *f, int i)
 {
@@ -218,6 +220,7 @@ sys_write (struct intr_frame *f)
   if (fd == 1) 
   {
     char* user_buffer = frame_arg_ptr (f, 2);
+    memory_verify_string (user_buffer);
     size_t size = frame_arg_int (f, 3);
     putbuf (user_buffer, size);
   }
