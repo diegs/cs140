@@ -337,13 +337,19 @@ sys_close (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return;
 
-  file_close (pfd->file);
+  struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
+
+  /* Perform syscall level bookkeeping */
+  fd_found->count--;
+  if (fd_found->count == 0) 
+  {
+    file_close (pfd->file);
+    if (fd_found->delete) filesys_remove (pfd->filename);
+  }
+
+  /* Remove the file from the process */
   process_remove_file (thread_current (), fd);
 
-  struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
-  fd_found->count--;
-  if (fd_found->count == 0 && fd_found->delete) 
-    filesys_remove (pfd->filename);
   lock_release (&fd_all_lock);
 
 }
