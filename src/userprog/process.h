@@ -10,6 +10,7 @@ struct process_fd
 {
   struct list_elem elem;     /* List placement in owning process */
   struct file *file;
+  const char* filename;
   int fd;
 };
 
@@ -37,8 +38,9 @@ void process_create_pcb (struct thread *t);
 
 /* Functions for manipulating the mapping between fd and file* for
    a given process */
-int process_add_file (struct thread *t, struct file *file);
-struct file* process_get_file (struct thread *t, int fd);
+int process_add_file (struct thread *t, struct file *file, 
+  const char* filename);
+struct process_fd* process_get_file (struct thread *t, int fd);
 void process_remove_file (struct thread *t, int fd);
 
 

@@ -647,8 +647,11 @@ get_process_fd (struct thread *t, int fd)
   return NULL;
 }
 
+/* this function is not responsible for freeing filename but expects
+   it to be valid memory while the process fd is still in the list */
 int 
-process_add_file (struct thread *t, struct file *file)
+process_add_file (struct thread *t, struct file *file, 
+    const char* filename)
 {
   struct list *fd_list = &t->fd_list;
 
@@ -661,13 +664,11 @@ process_add_file (struct thread *t, struct file *file)
   return new_fd->fd;
 }
 
-struct file* 
+struct process_fd* 
 process_get_file (struct thread *t, int fd) 
 {
   struct process_fd* pfd = get_process_fd (t, fd);
-  
-  if (pfd == NULL) return NULL;
-  return pfd->file;
+  return pfd;
 }
 
 
