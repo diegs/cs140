@@ -208,8 +208,8 @@ sys_open (const struct intr_frame *f)
   const char *filename = frame_arg_ptr (f, 1);
 
   /* open file */
-  struct file *f = filesys_open (filename);
-  if (f == NULL) return -1;
+  struct file *fp = filesys_open (filename);
+  if (fp == NULL) return -1;
 
   /* associate file descriptor */
 
