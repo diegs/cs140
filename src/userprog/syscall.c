@@ -356,10 +356,35 @@ sys_close (struct intr_frame *f)
 
 
 static int32_t 
-sys_read (struct intr_frame *f UNUSED) 
+sys_read (struct intr_frame *f) 
 {
-  // TODO: Actually implement sys_read
-  return -1;
+  int fd = frame_arg_int (f, 1);
+  char *user_buffer = frame_arg_ptr (f, 2);
+  size_t user_size = frame_arg_int (f, 3);
+
+  memory_verify (user_buffer, user_size);
+
+  int result = -1;
+
+  /* Special case for reading from the keyboard */
+  if (fd == 0)
+  {
+    size_t read_size = 0;
+    while (read_size < user_size) {
+      user_buffer[read_size] = input_getc ();
+      read_size++;
+    }
+
+    result = read_size;
+  } else {
+
+    struct process_fd *pfd = process_get_file (thread_current (), fd);
+    if (pfd == NULL) return -1;
+
+    result = file_read (pfd->file, user_buffer, user_size);
+  }
+
+  return result;
 }
 
 static int
