@@ -231,26 +231,7 @@ sys_wait (const struct intr_frame *f UNUSED)
   return process_wait (frame_arg_int (f, 1));
 }
 
-
-static bool
-sys_create (const struct intr_frame *f)
-{
-  const char *filename = frame_arg_ptr (f, 1);
-  uint32_t initial_size = frame_arg_int (f, 2);
-
-  memory_verify_string (filename);
-
-  return filesys_create (filename, initial_size);
-}
-
-static bool 
-sys_remove (const struct intr_frame *f) 
-{
-  const char *filename = frame_arg_ptr (f, 1);
-  return filesys_remove (filename);
-}
-
-  /* Check to see if filename is our hash table */
+/* Check to see if filename is our hash table */
 static struct fd_hash* get_fd_hash (const char* filename)
 {
   struct fd_hash fd_sample;
@@ -264,6 +245,47 @@ static struct fd_hash* get_fd_hash (const char* filename)
 
   return fd_found;
 }
+
+
+static bool
+sys_create (const struct intr_frame *f)
+{
+  const char *filename = frame_arg_ptr (f, 1);
+  uint32_t initial_size = frame_arg_int (f, 2);
+
+  memory_verify_string (filename);
+
+  lock_acquire (&fd_all_lock);
+  struct fd_hash * fd_found = malloc (sizeof (struct fd_hash)); 
+  fd_hash_init (fd_found);
+  fd_found->filename = strdup (filename);
+  hash_insert (&fd_all, &fd_found->elem);
+
+  bool ret = filesys_create (filename, initial_size);
+
+  lock_release (&fd_all_lock);
+  return ret;
+}
+
+static bool 
+sys_remove (const struct intr_frame *f) 
+{
+  const char *filename = frame_arg_ptr (f, 1);
+  memory_verify_string (filename);
+  lock_acquire (&fd_all_lock);
+  struct fd_hash *fd_found = get_fd_hash (filename); 
+  fd_found->delete = true;
+  if (fd_found->count == 0)
+  {
+	hash_delete(&fd_all, &fd_found->elem);
+	fd_hash_destroy(fd_found);
+	lock_release (&fd_all_lock);
+	return filesys_remove (filename);
+  }
+  lock_release (&fd_all_lock);
+  return true;
+}
+
 
 static int
 sys_open (const struct intr_frame *f) 
@@ -285,6 +307,13 @@ sys_open (const struct intr_frame *f)
     fd_found->filename = strdup (filename);
     hash_insert (&fd_all, &fd_found->elem);
   }
+  /* Makes sure it isn't marked for deletion */
+  if (fd_found->delete)
+  {
+	lock_release (&fd_all_lock);
+    return -1;
+  }
+	
   fd_found->count++;
   lock_release (&fd_all_lock);
 
@@ -391,13 +420,13 @@ static int
 sys_write (const struct intr_frame *f) 
 {
   int fd = frame_arg_int (f, 1);
+  const char* buffer = frame_arg_ptr (f, 2);
+  memory_verify_string (buffer);
+  size_t size = frame_arg_int (f, 3);
 
   // Handle special case for writing to the console
   if (fd == 1) 
   {
-    const char* buffer = frame_arg_ptr (f, 2);
-    memory_verify_string (buffer);
-    size_t size = frame_arg_int (f, 3);
     putbuf (buffer, size);
     return size;
   } 
@@ -406,7 +435,7 @@ sys_write (const struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return 0;
 
-  return 0;
+  return file_write(pfd->file, buffer, size);
 }
 
 /* Registers the system call handler for internal interrupts. */
