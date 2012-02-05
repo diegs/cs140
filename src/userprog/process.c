@@ -93,13 +93,21 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
+  /* Open the file and prevent writes to it while loading */
+  struct file* file = filesys_open (pinfo->prog_name);
+  if (file != NULL) file_deny_write (file);
+
   success = load (pinfo, &if_.eip, &if_.esp);
 
-  /* If load failed, quit. */
+  /* If load failed, allow writes again and quit. */
   if (!success) 
   {
+    if (file != NULL) file_allow_write (file);
     thread_current ()->exit_code = -1;
     thread_exit ();
+  } else {
+    thread_current ()->exec_file = file;
   }
 
   /* Start the user process by simulating a return from an
@@ -427,7 +435,6 @@ load (struct process_info * pinfo, void (**eip) (void), void **esp)
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
-
   success = true;
 
  done:
@@ -435,6 +442,7 @@ load (struct process_info * pinfo, void (**eip) (void), void **esp)
   pinfo->load_success = success;
   sema_up(&pinfo->loaded);
   file_close (file);
+
   return success;
 }
 

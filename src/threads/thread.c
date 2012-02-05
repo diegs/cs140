@@ -323,6 +323,7 @@ thread_create (const char *name, int priority,
   list_init (&t->fd_list);
   t->next_fd = PFD_OFFSET;
 
+  t->exec_file = NULL;
 #endif
 
   /* Prepare thread for first run by initializing its stack.
@@ -474,10 +475,15 @@ thread_exit (void)
 	  lock_release(l);
 	}  
 
+  struct thread *t = thread_current ();
+
   /* TODO: release all file handles */
 
+  /* Allow writes to the exec file again */
+  if (t->exec_file != NULL) file_allow_write (t->exec_file);
+
   list_remove (&thread_current()->allelem);
-  thread_current ()->status = THREAD_DYING;
+  t->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
 }
