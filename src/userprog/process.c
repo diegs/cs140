@@ -28,6 +28,8 @@ struct process_info {
   int argc;		//number of arguments
   char * prog_name;
   char *args_copy;	//pointer to the file name and args in the heap
+  bool load_success;
+  struct semaphore loaded;
 };
 
 static bool load (struct process_info *pinfo, void (**eip) (void), void **esp);
@@ -42,7 +44,8 @@ process_execute (const char *file_name)
 {
   tid_t tid;
   struct process_info *pinfo =  malloc(sizeof(struct process_info));
-  memset(pinfo, 0, sizeof (struct process_info));
+  memset (pinfo, 0, sizeof (struct process_info));
+  sema_init (&pinfo->loaded, 0);
   
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -65,11 +68,14 @@ process_execute (const char *file_name)
   }
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
+  tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process,
+  pinfo);
+  sema_down(&pinfo->loaded);
+  if (pinfo->load_success == false) tid = TID_ERROR;
   if (tid == TID_ERROR) {
     palloc_free_page (pinfo->args_copy); 
-    free(pinfo);
   }
+  free(pinfo);
   return tid;
 }
 
@@ -79,7 +85,6 @@ static void
 start_process (void *file_name_)
 {
   struct process_info *pinfo = (struct process_info *) file_name_;
-  char *file_name = pinfo->prog_name;
   struct intr_frame if_;
   bool success;
 
@@ -89,9 +94,6 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (pinfo, &if_.eip, &if_.esp);
-
-  palloc_free_page (file_name);
-  free(pinfo);
 
   /* If load failed, quit. */
   if (!success) 
@@ -430,6 +432,8 @@ load (struct process_info * pinfo, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+  pinfo->load_success = success;
+  sema_up(&pinfo->loaded);
   file_close (file);
   return success;
 }
