@@ -360,7 +360,7 @@ sys_tell (struct intr_frame *f)
 void
 syscall_close (int fd)
 {
- lock_acquire (&fd_all_lock);
+  lock_acquire (&fd_all_lock);
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return;
 

@@ -232,16 +232,6 @@ process_exit (void)
     file_close (cur->exec_file);
   }
 
-  /* TODO: release all file handles */
-  /* Release all file handles */
-  struct list * fds = &thread_current ()->fd_list;
-  while (!list_empty (fds))
-    {
-      struct list_elem *e = list_pop_front (fds);
-      struct process_fd * fd = list_entry (e, struct process_fd, elem);
-	  syscall_close (fd->fd);
-    }
-
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
