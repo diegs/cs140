@@ -115,9 +115,8 @@ main (int argc, char *argv[])
   /* If -k is passed, crash this process. */
   if (argc > 2 && !strcmp(argv[2], "-k"))
     {
-//      consume_some_resources_and_die (n);
-        exit (-1);
-//      NOT_REACHED ();
+      consume_some_resources_and_die (n);
+      NOT_REACHED ();
     }
 
   int howmany = is_at_root ? EXPECTED_REPETITIONS : 1;
@@ -135,8 +134,8 @@ main (int argc, char *argv[])
           child_pid = spawn_child (n + 1, CRASH);
           if (child_pid != -1)
             {
- //             if (wait (child_pid) != -1)
- //               fail ("crashed child should return -1.");
+              if (wait (child_pid) != -1)
+                fail ("crashed child should return -1.");
             }
           /* If spawning this child failed, so should
              the next spawn_child below. */
