@@ -357,12 +357,10 @@ sys_tell (struct intr_frame *f)
   return file_tell (pfd->file);
 }
 
-static void
-sys_close (struct intr_frame *f) 
+void
+syscall_close (int fd)
 {
-  int fd = frame_arg_int (f, 1);
-
-  lock_acquire (&fd_all_lock);
+ lock_acquire (&fd_all_lock);
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return;
 
@@ -381,6 +379,15 @@ sys_close (struct intr_frame *f)
 
   lock_release (&fd_all_lock);
 
+
+}
+
+static void
+sys_close (struct intr_frame *f) 
+{
+  int fd = frame_arg_int (f, 1);
+  syscall_close (fd);
+ 
 }
 
 
