@@ -27,6 +27,10 @@ struct process_status
   struct list fd_list;       /* List of file descriptors open in this
                                 process */
   int next_fd;
+
+  /* The file that spawned this process -- this must be kept open
+     until the end of the execution of the thread */
+  struct file* exec_file;
 };
 
 tid_t process_execute (const char *file_name);
