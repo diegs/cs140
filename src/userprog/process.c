@@ -225,6 +225,15 @@ process_exit (void)
     free (pcb);
   }
 
+  /* Allow writes to the exec file again */
+  if (cur->exec_file != NULL) 
+  {
+    file_allow_write (cur->exec_file);
+    file_close (cur->exec_file);
+  }
+
+  /* TODO: release all file handles */
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -241,15 +250,6 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-  /* Allow writes to the exec file again */
-  if (cur->exec_file != NULL) 
-  {
-    file_allow_write (cur->exec_file);
-    file_close (cur->exec_file);
-  }
-
-  /* TODO: release all file handles */
 }
 
 /* Sets up the CPU for running user code in the current
