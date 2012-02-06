@@ -362,8 +362,10 @@ syscall_close (int fd)
 {
   lock_acquire (&fd_all_lock);
   struct process_fd *pfd = process_get_file (thread_current (), fd);
-  if (pfd == NULL) return;
-
+  if (pfd == NULL) {
+	lock_release (&fd_all_lock);
+	return;
+  }
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
 
   /* Perform syscall level bookkeeping */
