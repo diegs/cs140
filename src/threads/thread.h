@@ -108,6 +108,15 @@ struct thread
   struct list pcb_children;              /* List of children */
   int exit_code;                       /* Exit code */
 
+  /* File system information */
+  struct list fd_list;       /* List of file descriptors open in this
+                                process */
+  int next_fd;
+
+  /* The file that spawned this process -- this must be kept open
+     until the end of the execution of the thread */
+  struct file* exec_file;
+
 #endif
 
   /* Priority data */

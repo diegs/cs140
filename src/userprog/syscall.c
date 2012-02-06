@@ -310,7 +310,7 @@ sys_open (const struct intr_frame *f)
   /* Makes sure it isn't marked for deletion */
   if (fd_found->delete)
   {
-	lock_release (&fd_all_lock);
+    lock_release (&fd_all_lock);
     return -1;
   }
 	

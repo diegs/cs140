@@ -107,7 +107,7 @@ start_process (void *file_name_)
     thread_current ()->exit_code = -1;
     thread_exit ();
   } else {
-    thread_current ()->pcb->exec_file = file;
+    thread_current ()->exec_file = file;
   }
 
   /* Start the user process by simulating a return from an
@@ -179,9 +179,9 @@ process_create_pcb (struct thread *t)
   t->pcb->t = t;
   lock_init (&t->pcb->l);
   cond_init (&t->pcb->cond);
-  list_init (&t->pcb->fd_list);
-  t->pcb->next_fd = PFD_OFFSET;
-  t->pcb->exec_file = NULL;
+  list_init (&t->fd_list);
+  t->next_fd = PFD_OFFSET;
+  t->exec_file = NULL;
 
    /* Initialize list of child processes */
   list_init (&t->pcb_children);
@@ -243,8 +243,8 @@ process_exit (void)
     }
 
   /* Allow writes to the exec file again */
-  if (cur->pcb->exec_file != NULL) 
-    file_allow_write (cur->pcb->exec_file);
+  if (cur->exec_file != NULL) 
+    file_allow_write (cur->exec_file);
 
   /* TODO: release all file handles */
 }
@@ -655,8 +655,7 @@ get_process_fd (struct thread *t, int fd)
 {
   if (fd < PFD_OFFSET) return NULL;
 
-  struct process_status *pcb = t->pcb;
-  struct list *fd_list = &pcb->fd_list;
+  struct list *fd_list = &t->fd_list;
   struct list_elem *elem = list_begin (fd_list);
   for (; elem != list_end (fd_list); elem = list_next (elem))
   {
@@ -675,12 +674,11 @@ int
 process_add_file (struct thread *t, struct file *file, 
     const char* filename)
 {
-  struct process_status *pcb = t->pcb;
-  struct list *fd_list = &pcb->fd_list;
+  struct list *fd_list = &t->fd_list;
 
   struct process_fd *new_fd = malloc (sizeof (struct process_fd));
   new_fd->file = file;
-  new_fd->fd = pcb->next_fd++;
+  new_fd->fd = t->next_fd++;
   new_fd->filename = filename;
   list_push_back (fd_list, &new_fd->elem);
 
