@@ -22,6 +22,9 @@ struct fd_hash
   struct hash_elem elem;
 };
 
+struct hash fd_all;
+struct lock fd_all_lock;
+
 static void fd_hash_init (struct fd_hash *h) 
 {
   h->count = 0;
@@ -32,10 +35,10 @@ static void fd_hash_init (struct fd_hash *h)
 static void fd_hash_destroy (struct fd_hash *h)
 {
   if (h->filename != NULL) free (h->filename);
+  hash_delete (&fd_all, &h->elem);
+  free (h);
 }
 
-struct hash fd_all;
-struct lock fd_all_lock;
 
 static unsigned hash_hash_fd_hash (const struct hash_elem *e, 
                             void *aux UNUSED) 
@@ -256,14 +259,9 @@ sys_create (const struct intr_frame *f)
   memory_verify_string (filename);
 
   lock_acquire (&fd_all_lock);
-  struct fd_hash * fd_found = malloc (sizeof (struct fd_hash)); 
-  fd_hash_init (fd_found);
-  fd_found->filename = strdup (filename);
-  hash_insert (&fd_all, &fd_found->elem);
-
   bool ret = filesys_create (filename, initial_size);
-
   lock_release (&fd_all_lock);
+
   return ret;
 }
 
@@ -272,18 +270,20 @@ sys_remove (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
+
   lock_acquire (&fd_all_lock);
   struct fd_hash *fd_found = get_fd_hash (filename); 
-  fd_found->delete = true;
-  if (fd_found->count == 0)
+
+  bool result = false;
+  if (fd_found) 
   {
-	hash_delete(&fd_all, &fd_found->elem);
-	fd_hash_destroy(fd_found);
-	lock_release (&fd_all_lock);
-	return filesys_remove (filename);
+    fd_found->delete = true;
+    result = true;
+  } else {
+    result = filesys_remove (filename);
   }
   lock_release (&fd_all_lock);
-  return true;
+  return result;
 }
 
 
@@ -293,10 +293,14 @@ sys_open (const struct intr_frame *f)
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
 
-  struct file* file = filesys_open (filename); 
-  if (file == NULL) return -1;
-
   lock_acquire (&fd_all_lock);
+  struct file* file = filesys_open (filename); 
+  if (file == NULL) 
+  {
+    lock_release (&fd_all_lock);
+    return -1;
+  }
+
   struct fd_hash *fd_found = get_fd_hash (filename); 
 
   /* Update count */
@@ -315,10 +319,11 @@ sys_open (const struct intr_frame *f)
   }
 	
   fd_found->count++;
-  lock_release (&fd_all_lock);
-
   int fd = process_add_file (thread_current (), 
                               file, fd_found->filename);
+
+  lock_release (&fd_all_lock);
+
   return fd;
 }
 
@@ -330,7 +335,10 @@ sys_filesize (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return -1;
 
-  return file_length (pfd->file);
+  lock_acquire (&fd_all_lock);
+  int len = file_length (pfd->file);
+  lock_release (&fd_all_lock);
+  return len;
 }
 
 
@@ -343,7 +351,9 @@ sys_seek (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return;
  
+  lock_acquire (&fd_all_lock);
   file_seek (pfd->file, pos);
+  lock_release (&fd_all_lock);
 }
 
 static uint32_t
@@ -354,7 +364,11 @@ sys_tell (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return -1;
  
-  return file_tell (pfd->file);
+  lock_acquire (&fd_all_lock);
+  uint32_t tell = file_tell (pfd->file);
+  lock_release (&fd_all_lock);
+
+  return tell;
 }
 
 void
@@ -363,24 +377,25 @@ syscall_close (int fd)
   lock_acquire (&fd_all_lock);
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) {
-	lock_release (&fd_all_lock);
-	return;
+    lock_release (&fd_all_lock);
+    return;
   }
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
+
+  file_close (pfd->file);
 
   /* Perform syscall level bookkeeping */
   fd_found->count--;
   if (fd_found->count == 0) 
   {
-    file_close (pfd->file);
     if (fd_found->delete) filesys_remove (pfd->filename);
+    fd_hash_destroy(fd_found);
   }
 
   /* Remove the file from the process */
   process_remove_file (thread_current (), fd);
 
   lock_release (&fd_all_lock);
-
 
 }
 
@@ -419,7 +434,9 @@ sys_read (struct intr_frame *f)
     struct process_fd *pfd = process_get_file (thread_current (), fd);
     if (pfd == NULL) return -1;
 
+    lock_acquire (&fd_all_lock);
     result = file_read (pfd->file, user_buffer, user_size);
+    lock_release (&fd_all_lock);
   }
 
   return result;
@@ -444,7 +461,11 @@ sys_write (const struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return 0;
 
-  return file_write(pfd->file, buffer, size);
+  lock_acquire (&fd_all_lock);
+  int result =  file_write(pfd->file, buffer, size);
+  lock_release (&fd_all_lock);
+
+  return result;
 }
 
 /* Registers the system call handler for internal interrupts. */

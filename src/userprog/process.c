@@ -51,8 +51,8 @@ process_execute (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   pinfo->args_copy = palloc_get_page (0);
   if (pinfo->args_copy == NULL) {
-	free(pinfo);
-	return TID_ERROR;
+    free(pinfo);
+    return TID_ERROR;
   }
   strlcpy (pinfo->args_copy, file_name, PGSIZE);
 
