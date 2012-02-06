@@ -50,8 +50,10 @@ process_execute (const char *file_name)
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   pinfo->args_copy = palloc_get_page (0);
-  if (pinfo->args_copy == NULL)
-    return TID_ERROR;
+  if (pinfo->args_copy == NULL) {
+	free(pinfo);
+	return TID_ERROR;
+  }
   strlcpy (pinfo->args_copy, file_name, PGSIZE);
 
   /* Count the number of args and null-terminate each (strtok
@@ -71,10 +73,9 @@ process_execute (const char *file_name)
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process,
   pinfo);
   sema_down(&pinfo->loaded);
+  /* Loading is now complete */
   if (pinfo->load_success == false) tid = TID_ERROR;
-  if (tid == TID_ERROR) {
-    palloc_free_page (pinfo->args_copy); 
-  }
+  palloc_free_page (pinfo->args_copy); 
   free(pinfo);
   return tid;
 }
