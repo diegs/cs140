@@ -244,7 +244,10 @@ process_exit (void)
 
   /* Allow writes to the exec file again */
   if (cur->exec_file != NULL) 
+  {
     file_allow_write (cur->exec_file);
+    file_close (cur->exec_file);
+  }
 
   /* TODO: release all file handles */
 }
