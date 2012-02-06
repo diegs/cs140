@@ -469,15 +469,6 @@ thread_exit (void)
 	  lock_release(l);
 	}  
 
-#ifdef USERPROG
-  struct list * fds = &thread_current ()->fd_list;
-  while (!list_empty (fds))
-    {
-      struct list_elem *e = list_pop_front (fds);
-      struct process_fd * fd = list_entry (e, struct process_fd, elem);
-      syscall_close (fd->fd);
-    }
-#endif
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
