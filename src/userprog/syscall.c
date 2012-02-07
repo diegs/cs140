@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "threads/malloc.h"
+#include "devices/input.h"
 #include "devices/shutdown.h"
 #include "userprog/process.h"
 #include "userprog/syscall.h"

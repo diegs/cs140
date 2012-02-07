@@ -119,7 +119,7 @@ main (int argc, char *argv[])
       NOT_REACHED ();
     }
 
-  int howmany = is_at_root ? EXPECTED_REPETITIONS : 1;
+  int howmany = is_at_root ? EXPECTED_REPETITIONS : 2;
   int i, expected_depth = -1;
 
   for (i = 0; i < howmany; i++)
