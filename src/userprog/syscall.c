@@ -29,9 +29,8 @@ static struct fd_hash *
 fd_hash_init () 
 {
   struct fd_hash *fd = malloc (sizeof (struct fd_hash));
-  fd->count = 0;
-  fd->delete = false;
-  fd->filename = NULL;
+  memset(fd, 0, sizeof(struct fd_hash));
+  return fd;
 }
 
 static void fd_hash_destroy (struct fd_hash *h)
@@ -277,8 +276,10 @@ sys_remove (const struct intr_frame *f)
   struct fd_hash *fd_found = get_fd_hash (filename); 
 
   bool result = false;
+  /* Only entries with count > 0 are stored */
   if (fd_found) 
   {
+	//printf("makring for deletion\n");
     fd_found->delete = true;
     result = true;
   } else {
@@ -299,6 +300,7 @@ sys_open (const struct intr_frame *f)
   struct file* file = filesys_open (filename); 
   if (file == NULL) 
   {
+	//printf("file is null\n");
     lock_release (&fd_all_lock);
     return -1;
   }
@@ -316,13 +318,14 @@ sys_open (const struct intr_frame *f)
   if (fd_found->delete)
   {
     lock_release (&fd_all_lock);
+	//printf("marked for deletion\n");
     return -1;
   }
 	
   fd_found->count++;
   int fd = process_add_file (thread_current (), 
                               file, fd_found->filename);
-
+  //printf("fd is: %d\n", fd);
   lock_release (&fd_all_lock);
 
   return fd;
@@ -382,7 +385,7 @@ syscall_close (int fd)
     return;
   }
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
-
+  ASSERT(fd_found != NULL);
   file_close (pfd->file);
 
   /* Perform syscall level bookkeeping */
@@ -405,7 +408,6 @@ sys_close (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   syscall_close (fd);
- 
 }
 
 
