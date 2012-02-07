@@ -197,7 +197,6 @@ process_exit (void)
 {
   struct list_elem *e;
   struct thread *cur = thread_current ();
-  struct process_status *pcb = NULL;
   uint32_t *pd;
 
   /* Print exit message */
@@ -214,12 +213,13 @@ process_exit (void)
   }
 
   /* Kill all the remaining child pcb objects */
-  for (e = list_begin (&cur->pcb_children); e != list_end
-	 (&cur->pcb_children); e = list_next (e))
+  struct list *children = &cur->pcb_children;
+  while (!list_empty (children))
   {
-    pcb = list_entry (e, struct process_status, elem);
+    struct process_status *pcb = 
+      list_entry (list_pop_front (children), 
+                  struct process_status, elem);
     lock_acquire (&pcb->l); 
-    list_remove (&pcb->elem);
     if (pcb->t != NULL)
       pcb->t->pcb = NULL;
     lock_release (&pcb->l);

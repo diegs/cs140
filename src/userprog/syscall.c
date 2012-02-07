@@ -34,8 +34,8 @@ fd_hash_init ()
 
 static void fd_hash_destroy (struct fd_hash *h)
 {
-  if (h->filename != NULL) free (h->filename);
   hash_delete (&fd_all, &h->elem);
+  if (h->filename != NULL) free (h->filename);
   free (h);
 }
 
@@ -44,7 +44,8 @@ static unsigned hash_hash_fd_hash (const struct hash_elem *e,
                             void *aux UNUSED) 
 {
   struct fd_hash *e_fd = hash_entry (e, struct fd_hash, elem);
-  return hash_string (e_fd->filename);
+  unsigned hash_val = hash_string (e_fd->filename);
+  return hash_val;
 }
 
 static bool hash_less_fd_hash (const struct hash_elem *a,
@@ -278,7 +279,6 @@ sys_remove (const struct intr_frame *f)
   /* Only entries with count > 0 are stored */
   if (fd_found) 
   {
-	//printf("makring for deletion\n");
     fd_found->delete = true;
     result = true;
   } else {
@@ -299,7 +299,6 @@ sys_open (const struct intr_frame *f)
   struct file* file = filesys_open (filename); 
   if (file == NULL) 
   {
-	//printf("file is null\n");
     lock_release (&fd_all_lock);
     return -1;
   }
@@ -317,14 +316,12 @@ sys_open (const struct intr_frame *f)
   if (fd_found->delete)
   {
     lock_release (&fd_all_lock);
-	//printf("marked for deletion\n");
     return -1;
   }
 	
   fd_found->count++;
   int fd = process_add_file (thread_current (), 
                               file, fd_found->filename);
-  //printf("fd is: %d\n", fd);
   lock_release (&fd_all_lock);
 
   return fd;
