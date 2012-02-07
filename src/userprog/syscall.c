@@ -28,8 +28,7 @@ struct lock fd_all_lock;
 static struct fd_hash *
 fd_hash_init () 
 {
-  struct fd_hash *fd = malloc (sizeof (struct fd_hash));
-  memset(fd, 0, sizeof(struct fd_hash));
+  struct fd_hash *fd = calloc (1, sizeof (struct fd_hash));
   return fd;
 }
 
