@@ -25,11 +25,13 @@ struct fd_hash
 struct hash fd_all;
 struct lock fd_all_lock;
 
-static void fd_hash_init (struct fd_hash *h) 
+static struct fd_hash *
+fd_hash_init () 
 {
-  h->count = 0;
-  h->delete = false;
-  h->filename = NULL;
+  struct fd_hash *fd = malloc (sizeof (struct fd_hash));
+  fd->count = 0;
+  fd->delete = false;
+  fd->filename = NULL;
 }
 
 static void fd_hash_destroy (struct fd_hash *h)
@@ -306,8 +308,7 @@ sys_open (const struct intr_frame *f)
   /* Update count */
   if (fd_found == NULL) 
   {
-    fd_found = malloc (sizeof (struct fd_hash)); 
-    fd_hash_init (fd_found);
+    fd_found = fd_hash_init ();
     fd_found->filename = strdup (filename);
     hash_insert (&fd_all, &fd_found->elem);
   }
