@@ -9,8 +9,10 @@
 struct process_fd 
 {
   struct list_elem elem;     /* List placement in owning process */
-  struct file *file;
-  const char* filename;
+  struct file *file;         /* Handle to the file */
+  const char* filename;      /* This memory does not need to be freed
+                                because it is handled by the global
+                                list of file descriptors in syscall.c*/
   int fd;
 };
 
