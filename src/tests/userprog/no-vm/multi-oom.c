@@ -115,7 +115,6 @@ main (int argc, char *argv[])
   /* If -k is passed, crash this process. */
   if (argc > 2 && !strcmp(argv[2], "-k"))
     {
-      exit (-1);
       consume_some_resources_and_die (n);
       NOT_REACHED ();
     }
