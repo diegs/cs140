@@ -231,12 +231,14 @@ process_exit (void)
   /* Allow writes to the exec file again */
   if (cur->exec_file != NULL) 
   {
+    // TODO: use the syscall stuff because this will allow reads
+    // prematurely
     file_allow_write (cur->exec_file);
     file_close (cur->exec_file);
   }
 
   /* Close files that the process holds */
-  struct list * fds = &thread_current ()->fd_list;
+  struct list *fds = &thread_current ()->fd_list;
   while (!list_empty (fds))
     {
       struct list_elem *e = list_pop_front (fds);
