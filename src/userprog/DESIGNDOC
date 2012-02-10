@@ -17,9 +17,13 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
+N/A
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+
+N/A
 
 			   ARGUMENT PASSING
 			   ================
@@ -272,7 +276,18 @@ described in the previous case.
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
-******** TODO ********
+We chose the approach of first validating and then directly accessing user
+memory from the kernel because it seems straightforward, simple, and
+efficient. Firstly, a page fault is supposedly faster than doing bounds
+checking and page verification, so we gain efficiency there. Furthermore,
+it results in cleaner code since checking bytes can be abstracted away
+from the main body of each syscall relatively cleanly.
+
+Once we verify the user memory by reading it once, we can simply pass the
+"verified" pointers to whichever subroutines need to access the data
+without copying it into kernel space. Clearly this is more efficient; for
+example, for writing to standard out we can pass the entire buffer into
+putbuf() instead of copying and putting pieces of it one at a time.
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
@@ -309,14 +324,37 @@ the quarter.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+The workload was reasonable, both on the whole and for each part. The
+process_wait() (assuming we didn't botch it completely) was not
+"considerably harder" than the other syscalls as the project description
+states, however.
+
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+
+The syscall and file descriptor parts were very enlightening. Arg parsing
+was more tedious, especially in light of the fact that unix does it
+differently (which makes sense--it sounds like a problem for userland to
+solve).
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
 
+It would have been nice to get slightly more documentation on the page
+fault method of checking for memory, or pointers to more resources where
+we could learn about this approach. We kind of flew by night and scratched
+our heads for a bit before figuring out what the intention was (and were
+never quite sure whether we did it correctly). The same goes with copying
+memory to the kernel (referenced in a question above, but according to the
+response to our question on piazza, something that we don't actually need
+to do and didn't for our approach).
+
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
 
+N/A
+
 >> Any other comments?
+
+N/A
