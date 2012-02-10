@@ -548,17 +548,19 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      bool success = vm_add_page (upage, writable, 0);
-      if (!success)
+      uint8_t *kpage = vm_add_page (upage, writable, 0);
+      /* TODO don't use kpage? Keeps endlessly faulting when we do */
+      if (kpage == NULL)
 	return false;
 
       /* Load this page. */
-      if (file_read (file, upage, page_read_bytes) != (int) page_read_bytes)
+      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
 	  vm_free_page (upage);
           return false; 
         }
-      memset (upage + page_read_bytes, 0, page_zero_bytes);
+
+      memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Advance. */
       read_bytes -= page_read_bytes;
@@ -618,8 +620,9 @@ stack_push (void **esp, void *data, size_t size)
 static bool
 setup_stack (void **esp) 
 {
-  bool success = vm_add_page (((uint8_t *) PHYS_BASE) - PGSIZE, true,
-			     VM_ZERO);
+  uint8_t *kpage = vm_add_page (((uint8_t *) PHYS_BASE) - PGSIZE, true,
+				VM_ZERO);
+  bool success = (kpage != NULL);
   if (success)
     *esp = PHYS_BASE;
   return success;

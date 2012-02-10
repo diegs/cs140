@@ -24,13 +24,14 @@ install_page (void *upage, void *kpage, bool writable)
 }
 
 
-bool vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
+uint8_t *
+vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
 {
   /* allocate a page */
   // TODO eviction logic goes here
   uint8_t *kpage = palloc_get_page (PAL_USER | flags);
   if (kpage == NULL)
-    return false;
+    return NULL;
   
   /* install page */
   // TODO supplemental page table logic goes here
@@ -39,13 +40,14 @@ bool vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
   if (!success)
   {
     palloc_free_page (kpage);
-    return false;
+    return NULL;
   }
 
-  return true;
+  return kpage;
 }
 
-bool vm_free_page (uint8_t *uaddr)
+bool
+vm_free_page (uint8_t *uaddr)
 {
   struct thread *t = thread_current ();
 

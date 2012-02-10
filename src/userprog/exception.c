@@ -149,9 +149,9 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* Project 2: set eax to 0xffffffff and copy its former value to eip */
   if (!user)
   {
+    /* Project 2: set eax to 0xffffffff and copy its former value to eip */
     f->eip = f->eax;
     f->eax = 0xffffffff;
   } else {
