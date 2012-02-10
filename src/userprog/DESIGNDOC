@@ -53,14 +53,113 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread
+{
+...
+
+#ifdef USERPROG
+  /* Owned by userprog/process.c. */
+  uint32_t *pagedir;                   /* Page directory. */
+  struct process_status *pcb;          /* Parent status info */
+  struct list pcb_children;              /* List of children */
+  int exit_code;                       /* Exit code */
+
+  /* File system information */
+  struct list fd_list;       /* List of file descriptors open in this
+                                process */
+  int next_fd;
+
+  /* The file that spawned this process -- this must be kept open
+     until the end of the execution of the thread */
+  struct file* exec_file;
+
+#endif
+...
+}
+
+We added the following to the thread struct:
+- process_status link (see process_status struct description below)
+- list of process_status for child processes (see process_status struct
+  description below)
+- exit code to hold exit code of process
+- list of file descripters held by process
+- next file descriptor id to give out
+- pointer to process' file for write protection
+
+struct process_fd 
+{
+  struct list_elem elem;     /* List placement in owning process */
+  struct file *file;         /* Handle to the file */
+  const char* filename;      /* This memory does not need to be freed
+                                because it is handled by the global
+                                list of file descriptors in syscall.c*/
+  int fd;
+};
+
+Entry for a file descriptor that belongs to a process. Contains its file
+pointer and filename.
+
+struct process_status
+{
+  tid_t tid;                 /* Child thread id */
+  struct thread *t;          /* Child thread pointer */
+  int status;                /* Exit status */
+  struct condition cond;     /* Condition for signaling parent */
+  struct lock l;             /* Lock for managing access to struct */
+  struct list_elem elem;     /* List placement in parent */
+
+};
+
+Entry to hold a process's exit status. Separate from the thread because it
+needs to stick around after a process exits in case its parent calls wait() on
+it afterward. Therefore, the memory is owned by the parent process. Also holds
+the required synchronization primitives.
+
+struct hash fd_all;
+struct lock fd_all_lock;
+
+Hash map containing global view of open files (see fd_hash struct below), and a
+lock to protect its access.
+
+struct fd_hash
+{
+  char *filename;
+  int count;
+  bool delete;
+  struct hash_elem elem;
+};
+
+Contains global information about a file's open descriptors. Used to coordinate
+proper deletion semantics. Filename string memory is owned by these data
+structures but shared with thread structures.
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
+
+File descriptors are unique within a single process. They are associated with
+open files by a simple increment of a counter in each thread structure. A
+process_fd struct is created and added to the list in the thread object. The
+global open file hash table is also updated.
 
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
+
+We have a helper method, based on the code given, which sets eax to a "safe"
+return eip and then attempts to read one byte. If the access faults, -1 is
+returned in the page fault handler and the kernel code can handle it
+appropriately.
+
+With this mechanism in place, for reading we first check to ensure that the
+memory reference is in the valid user virtual address range, and then verify
+that all of it is accessible using the mechanism above. Then we proceed with
+dereferencing it directly (without any copying).
+
+For writing, we use the same page fault mechanism described above, which
+returns -1 if the write failed for any reason. This error is then handled by
+the system call that is attempting the write.
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -69,8 +168,32 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
 
+In a naive implementation, you could call it for every byte to ensure that it
+is on an allocated page. However, since we know that data must be page-aligned,
+4096 bytes would exist on at most 2 pages, so we would only need to make the
+call twice (or once if the address is aligned to the beginning of a page) to
+make sure that all the data are on valid pages.
+
+For 2 bytes the case is the same as the optimized case above (obviously the
+naive approach would not make more than 2 calls).
+
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
+
+The wait system call checks a thread's private list of child processes to see
+if the specified child pid is valid. It then acquires the lock on the shared
+process_status struct (see above) and sees if the process has terminated. If it
+has, it reads the exit code and returns. Otherwise, it waits on the condition
+variable, then reads the status and returns. It always cleans up the
+process_status struct before returning.
+
+In the case of child process termination, the process_status struct is always
+updated with the exit code and the condition variable is signaled (regardless
+of whether the process exits cleanly or is killed by the operating system). The
+lock protects concurrent access to this structure.
+
+When a parent terminates, all child process_status structs are unlinked from
+their children (if they are still alive) and then reclaimed.
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -86,12 +209,26 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
 
+Our approach abstracts memory verification as separate pre-processing
+functions. These are called up front in system calls before any temporary
+resources are allocated. Thus, each system call's code is clean and focuses on
+the main task of the system call.
+
+The verification functions kill the process if a bad access is detected. We
+modified the process termination function to always free any held locks and
+file descriptors before reclaiming the process's memory.
+
 ---- SYNCHRONIZATION ----
 
 >> B7: The "exec" system call returns -1 if loading the new executable
 >> fails, so it cannot return before the new executable has completed
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
+
+A semaphore is used in process_execute to prevent the function from returning
+until load() has run to completion (either successfully or failing). The status
+is passed back to the thread through the pid it returns (since a parent should
+expect a valid pid for every successful invocation).
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -100,16 +237,65 @@ Diego Pontoriero <dpontori@stanford.edu>
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
+P always owns the memory of each of its child's process_status structs. This
+simplifies the semantics. After acquiring locks for safety, we simply null out
+pointers to the parent/child depending on who terminates first (see below for
+descriptions). P always frees the memory, either right before returning from
+wait() or when it is terminating (for remaining children that were never waited
+on).
+
+When P calls wait(C) before C exits:
+
+P acquires the process_status lock, sees that C is still running, and waits on
+the condition variable. It then wakes after C signals upon exit and reads the
+status.
+
+When P calls wait(C) after C exits:
+
+P acquires the process_status lock, sees that C terminated, and reads the
+status.
+
+When P terminates without waiting, before C exits:
+
+P acquires the process_status lock, follows the pointer to C's thread, and
+nulls out its pointer to the process_status block before freeing it (so that C
+does not attempt to dereference dead memory).
+
+When P terminates without waiting, after C exits:
+
+When C exits it acquires the process_status lock and nulls out the thread
+pointer to itself so that P does not attempt to perform the nulling out
+described in the previous case.
+
 ---- RATIONALE ----
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
+******** TODO ********
+
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
+Advantages: 
+
+Per-process file descriptor numbers eliminate the need for a global lock on a
+file descriptor number generator.
+
+Global lock on open file hash table is simple and easy to work with.
+
+Disadvantages:
+
+Per-process file descriptor numbers can make debugging confusing.
+
+Global lock on open file hash table is coarse; could add individual locks on
+each open file fd_hash struct for most operations other than creation/deletion.
+
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+
+We did not change it since the only need we could imagine would be if processes
+could have multiple threads.
 
 			   SURVEY QUESTIONS
 			   ================
