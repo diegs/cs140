@@ -72,8 +72,7 @@ process_execute (const char *file_name)
   }
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process,
-  pinfo);
+  tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
   sema_down(&pinfo->loaded);
   /* Loading is now complete */
   if (pinfo->load_success == false) tid = TID_ERROR;
