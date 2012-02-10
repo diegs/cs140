@@ -36,7 +36,7 @@ vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
   /* install page */
   // TODO supplemental page table logic goes here
   // TODO update frame table here
-  int success = install_page (uaddr, kpage, writable);
+  bool success = install_page (uaddr, kpage, writable);
   if (!success)
   {
     palloc_free_page (kpage);
