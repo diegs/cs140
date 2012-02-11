@@ -2,6 +2,7 @@
 #define THREADS_THREAD_H
 
 #include <debug.h>
+#include <hash.h>
 #include <list.h>
 #include <stdint.h>
 #include "threads/fixed-point.h"
@@ -116,7 +117,13 @@ struct thread
   /* The file that spawned this process -- this must be kept open
      until the end of the execution of the thread */
   struct file* exec_file;
+#endif
 
+#ifdef VM
+  struct hash s_page_table;           /* Supplemental page table for process */
+  struct lock s_page_lock;            /* Lock for page table */
+  struct cond s_page_cond;            /* Semaphore for thread
+					 notifications */
 #endif
 
   /* Priority data */

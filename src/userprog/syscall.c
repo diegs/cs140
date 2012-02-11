@@ -322,7 +322,7 @@ sys_open (const struct intr_frame *f)
 	
   fd_found->count++;
   int fd = process_add_file (thread_current (), 
-                              file, fd_found->filename);
+			     file, fd_found->filename);
   lock_release (&fd_all_lock);
 
   return fd;

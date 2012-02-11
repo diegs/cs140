@@ -23,25 +23,34 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
-
-uint8_t *
-vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
+bool
+page_create (void)
 {
-  /* allocate a page */
-  // TODO eviction logic goes here
-  uint8_t *kpage = palloc_get_page (PAL_USER | flags);
-  if (kpage == NULL)
-    return NULL;
-  
-  /* install page */
-  // TODO supplemental page table logic goes here
-  // TODO update frame table here
+  /* TODO Create a supplemental page entry */
+}
+
+bool
+page_install (void)
+{
+ /* Install page */
   bool success = install_page (uaddr, kpage, writable);
   if (!success)
   {
     palloc_free_page (kpage);
     return NULL;
   }
+}
+
+uint8_t *
+vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
+{
+  /* Allocate a page */
+  uint8_t *kpage = frame_get (uaddr, flags);
+  if (kpage == NULL)
+    return NULL;
+
+  /* TODO Create supplemental page table entry */
+  // TODO supplemental page table logic goes here
 
   return kpage;
 }
@@ -61,5 +70,19 @@ vm_free_page (uint8_t *uaddr)
   /* remove from directory */
   // TODO supplemental page logic goes here
   pagedir_clear_page (t->pagedir, uaddr);
+  return true;
+}
+
+/* TODO implement */
+bool
+page_evict (struct thread *t, uint8_t *uaddr)
+{
+  /* Look up supplemental page entry */
+  lock_acquire (&t->s_page_lock);
+  lock_release (&t->s_page_lock);
+
+  /* Perform eviction */
+
+
   return true;
 }

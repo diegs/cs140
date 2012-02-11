@@ -134,6 +134,12 @@ thread_init (void)
 #ifdef USERPROG
   list_init (&initial_thread->pcb_children);   /* List of child processes */
 #endif
+
+#ifdef VM
+  hash_init (&initial_thread->s_page_table);   /* Suppl. page table */
+  lock_init (&initial_thread->s_page_lock);
+  cond_init (&initial_thread->s_page_cond);
+#endif
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -317,7 +323,12 @@ thread_create (const char *name, int priority,
     palloc_free_page (t);
     return TID_ERROR;
   }
+#endif
 
+#ifdef VM
+  hash_init (&t->s_page_table);   /* Suppl. page table */
+  lock_init (&t->s_page_lock);
+  cond_init (&t->s_page_cond);
 #endif
 
   /* Prepare thread for first run by initializing its stack.
