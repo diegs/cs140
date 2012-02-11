@@ -549,7 +549,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Get a page of memory. */
       uint8_t *kpage = vm_add_page (upage, writable, 0);
-      /* TODO don't use kpage? Keeps endlessly faulting when we do */
       if (kpage == NULL)
 	return false;
 
