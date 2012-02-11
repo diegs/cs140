@@ -1,5 +1,5 @@
-#ifndef VM_VM_H
-#define VM_VM_H
+#ifndef VM_PAGE_H
+#define VM_PAGE_H
 
 #include <stdbool.h>
 #include "threads/palloc.h"
@@ -12,4 +12,4 @@ enum vm_flags
 uint8_t * vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags);
 bool vm_free_page (uint8_t *uaddr);
 
-#endif /* vm/vm.h */
+#endif /* vm/page.h */
