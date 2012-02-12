@@ -22,20 +22,23 @@ struct file_based
 
 struct memory_based
 {
-  bool unused;
-  block_sector_t swap_block;
+  bool used;			/* Has this page been swapped before */
+  bool swapped;			/* Is this block swapped */
+  block_sector_t swap_block;	/* Swap block */
 };
 
 struct s_page_entry 
 {
-  enum entry_type type;  /* Type of entry */
+  enum entry_type type;		/* Type of entry */
+  uint8_t *uaddr;		/* User page address (page-aligned) */
   union 
   {
-    struct file_based;
-    struct memory_based;
-  } info;                /* Attributes of entry */
-  bool writing;          /* Flags that a page is being written */
-  struct hash_elem elem; /* Entry in thread's hash table */
+    struct file_based file;
+    struct memory_based memory;
+  } info;				/* Attributes of entry */
+  bool writing;			/* Flags that a page is being written */
+  struct frame_entry *frame;	/* Frame entry if frame is allocated */
+  struct hash_elem elem;	/* Entry in thread's hash table */
 };
 
 enum vm_flags
@@ -43,7 +46,7 @@ enum vm_flags
   VM_ZERO = PAL_ZERO             /* Zero page contents. */
 };
 
-uint8_t * vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags);
-bool vm_free_page (uint8_t *uaddr);
+void page_init_thread (struct thread *t);
+bool page_evict (struct thread *t, uint8_t *uaddr);
 
 #endif /* vm/page.h */

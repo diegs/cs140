@@ -1,17 +1,45 @@
-#include "threads/palloc.h"
+#include "filesys/file.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "vm/frame.h"
 #include "vm/page.h"
 
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
+static unsigned
+uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  return hash_int ((int)spe->uaddr);
+}
+
+static bool
+uaddr_hash_less_func (const struct hash_elem *a, const struct hash_elem *b,
+		void *aux UNUSED)
+{
+  struct s_page_entry *lhs = hash_entry (a, struct s_page_entry, elem);
+  struct s_page_entry *rhs = hash_entry (b, struct s_page_entry, elem);
+  return (lhs->uaddr < rhs->uaddr);
+}
+
+/**
+ * Initializes supplemental page table for a thread.
+ */
+void
+page_init_thread (struct thread *t)
+{
+  hash_init (&t->s_page_table, uaddr_hash_func, uaddr_hash_less_func, NULL);
+  lock_init (&t->s_page_lock);
+  cond_init (&t->s_page_cond);
+}
+/**
+ * Adds a mapping from user virtual address UPAGE to kernel virtual
+ * address KPAGE to the page table.  If WRITABLE is true, the user process
+ * may modify the page; otherwise, it is read-only.  UPAGE must not
+ * already be mapped.  KPAGE should probably be a page obtained from the
+ * user pool with palloc_get_page().  Returns true on success, false if
+ * UPAGE is already mapped or if memory allocation fails.
+ */
 static bool
 install_page (void *upage, void *kpage, bool writable)
 {
@@ -23,53 +51,88 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
-bool
-page_create (void)
+/* Initializes a supplemental page entry */
+static struct s_page_entry *
+create_s_page_entry (uint8_t *uaddr)
 {
-  /* TODO Create a supplemental page entry */
+  struct s_page_entry *spe = malloc (sizeof (struct s_page_entry));
+  if (spe == NULL)
+    return NULL;
+
+  /* Page align the address */
+  uaddr = (uint8_t*)pg_round_down (uaddr);
+
+  /* Set fields */
+  spe->uaddr = uaddr;
+  spe->writing = false;
+  spe->frame = NULL;
+
+  /* Install into hash table */
+  struct thread *t = thread_current ();
+  lock_acquire (&t->s_page_lock);
+  hash_insert (&t->s_page_table, &spe->elem);
+  lock_release (&t->s_page_lock);
+
+  return spe;
+}
+
+/**
+ * Adds a memory-based page to the current process
+ */
+bool
+vm_add_memory_page (uint8_t *uaddr, enum vm_flags flags UNUSED)
+{
+  struct s_page_entry *spe = create_s_page_entry (uaddr);
+  if (spe == NULL)
+    return false;
+
+  spe->type = MEMORY_BASED;
+  spe->info.memory.swapped = false;
+  spe->info.memory.swap_block = 0;
+  spe->info.memory.used = false;
+
+  return true;
 }
 
 bool
-page_install (void)
+vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset, size_t zero_bytes)
 {
- /* Install page */
-  bool success = install_page (uaddr, kpage, writable);
-  if (!success)
-  {
-    palloc_free_page (kpage);
-    return NULL;
-  }
-}
+  struct s_page_entry *spe = create_s_page_entry (uaddr);
+  if (spe == NULL)
+    return false;
 
-uint8_t *
-vm_add_page (uint8_t *uaddr, bool writable, enum vm_flags flags)
-{
-  /* Allocate a page */
-  uint8_t *kpage = frame_get (uaddr, flags);
-  if (kpage == NULL)
-    return NULL;
+  spe->type = FILE_BASED;
+  spe->info.file.f = f;
+  spe->info.file.offset = offset;
+  spe->info.file.zero_bytes = zero_bytes;
 
-  /* TODO Create supplemental page table entry */
-  // TODO supplemental page table logic goes here
-
-  return kpage;
+  return true;
 }
 
 bool
 vm_free_page (uint8_t *uaddr)
 {
   struct thread *t = thread_current ();
-
-  /* free page */
-  // TODO update frame table here
-  uint8_t *kpage = pagedir_get_page (t->pagedir, uaddr);
-  if (kpage == NULL)
+  struct s_page_entry key = {.uaddr = uaddr};
+  struct s_page_entry *spe = NULL;
+  
+  /* Look up supplemental page entry */
+  lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL)
+  {
+    lock_release (&t->s_page_lock);
     return false;
-  palloc_free_page (kpage);
+  }
+  spe = hash_entry (e, struct s_page_entry, elem);
+  hash_delete (&t->s_page_table, &spe->elem);
+  pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
+  lock_release (&t->s_page_lock);
 
-  /* remove from directory */
-  // TODO supplemental page logic goes here
-  pagedir_clear_page (t->pagedir, uaddr);
+  /* Free frame if necessary */
+  frame_free (spe);
+  free (spe);
+
   return true;
 }
 
@@ -77,12 +140,32 @@ vm_free_page (uint8_t *uaddr)
 bool
 page_evict (struct thread *t, uint8_t *uaddr)
 {
+  struct s_page_entry key = {.uaddr = uaddr};
+  struct s_page_entry *spe = NULL;
+
   /* Look up supplemental page entry */
   lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL)
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+  spe = hash_entry (e, struct s_page_entry, elem);
   lock_release (&t->s_page_lock);
 
   /* Perform eviction */
-
+  switch (spe->type)
+  {
+  case FILE_BASED:
+    /* TODO handle file eviction */
+    break;
+  case MEMORY_BASED:
+    /* TODO handle memory eviction */
+    break;
+  default:
+    PANIC ("Unknown page type!");
+  }
 
   return true;
 }

@@ -5,9 +5,9 @@
 #include <hash.h>
 #include <list.h>
 #include <stdint.h>
-#include "threads/fixed-point.h"
 #include "filesys/file.h"
-
+#include "threads/fixed-point.h"
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -120,10 +120,9 @@ struct thread
 #endif
 
 #ifdef VM
-  struct hash s_page_table;           /* Supplemental page table for process */
-  struct lock s_page_lock;            /* Lock for page table */
-  struct cond s_page_cond;            /* Semaphore for thread
-					 notifications */
+  struct hash s_page_table;	/* Supplemental page table for process */
+  struct lock s_page_lock;	/* Lock for page table */
+  struct condition s_page_cond;	/* Semaphore for thread notifications */
 #endif
 
   /* Priority data */
