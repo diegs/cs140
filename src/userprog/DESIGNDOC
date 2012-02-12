@@ -49,11 +49,15 @@ N/A
 >> separation.  Identify at least two advantages of the Unix approach.
 
 In the UNIX approach, the shell can handle customized arguments (such as
-"-" or "--", and can handle more complex structures like piping.  The
-Pintos approach is more naive and just copies all tokens passed, and is
-agnostic about things like redirecting output or argument syntax.
+"-" or "--", and can handle more complex structures like piping output.
+The Pintos approach is naive and just copies all tokens passed, and
+is agnostic about things like redirecting output or argument syntax.
 
-The Unix approach is also 
+Parsing arguments in the shell also makes more sense in terms of kernel
+design and isolation -- the operating system handling less logic means
+fewer bugs introduced to the kernel. Everything that client code can
+handle (which doesn't require elevated privileges) should be left to the
+client code.
 
 
 			     SYSTEM CALLS
