@@ -48,6 +48,14 @@ N/A
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
+In the UNIX approach, the shell can handle customized arguments (such as
+"-" or "--", and can handle more complex structures like piping.  The
+Pintos approach is more naive and just copies all tokens passed, and is
+agnostic about things like redirecting output or argument syntax.
+
+The Unix approach is also 
+
+
 			     SYSTEM CALLS
 			     ============
 
