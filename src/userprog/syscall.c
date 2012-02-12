@@ -310,6 +310,7 @@ sys_open (const struct intr_frame *f)
   if (fd_found == NULL) 
   {
     fd_found = fd_hash_init ();
+	if (fd_found == NULL) return -1;
     fd_found->filename = strdup (filename);
     hash_insert (&fd_all, &fd_found->elem);
   }
