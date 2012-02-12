@@ -25,13 +25,13 @@
 
 static thread_func start_process NO_RETURN;
 
-/* Info about the process' name and args */
+/* Info about the process' name and args.  This is only used to pass auxiliary
+   data between execute() and start()*/
 struct process_info {
-  int argc;		//number of arguments
   char * prog_name;
-  char *args_copy;	//pointer to the file name and args in the heap
-  bool load_success;
-  struct semaphore loaded;
+  char *args_copy;	//pointer to the args data in the heap
+  struct semaphore loaded;	//signal when done loading
+  bool load_success;	//stores whether it loaded successfully
 };
 
 static bool load (struct process_info *pinfo, void (**eip) (void), void **esp);
@@ -58,26 +58,22 @@ process_execute (const char *file_name)
   }
   strlcpy (pinfo->args_copy, file_name, PGSIZE);
 
-  /* Count the number of args and null-terminate each (strtok
-  null-terminates auctomaticlly) */
-  char *token, *save_ptr;
-  int i = 0;
-  for (token = strtok_r (pinfo->args_copy, " ", &save_ptr); token != NULL;
-       token = strtok_r (NULL, " ", &save_ptr)) {
-    pinfo->argc++;
-    if (i == 0) {
-      pinfo->prog_name = token;
-    }
-    i++;
-  }
+  /* Extract the program name */
+  int name_len = strcspn(file_name, " ");
+  char * prog_name = calloc(sizeof(char), name_len + 1);
+  memcpy(prog_name, file_name, name_len);
+  pinfo->prog_name = prog_name;
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (pinfo->prog_name, PRI_DEFAULT, start_process, pinfo);
   sema_down(&pinfo->loaded);
+
   /* Loading is now complete */
   if (pinfo->load_success == false) tid = TID_ERROR;
   palloc_free_page (pinfo->args_copy); 
+  free(prog_name);
   free(pinfo);
+
   return tid;
 }
 
@@ -196,7 +192,6 @@ process_create_pcb (struct thread *t)
 void
 process_exit (void)
 {
-  struct list_elem *e;
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
@@ -580,15 +575,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static void 
 push_args(struct process_info *pinfo, void **esp) {
 
-  /* Build up the index of where text is located */
-  char *argv[pinfo->argc];
+  /* Null-terminate the strings and count the arguments */
+  int argc = 0;
+  char *token, *save_ptr;
+  for (token = strtok_r (pinfo->args_copy, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr)) {
+    argc++;
+  }
+
+  /* Array of pointers to the strings on the stack */
+  char *argv[argc];
+
+  /* Push the argument strings to the stack */
   char *str_ptr = pinfo->args_copy;
   int i;
-  for (i = 0; i < pinfo->argc; i++) {	
+  for (i = 0; i < argc; i++) {	
     stack_push(esp, str_ptr, strlen(str_ptr) + 1);
     str_ptr = strchr(str_ptr, '\0') + 1;
 	//skip all delimiters
 	while (*str_ptr == ' ') str_ptr++;
+	//Save the stack location
     argv[i] = *esp;
   }
   /* pad to 4-bytes */
@@ -596,30 +602,39 @@ push_args(struct process_info *pinfo, void **esp) {
     char c = 0;
     stack_push(esp, &c, sizeof(c));
   }
-  /* Push the references to the args, in reverse order */
+  /* Push the arg pointers, in reverse order */
+  /* Start with a null ptr for args[argc] */
   int zero = 0;
-  //start with a null ptr at args[argc]
   stack_push(esp, &zero, sizeof(zero));	
-  for (i = pinfo->argc - 1; i >= 0; i--)
+  for (i = argc - 1; i >= 0; i--)
     stack_push(esp, &argv[i], sizeof(char*));
 
-  /* Push the address of the first arg reference */
+  /* Push the address of the first arg pointer */
   void *saved_esp = *esp;
   stack_push(esp, &saved_esp, sizeof(void*));
   /* Push argc */
-  stack_push(esp, &(pinfo->argc), sizeof(pinfo->argc));
+  stack_push(esp, &(argc), sizeof(argc));
   /* Push the return address */
   stack_push(esp, &zero, sizeof(zero));
 }
 
-/* Push an element of size 'size' onto a stack.  Decrements esp first */
+/* Check that the stack pointer we want to write to is within the page
+   boundary */
+static bool verify_esp(uint32_t esp)
+{
+  return  (esp < (uint32_t)PHYS_BASE && esp > (uint32_t) (PHYS_BASE - PGSIZE));
+}
+
+/* Push an element of size 'size' onto a stack.  This will check
+   the page boundary*/
 static void
 stack_push (void **esp, void *data, size_t size)
 {
-  char **c_esp = (char**)esp;
-  *c_esp -= size;
-  memcpy(*c_esp, data, size);
+  *esp -= size;
+  if (!verify_esp((uint32_t) *esp)) return;
+  memcpy(*esp, data, size);
 }
+
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
