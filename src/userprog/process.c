@@ -225,8 +225,6 @@ process_exit (void)
   /* Allow writes to the exec file again */
   if (cur->exec_file != NULL) 
   {
-    // TODO: use the syscall stuff because this will allow reads
-    // prematurely
     file_allow_write (cur->exec_file);
     file_close (cur->exec_file);
   }
