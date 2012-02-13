@@ -3,8 +3,6 @@
 
 #include <stddef.h>
 
-#include_next <string.h>
-
 /* Standard. */
 void *memcpy (void *, const void *, size_t);
 void *memmove (void *, const void *, size_t);
@@ -26,7 +24,6 @@ size_t strlcpy (char *, const char *, size_t);
 size_t strlcat (char *, const char *, size_t);
 char *strtok_r (char *, const char *, char **);
 size_t strnlen (const char *, size_t);
-char *strdup (const char *src);
 
 /* Try to be helpful. */
 #define strcpy dont_use_strcpy_use_strlcpy
