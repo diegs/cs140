@@ -1,9 +1,11 @@
 #include "threads/malloc.h"
+#include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/page.h"
 
-static struct list frames;            /* List of frame_entry for active frames */
-static struct lock frames_lock;       /* Protects struct list frames */
+static struct list_elem *clock_hand;  /* The hand of the clock algorithm */
+static struct list frames;     /* List of frame_entry for active frames */
+static struct lock frames_lock;	/* Protects struct list frames */
 
 /**
  * Initializes the frame table
@@ -13,6 +15,7 @@ frame_init (void)
 {
   list_init (&frames);
   lock_init (&frames_lock);
+  clock_hand = list_end (&frames);
 }
 
 /**
@@ -37,6 +40,40 @@ frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   lock_release (&frames_lock);
 }
 
+/* Treats the list as a circularly linked list */
+static struct list_elem *
+clock_next (void)
+{
+  clock_hand = list_next (clock_hand);
+  if (clock_hand == list_end (&frames))
+    clock_hand = list_begin (&frames);
+
+  return clock_hand;
+}
+
+/* Magic algorithm: find the next frame that is untagged */
+static struct frame_entry *
+clock_algorithm (void)
+{
+  struct frame_entry *f;
+  struct frame_entry *clock_start = list_entry (clock_hand, struct
+						frame_entry, elem);
+
+  if (list_empty (&frames))
+    return NULL;
+
+  while ((f = list_entry (clock_next (), struct frame_entry, elem)) !=
+	 clock_start)
+  {
+    if (pagedir_is_accessed (f->t->pagedir, f->uaddr))
+      pagedir_set_accessed (f->t->pagedir, f->uaddr, false);
+    else
+      break;
+  }
+
+  return f;
+}
+
 /**
  * Evicts a frame from the frame table and performs the necessary
  * actions. Returns the kernel address of the free'd frame.
@@ -46,20 +83,13 @@ frame_evict (void)
 {
   uint8_t *kpage;
 
-  /* Check if we have a frame to evict */
-  lock_acquire (&frames_lock);
-  if (list_empty (&frames))
-  {
-    lock_release (&frames_lock);
-    return NULL;
-  }
-
   /* Choose a frame to evict */
-  /* TODO eviction algorithm */
-  struct frame_entry *f = list_entry (list_pop_front (&frames),
-				      struct frame_entry,
-				      elem);
+  lock_acquire (&frames_lock);
+  struct frame_entry *f = clock_algorithm ();
   lock_release (&frames_lock);
+
+  if (f == NULL)
+    return NULL;		/* Could not find a frame to evict */
 
   /* Perform the eviction */
   bool success = page_evict (f->t, f->uaddr);
@@ -115,7 +145,16 @@ frame_free (struct s_page_entry *spe)
   {
     struct frame_entry *f = spe->frame;
     palloc_free_page (&f->kaddr);
-    list_remove (&f->elem);
+    if (&f->elem == clock_hand)
+    {
+      clock_hand = list_next (clock_hand);
+      list_remove (&f->elem);
+      if (clock_hand == list_end (&frames))
+	clock_hand = list_begin (&frames);
+    } else {
+      list_remove (&f->elem);
+    }
+
     free (f);
     spe->frame = NULL;	/* For safety */
   } 
