@@ -63,6 +63,22 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
+/* Finds a page entry in a context where the given thread's page 
+   table lock has been acquired.
+   */
+static struct page_entry *
+safe_get_page_entry (struct thread *t, uint8_t *uaddr) 
+{
+  struct s_page_entry key = {.uaddr = uaddr};
+  struct s_page_entry *spe = NULL;
+
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e != NULL)
+    spe = hash_entry (e, struct s_page_entry, elem);
+
+  return spe;
+}
+
 /* Initializes a supplemental page entry */
 static struct s_page_entry *
 create_s_page_entry (uint8_t *uaddr, bool writable)
@@ -254,9 +270,8 @@ page_file (struct s_page_entry *spe)
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
   spe->frame = frame;
+  install_page (frame->uaddr, frame->kaddr, spe->writable);
   lock_release (&t->s_page_lock);
-
-  /* Install the page in the current thread's page directory */
 
   return false;
 }

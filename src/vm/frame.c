@@ -119,7 +119,7 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
 
   /* Evict an existing frame */
   if (kpage == NULL)
-    kpage = frame_evict (uaddr);
+    kpage = frame_evict ();
 
   /* Failed to evict */
   if (kpage == NULL)
