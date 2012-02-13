@@ -5,6 +5,7 @@
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/page.h"
+#include "vm/swap.h"
 
 static unsigned
 uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED)
@@ -99,7 +100,7 @@ vm_add_memory_page (uint8_t *uaddr, bool writable)
     return false;
 
   spe->type = MEMORY_BASED;
-  spe->info.memory.swapped = false;
+  spe->info.memory.swapped = true;
   spe->info.memory.swap_block = 0;
   spe->info.memory.used = false;
 
@@ -149,7 +150,58 @@ vm_free_page (uint8_t *uaddr)
   return true;
 }
 
-/* TODO implement */
+/* Swaps a page to disk. Does not clear the frame. */
+static bool
+page_swap (struct s_page_entry *spe)
+{
+  ASSERT (!spe->info.memory.swapped);
+
+  /* Only swap if page has been used at some point */
+  if (spe->info.memory.used || pagedir_is_dirty (thread_current ()->pagedir,
+						 spe->uaddr))
+  {
+    spe->info.memory.swap_block = swap_write (spe->uaddr);
+    spe->info.memory.used = true;
+  } 
+
+  spe->info.memory.swapped = true;
+  pagedir_clear_page (thread_current ()->pagedir, spe->uaddr);
+  return true;
+}
+
+/* Unswaps a page into a frame */
+static bool
+page_unswap (struct s_page_entry *spe)
+{
+  ASSERT (spe->info.memory.swapped);
+
+  /* TODO race condition if we're attempt to unswap something that's
+     swapping */
+
+  if (spe->info.memory.used)
+  {
+    /* Fetch from swap */
+    spe->frame = frame_get (spe->uaddr, 0);
+    if (!spe->frame)
+      return false;
+    bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_block);
+    if (!success)
+    {
+      frame_free (spe);
+      return false;
+    }
+  } else {
+    /* Brand new page, just allocate it */
+    spe->frame = frame_get (spe->uaddr, PAL_ZERO);
+    if (!spe->frame)
+      return false;
+  }
+
+  spe->info.memory.swapped = false;
+  install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
+  return true;
+}
+
 bool
 page_evict (struct thread *t, uint8_t *uaddr)
 {
@@ -174,7 +226,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
     /* TODO handle file eviction */
     break;
   case MEMORY_BASED:
-    /* TODO handle memory eviction */
+    return page_swap (spe);
     break;
   default:
     PANIC ("Unknown page type!");
@@ -209,13 +261,6 @@ page_file (struct s_page_entry *spe)
   return false;
 }
 
-static bool
-page_swap (void)
-{
-  // TODO diego
-  return false;
-}
-
 /**
  * Attempts to load a page using the supplemental page table.
  */
@@ -247,7 +292,7 @@ page_load (uint8_t *fault_addr)
     return page_file(spe);
     break;
   case MEMORY_BASED:
-    return page_swap();
+    return page_unswap (spe);
     break;
   default:
     PANIC ("Unknown page type!");
