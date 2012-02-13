@@ -51,21 +51,23 @@ the list.
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
-In timer_sleep(), we create a timer_sleeping_thread struct for the current
-thread, and calculate the earliest wake up time (in ticks).  We then add
-this to the global list of sleeping threads, and block the thread.
+In timer_sleep(), we create a timer_sleeping_thread struct for the
+current thread, and calculate the earliest wake up time (in ticks).  We
+then add this to the global list of sleeping threads, and block the
+thread.
 
 
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
 
 The global list of sleeping threads is ordered, with threads with the
-soonest wake-up times at the front.  The time interrupt handler only has
-to look at the head of the list, check to see if the wake-up time for that
-thread has passed, and if it has: wake up that thread, and traverse the
-list until we see a thread whose wakeup time has not passed.  At most, the
-interrupt handler examines one thread which does not need to be woken,
-making the runtime O(number of threads that need to be woken + 1).
+soonest wake-up times at the front.  The time interrupt handler only
+has to look at the head of the list, check to see if the wake-up time
+for that thread has passed, and if it has: wake up that thread, and
+traverse the list continuing to wake up threads until we see a thread
+whose wakeup time has not passed.  At most, the interrupt handler
+examines one thread which does not need to be woken, making the
+runtime O(number of threads that need to be woken).
 
 ---- SYNCHRONIZATION ----
 
@@ -80,19 +82,20 @@ uncorrupted.
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
 
-Interrupts are disabled in the critical sections of timer_sleep, so no
-races can occur.
+Interrupts are disabled in the critical sections of timer_sleep, so the
+timer interrupt can not occur. This means that no races between the
+timer interrupt and the timer_sleep can occur.
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
 
-We first considered storing the wait times in the sleeping thread structs,
-but we would have needed to decrement the remaining wait time at every
-timer interrupt, an O(n) traversal over timer_sleeping_threads.  Our
-implementation instead stores the earliest possible wakeup time, which is
-absolute and does not need updates.
+We first considered storing the wait times in the sleeping thread
+structs, but we would have needed to decrement the remaining wait time
+at every timer interrupt, an O(n) traversal over
+timer_sleeping_threads.  Our implementation instead stores the earliest
+possible wakeup time, which is absolute and does not need updates.
 
 
 
@@ -109,41 +112,45 @@ absolute and does not need updates.
 In thread.h:
 
   int effective_priority;
-	The effective priority of a thread, which takes into priorities
-	donated by other threads.
+  The effective priority of a thread, which takes into account
+  priorities donated by other threads.
 
-  struct list priority_holding; 
-	A list of locks that this threads holds.
+  struct list priority_holding; A list of locks that this threads holds.
 
-  struct lock *priority_waiting;
-	A lock, if any, that this thread is waiting on
+  struct lock *priority_waiting; A lock, if any, that this thread is
+  waiting on
 
-In sync.h:
-  struct list_elem priority_holder; 
-	A list element for a thread's priority_holding list
+  In sync.h: struct list_elem priority_holder; A list element for a
+  thread's priority_holding list
 
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
 
-		T1		T2	T3		T4
-		\		/	\		/
-		 \	   /	 \	   /
-		  \	  /		  \   /			- T1 and T2 are waiting on L1
-			L1			L2			- T2 and T3 are waiting on L2
-			|			|			
-			T5			T6			-L1 is held by T5, L2 by T6
-			\			/
-			 \		   /
-			  \		  /
-			   \	 /
-				  L3				- T5 and T6 are waiting on L3
-				  |
-				  T7				- L3 is held by T7
+   T1     T2 T3     T4
+    \     /   \     /
+     \   /     \   /
+      \ /       \ /    - T1 and T2 are waiting on L1
+       L1        L2    - T2 and T3 are waiting on L2
+       |         |   
+       T5        T6    -L1 is held by T5, L2 by T6
+        \        /
+         \      /
+          \    /
+           \  /
+            L3         - T5 and T6 are waiting on L3
+            |
+            T7         - L3 is held by T7
 
-Starting at the top: T1 and T2 store L1 in their "priority_waiting" field
-(and T3, T4 store L2).	L1 stores T1, T2 in its waiters list, and T5 in
-its holder field. 
+
+We maintain a directed forest over the locks and threads to track
+priority donation. For example, T1 and T2 store L1 in their
+priority_waiting field (and T3, T4 store L2). L1 stores T1, T2 in its
+waiters list, and T5 in its priority_holder field. The
+effective_priority field is maintained to be the correct priority using
+the information provided by the graph across all possible operations that
+might change a thread's donated priority: acquiring a lock, releasing a
+lock, and changing a thread's priority.
 
 
 
@@ -152,30 +159,31 @@ its holder field.
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
-	Whenever we wake up a thread on a waiters list, we search for the
-	thread with the highest effective priority.
+  Whenever we wake up a thread on a waiters list, we search for the
+  thread with the highest effective priority.
 
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
-	
-	In lock_acquire, if a new thread starts waiting on a lock, we check
-	whether its priority is higher than the effective priority of that
-	lock's holder.L1's holder, T5.  If it is, we call
-	set_effective_priority(lock's holder, priority of current thread);
-	set_effective_priority (in addition to setting the effective priority)
-	checks to see if the lock's holder is waiting on any locks, and will
-	recursively call set_effective_priority on that lock's holder if its
-	priority should be propogated.
-	
+
+  In lock_acquire, if a thread starts waiting on a lock, we check
+  whether its priority is higher than the effective priority of that
+  lock's holder. If it is, we call set_effective_priority(lock's holder,
+  priority of current thread). We handle nested donation by having
+  set_effective_priority recursively update the effective priority
+  through the current lock-thread tree.  We check to see if the lock's
+  holder is waiting on any locks. If the thread is waiting, we will call
+  set_effective_priority on that lock's holder if its priority should be
+  higher.
 
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
 
-	We remove the lock from the list of locks held by the current thread,
-	and recalculate the effective priority.  The effective priority
-	calculation takes the max of the thread's original priority
-	(non-donated), and any priority donations from locks it holds
-	(excluding the lock we just removed from its holdings list).
+  We remove the lock from the list of locks held by the current thread,
+  and recalculate the effective priority.  The effective priority
+  calculation takes the max of the thread's original priority
+  (non-donated), and any priority donations from locks it holds
+  (excluding the lock we just removed from its holdings list). Finally,
+  we actually release the lock.
 
 ---- SYNCHRONIZATION ----
 
@@ -184,10 +192,15 @@ its holder field.
 >> this race?
 
 When we set a thread's priority, we need to compare it to any potential
-donated priorities and compute the max of these priorities.  If, after we
-compute the max priority, another thread donates its priority to us, the
-just-computed maximum is now stale, and we incorrectly set our priority to
-this stale value.
+donated priorities and compute the max of these priorities.  If, after
+we compute the max priority, another thread donates its priority to us,
+the just-computed maximum is now stale, and we incorrectly set our
+priority to this stale value. We avoid this race condition by disabling
+interrupts. If we wanted to use a lock correctly, we would need to
+introduce the lock around all code that interacts with variables used
+in thread_set_priority. However, the implementation of locks modifies
+the list of locks that a thread holds. This may result in deadlock 
+because the lock code would call itself in some cases. 
 
 ---- RATIONALE ----
 
@@ -198,9 +211,12 @@ We first planned on keeping the lists of waiting threads and the ready
 queue ordered by priority, but decided on keeping the lists unordered and
 selecting the thread with the highest priority at retrieval time.  The
 bookkeeping involved with keeping the lists ordered unnecessarily
-complicated our design, because we would have needed to resort every time
-we updated a thread's priority, even indirectly through priority
-donations, which might be nested.
+complicated our design and does not actually save us any time. We can 
+find the highest priority in linear time even if the list is unsorted, 
+and keeping the list sorted makes us incur a quadratic cost. We have a
+quadratic cost because we would have needed to resort every time we
+insert a thread into the list or update a thread's priority.
+
 
 			  ADVANCED SCHEDULER
 			  ==================
@@ -211,19 +227,25 @@ donations, which might be nested.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+The following typedefs were declared:
+  typedef int32_t fp_t;
+
+This typedef provides a layer of abstraction for the fixed point type.
+(see below for more on this design decision).
+
 The following global variables were declared:
 
   struct list mlfqs_lists[PRI_MAX + 1];
-This global array is the MLFQS equivalent of the ready_list. There is one
-list for each possible priority.
+This global array is the MLFQS equivalent of the ready_list. There is
+one list for each possible priority.
 
   int mlfqs_num_ready;
-This global variable maintains the total number of threads in the mlfqs_lists
-array. 
+This global variable maintains the total number of threads in the
+mlfqs_lists array. 
 
   fp_t load_avg;
-This global variable maintains the load_avg as described in the assignment
-description.
+This global variable maintains the load_avg as described in the
+assignment description.
 
 The following fields were added to the thread struct.
   /* 4.4BSD scheduling data */
@@ -234,11 +256,12 @@ The following fields were added to the thread struct.
 
 The nice field stores the current nice value of the thread.
 
-The mlfqs_priority field stores the current mlfqs priority based on recent_cpu
-and the global load_avg as described in the assignment description.
+The mlfqs_priority field stores the current mlfqs priority based on
+recent_cpu and the global load_avg as described in the assignment
+description.
 
-The recent_cpu field stores a value that approximates how much the thread
-has been using the CPU recently. 
+The recent_cpu field stores a value that approximates how much the
+thread has been using the CPU recently. 
 
 ---- ALGORITHMS ----
 
@@ -247,35 +270,50 @@ has been using the CPU recently.
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
 
-timer  recent_cpu		priority		  thread
-ticks   A   B   C   A		B		C	  to run
------  --  --  --	--		--		--	  ------
-0		0	0	0	63.00	61.00	59.00	A
-4		4	0	0	62.00	61.00	59.00	A
-8		8	0	0	61.00	61.00	59.00	A
-12		12	0	0	60.00	61.00	59.00	B
-16		12	4	0	60.00	60.00	59.00	B
-20		12	8	0	60.00	59.00	59.00	A
-24		16	8	0	59.00	59.00	59.00	A
-28		20	8	0	58.00	59.00	59.00	C
-32		20	8	4	58.00	59.00	58.00	B
-36		20	12	4	58.00	58.00	58.00	B
+timer  recent_cpu      priority        thread
+ticks   A   B   C     A      B     C   to run
+-----  --  --   --   ---   ---   ---   ------
+0      0   0    0   63.00 61.00 59.00   A
+4      4   0    0   62.00 61.00 59.00   A
+8      8   0    0   61.00 61.00 59.00   A
+12     12  0    0   60.00 61.00 59.00   B
+16     12  4    0   60.00 60.00 59.00   B
+20     12  8    0   60.00 59.00 59.00   A
+24     16  8    0   59.00 59.00 59.00   A
+28     20  8    0   58.00 59.00 59.00   C
+32     20  8    4   58.00 59.00 58.00   B
+36     20  12   4   58.00 58.00 58.00   B
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
-If a thread's priority is changed to a priority equal to the current
-thread's priority, there was ambiguity about whether we should switch to
-the other thread.
+The specification did not specify whether recent_cpu is to be updated
+before or after updating the priorities.  In both the table and our
+implementation, we update recent_cpu before updating the priority.
+
+The specification is also not clear about whether we should yield
+when the current thread's priority becomes equal to the priority of
+another thread; "greater than" is not necessarily "greater than or
+equal to" nor "strictly greater". In both the table and our
+implementation, we do not yield in this case.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
 
 Though the design doc specifies updating all threads' priorities every
 four ticks, we only update the current thread's priority, since the
-factors that influence the priorities of other threads cannot change until
-the load average changes.
+factors that influence the priorities of other threads cannot change
+until the load average changes. This implementation improves
+performance by reducing the amount of time in timer interrupts.
+
+Most of our MLFQS scheduling (updating statistics and prioirties)
+happens in an interrupt context. The only code that potentially runs
+outside an interrupt context involves selecting the next thread to run,
+which is at most a small constant number of operations (see below for
+more details). This means that a thread can not lose time due to 
+scheduler bookkeeping. This prevents the scheduler from stealing time
+from a thread (i.e. through spuriously incrementing its recent_cpu).
 
 ---- RATIONALE ----
 
@@ -284,32 +322,34 @@ the load average changes.
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
 
-Our design uses an array of ready lists for each possible priority. Since the 
-library list implementation is a doubly linked, this means that insertion
-into and removal from a ready list are constant time operations. We maintain
-a count of the number of threads in the MLFQS so that computing the load 
-average does not require a linear time operation. The difficulty with this is
-that we must remember to update this value every time a thread changes to or
-from the THREAD_READY state. 
+Our design uses an array of ready lists for each possible priority.
+Since the library list implementation is a doubly linked, this means
+that insertion into and removal from a ready list are constant time
+operations. We maintain a count of the number of threads in the MLFQS so
+that computing the load average does not require a linear time
+operation. The difficulty with this is that we must remember to update
+this value every time a thread changes to or from the THREAD_READY
+state. 
 
 We implemented the MLFQS system in parallel with the original priority
-scheduling system. We did this because we wanted to reduce the likelihood of
-introducing bugs into the first scheduler. We switch between the two systems at
-only a few key points in the code that relate to scheduling: thread_unblock,
-thread_yield, next_thread_to_run. Unfortunately we could not separate the two
-systems entirely. In order to prevent priority donation from happening under
-MLFQS, we do not update effective priorities when thread_mlfqs is set.  This is
+scheduling system. We did this because we wanted to reduce the
+likelihood of introducing bugs into the first scheduler. We switch
+between the two systems at only a few key points in the code that relate
+to scheduling: thread_unblock, thread_yield, next_thread_to_run.
+Unfortunately we could not separate the two systems entirely. In order
+to prevent priority donation from happening under MLFQS, we do not
+update effective priorities when thread_mlfqs is set.  This is
 implemented simply as a return case in a single function
-(thread_set_effective_priority).  On the other hand, we actually want the
-influence of yielding based on priorities in the case of locks. Because of
-this, our MLFQS system keeps a thread's effective_priority and its
-mlfqs_priority the same.
+(thread_set_effective_priority).  On the other hand, we actually want
+the influence of yielding based on priorities in the case of locks.
+Because of this, our MLFQS system keeps a thread's effective_priority
+and its mlfqs_priority the same.
 
-Given additional time we might maintain a variable that stores the highest
-priority of any thread at any given moment. This would allow us to find the
-next thread during scheduling slightly faster. As it stands now, finding the
-next thread involves checking all of the ready lists in decreasing order of
-priority until a thread is found. 
+Given additional time we might maintain a variable that stores the
+highest priority of any thread at any given moment. This would allow us
+to find the next thread during scheduling slightly faster. As it stands
+now, finding the next thread involves checking all of the ready lists in
+decreasing order of priority until a thread is found. 
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
@@ -318,15 +358,16 @@ priority until a thread is found.
 >> type and/or a set of functions or macros to manipulate fixed-point
 >> numbers, why did you do so?  If not, why not?
 
-We implemented fixed point in the simplest way possible. We back the fixed 
-point value with a signed integer using a typedef and center the range at 0
-(i.e. no bias).  By using a signed integer, we get signedness for free and
-multiplication and division work as described in the assignment description.
-By using a typedef, we can replace the fixed point representation in the
-future if desired. We expose fixed point operations as a set of inlined
-functions. We did not use macros because they can introduce subtle bugs. For
-example, the order of operations may not be as intended when nesting macros
-because of their simple text replacement behavior.
+We implemented fixed point in the simplest way possible. We back the
+fixed point value with a signed integer using a typedef and center the
+range at 0 (i.e. no bias). By using a signed integer, we get signedness
+for free and multiplication and division work as described in the
+assignment description.  By using a typedef, we can replace the fixed
+point representation in the future if desired. We expose fixed point
+operations as a set of inlined functions. We did not use macros
+because they can introduce subtle bugs. For example, the order of
+operations may not be as intended when nesting macros because of their
+simple text replacement behavior.
 
 			   SURVEY QUESTIONS
 			   ================
