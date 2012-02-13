@@ -49,7 +49,10 @@ frame_evict (void)
   /* Check if we have a frame to evict */
   lock_acquire (&frames_lock);
   if (list_empty (&frames))
+  {
+    lock_release (&frames_lock);
     return NULL;
+  }
 
   /* Choose a frame to evict */
   /* TODO eviction algorithm */
