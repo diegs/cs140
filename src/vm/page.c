@@ -32,6 +32,17 @@ page_init_thread (struct thread *t)
   lock_init (&t->s_page_lock);
   cond_init (&t->s_page_cond);
 }
+
+/**
+ * Destroys an entry in the page table (called by process_exit) */
+void
+page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
+{
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  frame_free (spe);
+  free (spe);
+}
+
 /**
  * Adds a mapping from user virtual address UPAGE to kernel virtual
  * address KPAGE to the page table.  If WRITABLE is true, the user process

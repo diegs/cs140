@@ -233,13 +233,20 @@ process_exit (void)
   }
 
   /* Close files that the process holds */
-  struct list *fds = &thread_current ()->fd_list;
+  struct list *fds = &cur->fd_list;
   while (!list_empty (fds))
     {
       struct list_elem *e = list_front (fds);
       struct process_fd * fd = list_entry (e, struct process_fd, elem);
       syscall_close (fd->fd);
     }
+
+#ifdef VM
+  /* Unallocate all remaining pages in the supplemental page table */
+  lock_acquire (&cur->s_page_lock);
+  hash_destroy (&cur->s_page_table, page_destroy_thread);
+  lock_release (&cur->s_page_lock);
+#endif
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
