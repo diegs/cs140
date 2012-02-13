@@ -31,6 +31,7 @@ struct s_page_entry
 {
   enum entry_type type;		/* Type of entry */
   uint8_t *uaddr;		/* User page address (page-aligned) */
+  bool writable;		/* Whether page is writable */
   union 
   {
     struct file_based file;
@@ -46,6 +47,9 @@ enum vm_flags
   VM_ZERO = PAL_ZERO             /* Zero page contents. */
 };
 
+bool vm_add_memory_page (uint8_t *uaddr, bool writable);
+bool vm_add_file_page (uint8_t *uaddr, struct file *f,
+		       off_t offset, size_t zero_bytes, bool writable);
 void page_init_thread (struct thread *t);
 void page_destroy_thread (struct hash_elem *e, void *aux UNUSED);
 bool page_evict (struct thread *t, uint8_t *uaddr);

@@ -429,22 +429,23 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
               uint32_t read_bytes, zero_bytes;
               if (phdr.p_filesz > 0)
                 {
-                  /* Normal segment.
-                     Read initial part from disk and zero the rest. */
+                  /* Normal segment. Will be read from disk */
                   read_bytes = page_offset + phdr.p_filesz;
                   zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
                                 - read_bytes);
+		  if (!vm_add_file_page ((uint8_t*)mem_page, file, file_page,
+					 zero_bytes, writable))
+		    goto done;
                 }
               else 
                 {
-                  /* Entirely zero.
-                     Don't read anything from disk. */
+                  /* Entirely zero. Don't read anything from disk. */
                   read_bytes = 0;
-                  zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
+                  zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
+					 PGSIZE);
+		  if (!vm_add_memory_page ((uint8_t*)mem_page, writable))
+		    goto done;
                 }
-              if (!load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable))
-                goto done;
             }
           else
             goto done;
@@ -533,7 +534,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    or disk read error occurs. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable UNUSED) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
@@ -549,14 +550,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = vm_add_page (upage, writable, 0);
+      uint8_t *kpage = NULL; // TODO get the page
       if (kpage == NULL)
 	return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-	  vm_free_page (upage);
+	  // TODO free the page
           return false; 
         }
 
@@ -639,9 +640,7 @@ stack_push (void **esp, void *data, size_t size)
 static bool
 setup_stack (void **esp) 
 {
-  uint8_t *kpage = vm_add_page (((uint8_t *) PHYS_BASE) - PGSIZE, true,
-				VM_ZERO);
-  bool success = (kpage != NULL);
+  bool success = vm_add_memory_page (((uint8_t*)PHYS_BASE) - PGSIZE, true);
   if (success)
     *esp = PHYS_BASE;
   return success;

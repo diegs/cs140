@@ -112,14 +112,6 @@ kill (struct intr_frame *f)
     }
 }
 
-static void
-user_page_handler (void *fault_addr)
-{
-  bool success = page_load ((uint8_t*)fault_addr);
-  if (!success)
-    kill (f);
-}
-
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -163,16 +155,20 @@ page_fault (struct intr_frame *f)
   if (!user)
   {
     /* Set eax to 0xffffffff and copy its former value to eip */
-    if (fault_addr == KERNEL_FLAG && f->eax == KERNEL_FLAG)
+    if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax == KERNEL_FLAG)
       PANIC ("Double fault -- bug in kernel.");
 
-    f->eip = f->eax;
+    f->eip = (void*)f->eax;
     f->eax = KERNEL_FLAG;
   } else {
     if (not_present)
-      user_page_handler (fault_addr);
-    else
+    {
+      bool success = page_load ((uint8_t*)fault_addr);
+      if (!success)
+	kill (f);		/* Not a valid page to load, kill process */
+    } else {
       kill (f);			/* Present but writing, kill process */
+    }
   }
 }
 

@@ -64,7 +64,7 @@ install_page (void *upage, void *kpage, bool writable)
 
 /* Initializes a supplemental page entry */
 static struct s_page_entry *
-create_s_page_entry (uint8_t *uaddr)
+create_s_page_entry (uint8_t *uaddr, bool writable)
 {
   struct s_page_entry *spe = malloc (sizeof (struct s_page_entry));
   if (spe == NULL)
@@ -75,6 +75,7 @@ create_s_page_entry (uint8_t *uaddr)
 
   /* Set fields */
   spe->uaddr = uaddr;
+  spe->writable = writable;
   spe->writing = false;
   spe->frame = NULL;
 
@@ -91,9 +92,9 @@ create_s_page_entry (uint8_t *uaddr)
  * Adds a memory-based page to the current process
  */
 bool
-vm_add_memory_page (uint8_t *uaddr, enum vm_flags flags UNUSED)
+vm_add_memory_page (uint8_t *uaddr, bool writable)
 {
-  struct s_page_entry *spe = create_s_page_entry (uaddr);
+  struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL)
     return false;
 
@@ -106,9 +107,10 @@ vm_add_memory_page (uint8_t *uaddr, enum vm_flags flags UNUSED)
 }
 
 bool
-vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset, size_t zero_bytes)
+vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
+		  size_t zero_bytes, bool writable)
 {
-  struct s_page_entry *spe = create_s_page_entry (uaddr);
+  struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL)
     return false;
 
@@ -179,6 +181,20 @@ page_evict (struct thread *t, uint8_t *uaddr)
   }
 
   return true;
+}
+
+static bool
+page_file (void)
+{
+  // TODO peter
+  return false;
+}
+
+static bool
+page_swap (void)
+{
+  // TODO diego
+  return false;
 }
 
 /**
