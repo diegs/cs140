@@ -180,3 +180,43 @@ page_evict (struct thread *t, uint8_t *uaddr)
 
   return true;
 }
+
+/**
+ * Attempts to load a page using the supplemental page table.
+ */
+bool
+page_load (uint8_t *fault_addr)
+{
+  /* Look up the supplemental page entry */
+  struct thread *t = thread_current ();
+  uint8_t* uaddr = (uint8_t*)pg_round_down (fault_addr);
+  struct s_page_entry key = {.uaddr = uaddr};
+
+  lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL)
+  {
+    /* Not a valid page */
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  lock_release (&t->s_page_lock);
+
+  /* Load the page */
+  switch (spe->type)
+  {
+  case FILE_BASED:
+    /* TODO handle file eviction */
+    return page_file();
+    break;
+  case MEMORY_BASED:
+    return page_swap();
+    break;
+  default:
+    PANIC ("Unknown page type!");
+  }
+
+  return false;
+}

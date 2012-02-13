@@ -4,6 +4,9 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "vm/page.h"
+
+#define KERNEL_FLAG 0xffffffff
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -109,6 +112,14 @@ kill (struct intr_frame *f)
     }
 }
 
+static void
+user_page_handler (void *fault_addr)
+{
+  bool success = page_load ((uint8_t*)fault_addr);
+  if (!success)
+    kill (f);
+}
+
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -151,20 +162,17 @@ page_fault (struct intr_frame *f)
 
   if (!user)
   {
-    /* Project 2: set eax to 0xffffffff and copy its former value to eip */
-    f->eip = f->eax;
-    f->eax = 0xffffffff;
-  } else {
-    /* To implement virtual memory, delete the rest of the function
-       body, and replace it with code that brings in the page to
-       which fault_addr refers. */
+    /* Set eax to 0xffffffff and copy its former value to eip */
+    if (fault_addr == KERNEL_FLAG && f->eax == KERNEL_FLAG)
+      PANIC ("Double fault -- bug in kernel.");
 
-    printf ("Page fault at %p: %s error %s page in %s context.\n",
-	    fault_addr,
-	    not_present ? "not present" : "rights violation",
-	    write ? "writing" : "reading",
-	    user ? "user" : "kernel");
-    kill (f);
+    f->eip = f->eax;
+    f->eax = KERNEL_FLAG;
+  } else {
+    if (not_present)
+      user_page_handler (fault_addr);
+    else
+      kill (f);			/* Present but writing, kill process */
   }
 }
 
