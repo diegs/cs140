@@ -228,6 +228,13 @@ make sure that all the data are on valid pages.
 For 2 bytes the case is the same as the optimized case above (obviously the
 naive approach would not make more than 2 calls).
 
+In our implementation (described above) we only check that we can read
+each byte, rather than copying it or checking the page existence. For
+simplicity we kept this naive implemenation, but one performance
+enhancement we could make would be to only make sure we test read one byte
+per page for each memory block to be accessed (taking into account the
+lower and upper bounds).
+
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
 
