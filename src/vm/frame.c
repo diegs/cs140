@@ -47,12 +47,12 @@ frame_evict (void)
   uint8_t *kpage;
 
   /* Check if we have a frame to evict */
+  lock_acquire (&frames_lock);
   if (list_empty (&frames))
     return NULL;
 
   /* Choose a frame to evict */
   /* TODO eviction algorithm */
-  lock_acquire (&frames_lock);
   struct frame_entry *f = list_entry (list_pop_front (&frames),
 				      struct frame_entry,
 				      elem);
