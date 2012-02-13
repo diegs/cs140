@@ -310,7 +310,12 @@ sys_open (const struct intr_frame *f)
   if (fd_found == NULL) 
   {
     fd_found = fd_hash_init ();
-    fd_found->filename = strdup (filename);
+	if (fd_found == NULL)
+	{
+	  lock_release(&fd_all_lock);
+	  return -1;
+    }
+	fd_found->filename = strdup (filename);
     hash_insert (&fd_all, &fd_found->elem);
   }
   /* Makes sure it isn't marked for deletion */
@@ -382,7 +387,11 @@ syscall_close (int fd)
     return;
   }
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
-  ASSERT(fd_found != NULL);
+  if (fd_found == NULL)
+  {
+	lock_release(&fd_all_lock);
+	return;
+  }
   file_close (pfd->file);
 
   /* Perform syscall level bookkeeping */
