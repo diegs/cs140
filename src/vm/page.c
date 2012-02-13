@@ -199,6 +199,10 @@ page_file (struct s_page_entry *spe)
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
 
   /* Update the supplementary page table entry */
+  struct thread *t = thread_current ();
+  lock_acquire (&t->s_page_lock);
+  spe->frame = frame;
+  lock_release (&t->s_page_lock);
 
   /* Install the page in the current thread's page directory */
 

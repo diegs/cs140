@@ -80,8 +80,8 @@ clock_algorithm (void)
  * Evicts a frame from the frame table and reassigns it to the 
  * given user address. 
  */
-static struct frame_entry *
-frame_evict (uint8_t *uaddr)
+static struct uint8_t*
+frame_evict (void)
 {
   /* Choose a frame to evict */
   lock_acquire (&frames_lock);
@@ -94,13 +94,16 @@ frame_evict (uint8_t *uaddr)
   /* Perform the eviction */
   bool success = page_evict (f->t, f->uaddr);
   
-  if (success) 
-  {
-    f->t = thread_current ();
-    f->uaddr = uaddr;
-  }
+  if (!success) 
+    return NULL;
+
+  /* Remove the frame from the list of active frames */
+  lock_acquire (&frames_lock);
+  list_remove (&f->elem);
+  free (f);
+  lock_release (&frames_lock);
   
-  return f;
+  return f->kaddr;
 }
 
 /**
@@ -116,7 +119,7 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
 
   /* Evict an existing frame */
   if (kpage == NULL)
-    return frame_evict (uaddr);
+    kpage = frame_evict (uaddr);
 
   /* Failed to evict */
   if (kpage == NULL)
@@ -142,7 +145,7 @@ frame_free (struct s_page_entry *spe)
       clock_hand = list_next (clock_hand);
       list_remove (&f->elem);
       if (clock_hand == list_end (&frames))
-	clock_hand = list_begin (&frames);
+        clock_hand = list_begin (&frames);
     } else {
       list_remove (&f->elem);
     }
