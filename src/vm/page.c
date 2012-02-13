@@ -184,9 +184,24 @@ page_evict (struct thread *t, uint8_t *uaddr)
 }
 
 static bool
-page_file (void)
+page_file (struct s_page_entry *spe)
 {
-  // TODO peter
+  struct frame_entry *frame = frame_get (spe->uaddr, 0);
+  struct file_based *info = &spe->info.file;
+  
+  /* Read page into memory */
+  file_seek (info->f, info->offset);
+
+  size_t bytes_read = PGSIZE - info->zero_bytes;
+  if (file_read (info->f, frame->kaddr, bytes_read) != bytes_read) 
+    return false;
+
+  memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
+
+  /* Update the supplementary page table entry */
+
+  /* Install the page in the current thread's page directory */
+
   return false;
 }
 
@@ -225,7 +240,7 @@ page_load (uint8_t *fault_addr)
   {
   case FILE_BASED:
     /* TODO handle file eviction */
-    return page_file();
+    return page_file(spe);
     break;
   case MEMORY_BASED:
     return page_swap();

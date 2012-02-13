@@ -21,7 +21,7 @@ frame_init (void)
 /**
  * Inserts an entry for a page belonging to a thread into the frame table
  */
-static void
+static struct frame_entry *
 frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
 {
   /* Create entry */
@@ -38,6 +38,8 @@ frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   lock_acquire (&frames_lock);
   list_push_back (&frames, &f->elem);
   lock_release (&frames_lock);
+  
+  return f;
 }
 
 /* Treats the list as a circularly linked list */
@@ -75,14 +77,12 @@ clock_algorithm (void)
 }
 
 /**
- * Evicts a frame from the frame table and performs the necessary
- * actions. Returns the kernel address of the free'd frame.
+ * Evicts a frame from the frame table and reassigns it to the 
+ * given user address. 
  */
-static uint8_t *
-frame_evict (void)
+static struct frame_entry *
+frame_evict (uint8_t *uaddr)
 {
-  uint8_t *kpage;
-
   /* Choose a frame to evict */
   lock_acquire (&frames_lock);
   struct frame_entry *f = clock_algorithm ();
@@ -93,20 +93,14 @@ frame_evict (void)
 
   /* Perform the eviction */
   bool success = page_evict (f->t, f->uaddr);
-
-  if (!success)
+  
+  if (success) 
   {
-    /* Failed to evict -- reinsert into frame table (makes a new entry) */
-    frame_insert (f->t, f->uaddr, f->kaddr);
-    kpage = NULL;
-  } else {
-    /* This kernel address is now free */
-    kpage = f->kaddr;
+    f->t = thread_current ();
+    f->uaddr = uaddr;
   }
   
-  /* Reclaim frame entry */
-  free (f);
-  return kpage;
+  return f;
 }
 
 /**
@@ -114,7 +108,7 @@ frame_evict (void)
  * may come from an unallocated frame or the eviction of a
  * previously-allocated frame.
  */
-uint8_t*
+struct frame_entry*
 frame_get (uint8_t *uaddr, enum vm_flags flags)
 {
   /* Attempt to allocate a brand new frame */
@@ -122,16 +116,14 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
 
   /* Evict an existing frame */
   if (kpage == NULL)
-    kpage = frame_evict ();
+    return frame_evict (uaddr);
 
   /* Failed to evict */
   if (kpage == NULL)
     return NULL;
 
   /* Make a new frame table entry */
-  frame_insert (thread_current (), uaddr, kpage);
-
-  return kpage;
+  return frame_insert (thread_current (), uaddr, kpage);
 }
 
 /**

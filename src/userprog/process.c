@@ -428,24 +428,24 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
               uint32_t page_offset = phdr.p_vaddr & PGMASK;
               uint32_t read_bytes, zero_bytes;
               if (phdr.p_filesz > 0)
-                {
-                  /* Normal segment. Will be read from disk */
-                  read_bytes = page_offset + phdr.p_filesz;
-                  zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
-                                - read_bytes);
-		  if (!vm_add_file_page ((uint8_t*)mem_page, file, file_page,
-					 zero_bytes, writable))
-		    goto done;
-                }
+              {
+                /* Normal segment. Will be read from disk */
+                read_bytes = page_offset + phdr.p_filesz;
+                zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz,
+                      PGSIZE) - read_bytes);
+                if (!vm_add_file_page ((uint8_t*)mem_page, file,
+                      file_page, zero_bytes, writable))
+                  goto done;
+              }
               else 
-                {
-                  /* Entirely zero. Don't read anything from disk. */
-                  read_bytes = 0;
-                  zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
-					 PGSIZE);
-		  if (!vm_add_memory_page ((uint8_t*)mem_page, writable))
-		    goto done;
-                }
+              {
+                /* Entirely zero. Don't read anything from disk. */
+                read_bytes = 0;
+                zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
+                    PGSIZE);
+                if (!vm_add_memory_page ((uint8_t*)mem_page, writable))
+                  goto done;
+              }
             }
           else
             goto done;
@@ -533,8 +533,8 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable UNUSED) 
+load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t
+    read_bytes, uint32_t zero_bytes, bool writable UNUSED) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
