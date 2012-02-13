@@ -621,11 +621,11 @@ push_args(struct process_info *pinfo, void **esp) {
    boundary */
 static bool verify_esp(uint32_t esp)
 {
-  return  (esp < (uint32_t)PHYS_BASE && esp > (uint32_t) (PHYS_BASE - PGSIZE));
+  return (esp < (uint32_t)PHYS_BASE && esp > (uint32_t) (PHYS_BASE - PGSIZE));
 }
 
 /* Push an element of size 'size' onto a stack.  This will check
-   the page boundary*/
+   the page boundary */
 static void
 stack_push (void **esp, void *data, size_t size)
 {
@@ -633,7 +633,6 @@ stack_push (void **esp, void *data, size_t size)
   if (!verify_esp((uint32_t) *esp)) return;
   memcpy(*esp, data, size);
 }
-
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
