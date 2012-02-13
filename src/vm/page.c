@@ -101,7 +101,6 @@ vm_add_memory_page (uint8_t *uaddr, bool writable)
 
   spe->type = MEMORY_BASED;
   spe->info.memory.swapped = true;
-  spe->info.memory.swap_block = 0;
   spe->info.memory.used = false;
 
   return true;
@@ -160,7 +159,7 @@ page_swap (struct s_page_entry *spe)
   if (spe->info.memory.used || pagedir_is_dirty (thread_current ()->pagedir,
 						 spe->uaddr))
   {
-    spe->info.memory.swap_block = swap_write (spe->uaddr);
+    swap_write (spe->uaddr, spe->info.memory.swap_blocks);
     spe->info.memory.used = true;
   } 
 
@@ -184,7 +183,7 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, 0);
     if (!spe->frame)
       return false;
-    bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_block);
+    bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
     if (!success)
     {
       frame_free (spe);
@@ -232,6 +231,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
     PANIC ("Unknown page type!");
   }
 
+  spe->frame = NULL;
   return true;
 }
 

@@ -6,6 +6,7 @@
 #include "devices/block.h"
 #include "filesys/file.h"
 #include "threads/palloc.h"
+#include "threads/vaddr.h"
 
 enum entry_type
 {
@@ -24,7 +25,7 @@ struct memory_based
 {
   bool used;			/* Has this page been swapped before */
   bool swapped;			/* Is this block swapped */
-  block_sector_t swap_block;	/* Swap block */
+  block_sector_t swap_blocks[PGSIZE/BLOCK_SECTOR_SIZE];	/* Swap block */
 };
 
 struct s_page_entry 
