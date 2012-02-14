@@ -5,7 +5,6 @@
 #include "tests/userprog/boundary.h"
 #include "tests/lib.h"
 #include "tests/main.h"
-#include <stdio.h>
 
 void
 test_main (void) 
