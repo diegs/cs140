@@ -138,9 +138,6 @@ thread_init (void)
   list_init (&initial_thread->pcb_children);   /* List of child processes */
 #endif
 
-#ifdef VM
-  page_init_thread (initial_thread);
-#endif
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.

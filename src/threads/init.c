@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "threads/thread.h"
 #include "devices/kbd.h"
 #include "devices/input.h"
 #include "devices/serial.h"
@@ -103,6 +104,7 @@ main (void)
   malloc_init ();
   paging_init ();
 
+
   /* Segmentation. */
 #ifdef USERPROG
   tss_init ();
@@ -120,6 +122,7 @@ main (void)
 #endif
 
 #ifdef VM
+  page_init_thread (thread_current ());
   swap_init ();
   frame_init ();
 #endif
