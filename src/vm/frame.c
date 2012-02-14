@@ -86,24 +86,31 @@ frame_evict (void)
   /* Choose a frame to evict */
   lock_acquire (&frames_lock);
   struct frame_entry *f = clock_algorithm ();
+  if (f == NULL) 
+  {
+    lock_release (&frames_lock);
+    return NULL;	/* Could not find a frame to evict */
+  }
+  list_remove (&f->elem);
   lock_release (&frames_lock);
-
-  if (f == NULL)
-    return NULL;		/* Could not find a frame to evict */
 
   /* Perform the eviction */
   bool success = page_evict (f->t, f->uaddr);
   
+  /* Put the frame back if we could not evict it */
   if (!success) 
+  {
+    lock_acquire (&frames_lock);
+    list_push_back (&frames, &f->elem);
+    lock_release (&frames_lock);
     return NULL;
+  }
 
-  /* Remove the frame from the list of active frames */
-  lock_acquire (&frames_lock);
-  list_remove (&f->elem);
+  /* Clean up frame memory */
+  uint8_t *kaddr = f->kaddr;
   free (f);
-  lock_release (&frames_lock);
   
-  return f->kaddr;
+  return kaddr;
 }
 
 /**
@@ -139,7 +146,7 @@ frame_free (struct s_page_entry *spe)
   if (spe->frame != NULL)
   {
     struct frame_entry *f = spe->frame;
-    palloc_free_page (&f->kaddr);
+    palloc_free_page (f->kaddr);
     if (&f->elem == clock_hand)
     {
       clock_hand = list_next (clock_hand);
