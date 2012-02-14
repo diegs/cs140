@@ -152,23 +152,26 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if (!user)
+  if (not_present)
   {
-    /* Set eax to 0xffffffff and copy its former value to eip */
-    if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax == KERNEL_FLAG)
-      PANIC ("Double fault -- bug in kernel.");
-
-    f->eip = (void*)f->eax;
-    f->eax = KERNEL_FLAG;
-  } else {
-    if (not_present)
+    bool success = page_load ((uint8_t*)fault_addr);
+    if (!success) 
     {
-      bool success = page_load ((uint8_t*)fault_addr);
-      if (!success)
-	kill (f);		/* Not a valid page to load, kill process */
-    } else {
-      kill (f);			/* Present but writing, kill process */
+      if (!user)
+      {
+        /* Set eax to 0xffffffff and copy its former value to eip */
+        if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
+            KERNEL_FLAG)
+          PANIC ("Double fault -- bug in kernel.");
+
+        f->eip = (void*)f->eax;
+        f->eax = KERNEL_FLAG;
+      } else {
+        kill (f);		/* Not a valid page to load, kill process */
+      }
     }
+  } else if (user) {
+    kill (f);			/* Present but writing, kill process */
   }
 }
 

@@ -32,6 +32,7 @@ static thread_func start_process NO_RETURN;
    data between execute() and start()*/
 struct process_info {
   char * prog_name;
+  struct file *file;
   char *args_copy;	//pointer to the args data in the heap
   struct semaphore loaded;	//signal when done loading
   bool load_success;	//stores whether it loaded successfully
@@ -98,6 +99,7 @@ start_process (void *file_name_)
   /* Open the file and prevent writes to it while loading */
   struct file* file = filesys_open (pinfo->prog_name);
   if (file != NULL) file_deny_write (file);
+  pinfo->file = file;
 
   success = load (pinfo, &if_.eip, &if_.esp);
 
@@ -373,7 +375,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (pinfo->prog_name);
+  file = pinfo->file;
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", pinfo->prog_name);
@@ -468,7 +470,6 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   pinfo->load_success = success;
   sema_up(&pinfo->loaded);
-  file_close (file);
   return success;
 }
 
