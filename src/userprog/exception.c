@@ -13,6 +13,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
+void check_stack (struct intr_frame *f, void * fault_addr, bool user);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -146,12 +147,16 @@ page_fault (struct intr_frame *f)
 
   /* Count page faults. */
   page_fault_cnt++;
-
+  
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  /* Expand the stack if needed. We still need to load the page into 
+	memory below*/
+  check_stack(f, fault_addr, user);
+	
   if (not_present)
   {
     bool success = page_load ((uint8_t*)fault_addr);
@@ -175,3 +180,25 @@ page_fault (struct intr_frame *f)
   }
 }
 
+void
+check_stack (struct intr_frame *f, void * fault_addr, bool user)
+{
+ void * esp = NULL;
+  if (user)
+  {
+	esp = f->esp;
+	if (esp == fault_addr || (esp - 4) == fault_addr || 
+		(esp - 32) == fault_addr)
+	{
+	  bool success = vm_add_memory_page (fault_addr, true);
+	  if (!success) 
+	  {
+		kill(f);
+	  }
+	}
+  } else 
+  {
+	//TODO: kernel stack growth
+	;
+  }
+}
