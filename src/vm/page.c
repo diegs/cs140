@@ -273,7 +273,7 @@ page_file (struct s_page_entry *spe)
   install_page (frame->uaddr, frame->kaddr, spe->writable);
   lock_release (&t->s_page_lock);
 
-  return false;
+  return true;
 }
 
 /**
