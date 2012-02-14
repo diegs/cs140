@@ -354,6 +354,28 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
 
+static bool
+load_file_segment (struct process_info *pinfo, uint32_t file_page,
+    uint8_t *base_uaddr, size_t read_bytes, bool writable) 
+{
+  uint8_t *uaddr = base_uaddr;
+  uint8_t *end_uaddr = base_uaddr + read_bytes;
+
+  while (uaddr < end_uaddr) {
+    size_t remain_bytes = end_uaddr - uaddr;
+    size_t page_bytes = remain_bytes < PGSIZE ? remain_bytes : PGSIZE;
+    size_t zero_bytes = PGSIZE - page_bytes;
+
+    if (!vm_add_file_page (uaddr, pinfo->file,
+          file_page, zero_bytes, writable)) return false;
+
+    uaddr += page_bytes;
+    file_page += page_bytes;
+  }
+
+  return true;
+}
+
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
@@ -435,8 +457,8 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
                 read_bytes = page_offset + phdr.p_filesz;
                 zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz,
                       PGSIZE) - read_bytes);
-                if (!vm_add_file_page ((uint8_t*)mem_page, file,
-                      file_page, zero_bytes, writable))
+                if (!load_file_segment (pinfo, file_page, 
+                        mem_page, read_bytes, writable))
                   goto done;
               }
               else 

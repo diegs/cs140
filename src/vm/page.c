@@ -59,8 +59,11 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  if (pagedir_get_page (t->pagedir, upage) != NULL)
+  {
+    pagedir_clear_page (t->pagedir, upage);
+  }
+  return pagedir_set_page (t->pagedir, upage, kpage, writable);
 }
 
 /* Finds a page entry in a context where the given thread's page 
@@ -273,7 +276,7 @@ page_file (struct s_page_entry *spe)
   install_page (frame->uaddr, frame->kaddr, spe->writable);
   lock_release (&t->s_page_lock);
 
-  return false;
+  return true;
 }
 
 /**
