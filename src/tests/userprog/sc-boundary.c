@@ -13,8 +13,6 @@ test_main (void)
   /* Put a syscall number at the end of one page
      and its argument at the beginning of another. */
   int *p = get_boundary_area ();
-  printf ("Boundary address %x\n", p);
-
   p--;
   p[0] = SYS_EXIT;
   p[1] = 42;
