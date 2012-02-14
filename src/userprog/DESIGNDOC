@@ -34,66 +34,19 @@ N/A
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-struct process_info {
-  char * prog_name;
-  char *args_copy;	//pointer to the args data in the heap
-  struct semaphore loaded;	//signal when done loading
-  bool load_success;	//stores whether it loaded successfully
-};
-
-Information passed between process_execute() and start_process().  We use
-a semaphore to notify process_execute() when the process has finished
-loading, and fill in its return value.
-
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
-In process_execute(), we extract the file name and copy the argument
-strings to a pinfo struct that we send to start_process().  In load(), we
-call push_args() which parses the argument strings.  
-
-First, we push the file name and arguments strings themselves onto the
-stack, in order (arg0....argc-1), and then align to 4 bytes.  As we push
-them on the stack, we record their locations so that we can next push
-their references, in reverse order (arg c=null, argc ... arg0) onto the
-stack.  Finally, we push the address of arg0's pointers, argc, and then
-the return address.  
-
-The file name and arguments themselves are limited to PGSIZE, because we
-make sure to only memcpy PAGESZ worth of data in the pinfo struct passed
-to start_process().  Because the data, and references and other additional
-information we push to the stack together may exceed the allocated page
-even if the data alone does not, we also check in stack_push() that we are
-writing only within the stack boundaries.
-
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
-strtok_r is a reentrant version of strtok -- while strtok stores state
-information, strtok_r depends on arguments passed in to determine state.
-Because of this, strtok_r is thread safe, amd strtok could exhibit
-unwanted behavior if a context switch happens, and multiple threads are
-calling strtok.
-
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
-
-In the UNIX approach, the shell can handle customized arguments (such as
-"-" or "--", and can handle more complex structures like piping output.
-The Pintos approach is naive and just copies all tokens passed, and
-is agnostic about things like redirecting output or argument syntax.
-
-Parsing arguments in the shell also makes more sense in terms of kernel
-design and isolation -- the operating system handling less logic means
-fewer bugs introduced to the kernel. Everything that client code can
-handle (which doesn't require elevated privileges) should be left to the
-client code.
-
 
 			     SYSTEM CALLS
 			     ============
@@ -227,13 +180,6 @@ make sure that all the data are on valid pages.
 
 For 2 bytes the case is the same as the optimized case above (obviously the
 naive approach would not make more than 2 calls).
-
-In our implementation (described above) we only check that we can read
-each byte, rather than copying it or checking the page existence. For
-simplicity we kept this naive implemenation, but one performance
-enhancement we could make would be to only make sure we test read one byte
-per page for each memory block to be accessed (taking into account the
-lower and upper bounds).
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
