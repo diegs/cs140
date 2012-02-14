@@ -361,7 +361,8 @@ load_file_segment (struct process_info *pinfo, uint32_t file_page,
   uint8_t *uaddr = base_uaddr;
   uint8_t *end_uaddr = base_uaddr + read_bytes;
 
-  while (uaddr < end_uaddr) {
+  while (uaddr < end_uaddr) 
+  {
     size_t remain_bytes = end_uaddr - uaddr;
     size_t page_bytes = remain_bytes < PGSIZE ? remain_bytes : PGSIZE;
     size_t zero_bytes = PGSIZE - page_bytes;
@@ -373,6 +374,22 @@ load_file_segment (struct process_info *pinfo, uint32_t file_page,
     file_page += page_bytes;
   }
 
+  return true;
+}
+
+static bool
+load_memory_segment (uint8_t *base_uaddr, size_t zero_bytes, 
+                      bool writable) 
+{
+  uint8_t *uaddr = base_uaddr;
+  uint8_t *end_uaddr = base_uaddr + zero_bytes;
+
+  while (uaddr < end_uaddr) 
+  {
+    if (!vm_add_memory_page (uaddr, writable))
+      return false;
+    uaddr += PGSIZE;
+  }
   return true;
 }
 
@@ -467,7 +484,8 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
                 read_bytes = 0;
                 zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
                     PGSIZE);
-                if (!vm_add_memory_page ((uint8_t*)mem_page, writable))
+                if (!load_memory_segment((uint8_t*)mem_page,
+                      zero_bytes, writable))
                   goto done;
               }
             }

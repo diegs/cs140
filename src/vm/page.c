@@ -217,6 +217,7 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
     if (!spe->frame)
       return false;
+    spe->info.memory.used = true;
   }
 
   spe->info.memory.swapped = false;
