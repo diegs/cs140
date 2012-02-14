@@ -1,3 +1,4 @@
+#include "lib/string.h"
 #include "filesys/file.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
