@@ -224,6 +224,39 @@ page_unswap (struct s_page_entry *spe)
   return true;
 }
 
+/* Writes a FILE_BASED page to its file. Does not free the frame */
+static bool
+page_file (struct s_page_entry *spe) 
+{
+  ASSERT (spe != NULL);
+
+  struct frame_entry *frame = frame_get (spe->uaddr, 0);
+  struct file_based *info = &spe->info.file;
+
+  ASSERT (info->f != NULL);
+
+  // TODO Think about all the race conditions ... 
+  /* Unmap the file from the thread before it is written */
+  struct thread *t = thread_current ();
+  lock_acquire (&t->s_page_lock);
+  spe->writing = true;
+  pagedir_clear_page (t->pagedir, spe->uaddr);
+  lock_release (&t->s_page_lock);
+
+  /* Write the file out to disk */
+  file_seek (info->f, info->offset);
+
+  size_t bytes_write = PGSIZE - info->zero_bytes;
+  bool num_written = file_write (info->f, frame->kaddr, bytes_write);
+
+  lock_acquire (&t->s_page_lock);
+  spe->writing = false;
+  cond_signal (&t->s_page_cond, &t->s_page_lock);
+  lock_release (&t->s_page_lock);
+
+  return bytes_write == num_written;
+}
+
 bool
 page_evict (struct thread *t, uint8_t *uaddr)
 {
@@ -245,7 +278,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
   switch (spe->type)
   {
   case FILE_BASED:
-    /* TODO handle file eviction */
+    return page_file (spe);
     break;
   case MEMORY_BASED:
     return page_swap (spe);
@@ -254,15 +287,19 @@ page_evict (struct thread *t, uint8_t *uaddr)
     PANIC ("Unknown page type!");
   }
 
-  spe->frame = NULL;
+  free_frame (spe);
   return true;
 }
 
 static bool
-page_file (struct s_page_entry *spe)
+page_unfile (struct s_page_entry *spe)
 {
+  ASSERT (spe != NULL);
+
   struct frame_entry *frame = frame_get (spe->uaddr, 0);
   struct file_based *info = &spe->info.file;
+
+  ASSERT (info->f != NULL);
   
   /* Read page into memory */
   file_seek (info->f, info->offset);
@@ -310,8 +347,7 @@ page_load (uint8_t *fault_addr)
   switch (spe->type)
   {
   case FILE_BASED:
-    /* TODO handle file eviction */
-    return page_file(spe);
+    return page_unfile(spe);
     break;
   case MEMORY_BASED:
     return page_unswap (spe);
