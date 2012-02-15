@@ -227,16 +227,15 @@ is on an allocated page. However, since we know that data must be page-aligned,
 4096 bytes would exist on at most 2 pages, so we would only need to make the
 call twice (or once if the address is aligned to the beginning of a page) to
 make sure that all the data are on valid pages.
+(If the data is not page-aligned, it would exist on at most 3 pages)
 
 For 2 bytes the case is the same as the optimized case above (obviously the
 naive approach would not make more than 2 calls).
 
-In our implementation (described above) we only check that we can read
-each byte, rather than copying it or checking the page existence. For
-simplicity we kept this naive implemenation, but one performance
-enhancement we could make would be to only make sure we test read one byte
-per page for each memory block to be accessed (taking into account the
-lower and upper bounds).
+In our implementation (described above) we only check that we can read the
+first byte of each page the data spans.  We find the span by rounding down
+the first and last byte of the data to get their pages, and iterate over
+pages in that span.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
