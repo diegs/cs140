@@ -74,7 +74,7 @@ install_page (void *upage, void *kpage, bool writable)
 /* Finds a page entry in a context where the given thread's page 
    table lock has been acquired.
    */
-static struct page_entry *
+static struct s_page_entry *
 safe_get_page_entry (struct thread *t, uint8_t *uaddr) 
 {
   struct s_page_entry key = {.uaddr = uaddr};
