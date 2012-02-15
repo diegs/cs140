@@ -118,12 +118,23 @@ process_kill (void)
 static void
 memory_verify (void *ptr, size_t size)
 {
-  size_t i;
-  for (i=0; i<size; i++)
+  /*Get the first page this data spans */
+  uint32_t start_page = (uint32_t)ptr / PGSIZE;
+
+  /*Get the last page this data spans */
+  uint32_t end_page = (uint32_t)(ptr + size - 1) / PGSIZE;
+	
+  /* Check the first byte of each page */
+  uint32_t page;
+  for (page = start_page; page <= end_page; page++)
   {
-    if (get_byte (((unsigned char*)ptr) + i) == -1)
+    uint8_t *page_first_byte = (uint8_t *)(page * PGSIZE);
+    if (get_byte (page_first_byte) == -1)
+    {
       process_kill ();
+    }
   }
+  return;
 }
 
 /* Verifies that an entire string is vald memory */

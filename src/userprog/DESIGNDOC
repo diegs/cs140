@@ -40,10 +40,43 @@ N/A
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
+<<<<<<< HEAD
+=======
+In process_execute(), we extract the file name and copy the argument
+strings to a pinfo struct that we send to start_process().  In load(), we
+call push_args() which parses the argument strings.  
+
+First, we push the file name and arguments strings themselves onto the
+stack, in order (arg0....argc-1), and then align to 4 bytes.  As we push
+them on the stack, we record their locations so that we can next push
+their references, in reverse order (arg c=null, argc ... arg0) onto the
+stack.  Finally, we push the address of arg0's pointers, argc, and then
+the return address.  
+
+The file name and arguments themselves are limited to PGSIZE, because we
+make sure to only memcpy PAGESZ worth of data in the pinfo struct passed
+to start_process().  Because the data, and references and other additional
+information we push to the stack together may exceed the allocated page
+even if the data alone does not, we also check in stack_push() that we are
+writing only within the stack boundaries.  For now, we don't allow writes
+beyond one page of stack space, but we will handle this case in Project 3.
+
+>>>>>>> remotes/origin/project2
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
+<<<<<<< HEAD
+=======
+strtok_r is a reentrant version of strtok -- while strtok stores state
+information, strtok_r depends on arguments passed in to determine state.
+Because of this, strtok_r is thread safe for threads operating on
+different strings while strtok could exhibit unwanted behavior if a
+context switch happens, and multiple threads are calling strtok.  Note
+that because strtok_r mutates the string, it is not safe to call strtok_r
+on the same string from two different threads.
+
+>>>>>>> remotes/origin/project2
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
@@ -172,14 +205,20 @@ the system call that is attempting the write.
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
 
-In a naive implementation, you could call it for every byte to ensure that it
-is on an allocated page. However, since we know that data must be page-aligned,
-4096 bytes would exist on at most 2 pages, so we would only need to make the
-call twice (or once if the address is aligned to the beginning of a page) to
-make sure that all the data are on valid pages.
+In a naive implementation, you could call it for every byte to ensure
+that it is on an allocated page. However, since we know that a page is
+of size 4096, the data must exist on at most two pages. Thus,
+we would only need to make the call twice if the data is not page
+aligned or once if the address is aligned to the beginning of a page
+to make sure that all the data are on valid pages.
 
-For 2 bytes the case is the same as the optimized case above (obviously the
-naive approach would not make more than 2 calls).
+For 2 bytes the case is the same as the optimized case above
+(obviously the naive approach would not make more than 2 calls).
+
+In our implementation (described above) we only check that we can read
+the first byte of each page the data spans.  We find the span by
+rounding down the first and last byte of the data to get their pages,
+and iterate over pages in that span.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
