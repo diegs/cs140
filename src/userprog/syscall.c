@@ -122,17 +122,17 @@ memory_verify (void *ptr, size_t size)
   uint32_t start_page = (uint32_t)ptr / PGSIZE;
 
   /*Get the last page this data spans */
-  uint32_t end_page = (uint32_t)(ptr + size) / PGSIZE;
+  uint32_t end_page = (uint32_t)(ptr + size - 1) / PGSIZE;
 	
   /* Check the first byte of each page */
   uint32_t page;
   for (page = start_page; page <= end_page; page++)
   {
-	unsigned char * page_first_byte = (unsigned char *)(page * PGSIZE);
-	if (get_byte (page_first_byte) == -1)
-	{
-	  process_kill ();
-	}
+    uint8_t *page_first_byte = (uint8_t *)(page * PGSIZE);
+    if (get_byte (page_first_byte) == -1)
+    {
+      process_kill ();
+    }
   }
   return;
 }
