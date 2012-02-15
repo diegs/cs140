@@ -289,7 +289,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
     PANIC ("Unknown page type!");
   }
 
-  free_frame (spe);
+  frame_free(spe);
   return true;
 }
 
