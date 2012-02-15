@@ -67,7 +67,8 @@ make sure to only memcpy PAGESZ worth of data in the pinfo struct passed
 to start_process().  Because the data, and references and other additional
 information we push to the stack together may exceed the allocated page
 even if the data alone does not, we also check in stack_push() that we are
-writing only within the stack boundaries.
+writing only within the stack boundaries.  For now, we don't allow writes
+beyond one page of stack space, but we will handle this case in Project 3.
 
 ---- RATIONALE ----
 
@@ -75,9 +76,11 @@ writing only within the stack boundaries.
 
 strtok_r is a reentrant version of strtok -- while strtok stores state
 information, strtok_r depends on arguments passed in to determine state.
-Because of this, strtok_r is thread safe, amd strtok could exhibit
-unwanted behavior if a context switch happens, and multiple threads are
-calling strtok.
+Because of this, strtok_r is thread safe for threads operating on
+different strings while strtok could exhibit unwanted behavior if a
+context switch happens, and multiple threads are calling strtok.  Note
+that because strtok_r mutates the string, it is not safe to call strtok_r
+on the same string from two different threads.
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
