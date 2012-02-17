@@ -350,16 +350,14 @@ struct Elf32_Phdr
 static bool setup_stack (void **esp);
 static void stack_push (void ** esp, void * data, size_t size);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
-static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
-                          uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable);
 
 static bool
-load_file_segment (struct process_info *pinfo, uint32_t file_page,
-    uint8_t *base_uaddr, size_t read_bytes, bool writable) 
+load_segment (struct process_info *pinfo, uint32_t file_page,
+	      uint8_t *base_uaddr, size_t read_bytes,
+	      size_t padding_bytes, bool writable) 
 {
   uint8_t *uaddr = base_uaddr;
-  uint8_t *end_uaddr = base_uaddr + read_bytes;
+  uint8_t *end_uaddr = base_uaddr + read_bytes + padding_bytes;
 
   while (uaddr < end_uaddr) 
   {
@@ -367,29 +365,20 @@ load_file_segment (struct process_info *pinfo, uint32_t file_page,
     size_t page_bytes = remain_bytes < PGSIZE ? remain_bytes : PGSIZE;
     size_t zero_bytes = PGSIZE - page_bytes;
 
-    if (!vm_add_file_page (uaddr, pinfo->file,
-          file_page, zero_bytes, writable)) return false;
+    bool success;
+    if (remain_bytes > 0)
+      success = vm_add_file_page (uaddr, pinfo->file, file_page,
+				  zero_bytes, writable);
+    else
+      success = vm_add_memory_page (uaddr, writable);
+
+    if (!success)
+      return false;
 
     uaddr += page_bytes;
     file_page += page_bytes;
   }
 
-  return true;
-}
-
-static bool
-load_memory_segment (uint8_t *base_uaddr, size_t zero_bytes, 
-                      bool writable) 
-{
-  uint8_t *uaddr = base_uaddr;
-  uint8_t *end_uaddr = base_uaddr + zero_bytes;
-
-  while (uaddr < end_uaddr) 
-  {
-    if (!vm_add_memory_page (uaddr, writable))
-      return false;
-    uaddr += PGSIZE;
-  }
   return true;
 }
 
@@ -447,6 +436,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
+
       switch (phdr.p_type) 
         {
         case PT_NULL:
@@ -474,20 +464,15 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
                 read_bytes = page_offset + phdr.p_filesz;
                 zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz,
                       PGSIZE) - read_bytes);
-                if (!load_file_segment (pinfo, file_page, 
-                        mem_page, read_bytes, writable))
-                  goto done;
-              }
-              else 
-              {
+	      } else {
                 /* Entirely zero. Don't read anything from disk. */
                 read_bytes = 0;
                 zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
                     PGSIZE);
-                if (!load_memory_segment((uint8_t*)mem_page,
-                      zero_bytes, writable))
+	      }
+	      if (!load_segment (pinfo, file_page, mem_page, read_bytes,
+				 zero_bytes, writable))
                   goto done;
-              }
             }
           else
             goto done;
@@ -559,59 +544,6 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   return true;
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
-   UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
-   memory are initialized, as follows:
-
-        - READ_BYTES bytes at UPAGE must be read from FILE
-          starting at offset OFS.
-
-        - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
-
-   The pages initialized by this function must be writable by the
-   user process if WRITABLE is true, read-only otherwise.
-
-   Return true if successful, false if a memory allocation error
-   or disk read error occurs. */
-static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t
-    read_bytes, uint32_t zero_bytes, bool writable UNUSED) 
-{
-  ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
-  ASSERT (pg_ofs (upage) == 0);
-  ASSERT (ofs % PGSIZE == 0);
-
-  file_seek (file, ofs);
-  while (read_bytes > 0 || zero_bytes > 0) 
-    {
-      /* Calculate how to fill this page.
-         We will read PAGE_READ_BYTES bytes from FILE
-         and zero the final PAGE_ZERO_BYTES bytes. */
-      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-      size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-      /* Get a page of memory. */
-      uint8_t *kpage = NULL; // TODO get the page
-      if (kpage == NULL)
-	return false;
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-	  // TODO free the page
-          return false; 
-        }
-
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Advance. */
-      read_bytes -= page_read_bytes;
-      zero_bytes -= page_zero_bytes;
-      upage += PGSIZE;
-    }
-  return true;
-}
-
 /* Push arguments, their references, and argc onto the stack */
 static void 
 push_args(struct process_info *pinfo, void **esp) {
@@ -633,9 +565,9 @@ push_args(struct process_info *pinfo, void **esp) {
   for (i = 0; i < argc; i++) {	
     stack_push(esp, str_ptr, strlen(str_ptr) + 1);
     str_ptr = strchr(str_ptr, '\0') + 1;
-	//skip all delimiters
-	while (*str_ptr == ' ') str_ptr++;
-	//Save the stack location
+    /* skip all delimiters */
+    while (*str_ptr == ' ') str_ptr++;
+    /* Save the stack location */
     argv[i] = *esp;
   }
   /* pad to 4-bytes */
