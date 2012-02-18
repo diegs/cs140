@@ -361,7 +361,7 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
 
   while (uaddr < end_uaddr) 
   {
-    size_t remain_bytes = end_uaddr - uaddr;
+    size_t remain_bytes = end_uaddr - uaddr - padding_bytes;
     size_t page_bytes = remain_bytes < PGSIZE ? remain_bytes : PGSIZE;
     size_t zero_bytes = PGSIZE - page_bytes;
 
@@ -375,7 +375,7 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
     if (!success)
       return false;
 
-    uaddr += page_bytes;
+    uaddr += PGSIZE;
     file_page += page_bytes;
   }
 
