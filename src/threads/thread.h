@@ -123,6 +123,7 @@ struct thread
   struct hash s_page_table;	/* Supplemental page table for process */
   struct lock s_page_lock;	/* Lock for page table */
   struct condition s_page_cond;	/* Semaphore for thread notifications */
+  void * saved_esp;
 #endif
 
   /* Priority data */

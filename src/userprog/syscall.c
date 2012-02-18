@@ -505,7 +505,9 @@ syscall_handler (struct intr_frame *f)
 {
   /* Integrity-check the return pointer */
   memory_verify ((void*)f->esp, sizeof (void*));
-
+#ifdef VM
+  thread_current ()->saved_esp = f->esp;
+#endif
   uint32_t syscall = get_frame_syscall (f);
   uint32_t eax = f->eax;
 

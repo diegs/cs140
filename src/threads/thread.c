@@ -325,6 +325,7 @@ thread_create (const char *name, int priority,
 
 #ifdef VM
   page_init_thread (t);
+  t->saved_esp = NULL;
 #endif
 
   /* Prepare thread for first run by initializing its stack.
