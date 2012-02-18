@@ -354,29 +354,30 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool
 load_segment (struct process_info *pinfo, uint32_t file_page,
 	      uint8_t *base_uaddr, size_t read_bytes,
-	      size_t padding_bytes, bool writable) 
+	      size_t zero_bytes, bool writable) 
 {
   uint8_t *uaddr = base_uaddr;
-  uint8_t *end_uaddr = base_uaddr + read_bytes + padding_bytes;
+  uint8_t *end_uaddr = base_uaddr + read_bytes + zero_bytes;
 
-  while (uaddr < end_uaddr) 
+  while (read_bytes > 0 || zero_bytes > 0)
   {
-    size_t remain_bytes = end_uaddr - uaddr - padding_bytes;
-    size_t page_bytes = remain_bytes < PGSIZE ? remain_bytes : PGSIZE;
-    size_t zero_bytes = PGSIZE - page_bytes;
+    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     bool success;
-    if (remain_bytes > 0)
+    if (page_read_bytes > 0)
       success = vm_add_file_page (uaddr, pinfo->file, file_page,
-				  zero_bytes, writable);
+				  page_zero_bytes, writable);
     else
       success = vm_add_memory_page (uaddr, writable);
 
     if (!success)
       return false;
 
+	read_bytes -= page_read_bytes;
+	zero_bytes -= page_zero_bytes;
     uaddr += PGSIZE;
-    file_page += page_bytes;
+    file_page += page_read_bytes;
   }
 
   return true;
