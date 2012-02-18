@@ -155,6 +155,7 @@ page_fault (struct intr_frame *f)
 
   /* Expand the stack if needed. We still need to load the page into 
 	memory below*/
+  //printf("%u page faulting on: %X\n", user, fault_addr);
   check_stack(f, fault_addr, user);
 
   if (not_present)
@@ -188,8 +189,10 @@ check_stack (struct intr_frame *f, void * fault_addr, bool user)
   if (user)
   {
 	esp = f->esp;
+	//TODO refactor this?
 	if (esp == fault_addr || (esp - 4) == fault_addr || 
-		(esp - 32) == fault_addr)
+		(esp - 32) == fault_addr || 
+		(fault_addr > esp && fault_addr < PHYS_BASE))
 	{
 	  bool success = vm_add_memory_page (fault_addr, true);
 	  if (!success) 
