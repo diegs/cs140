@@ -183,15 +183,15 @@ page_swap (struct s_page_entry *spe)
   lock_acquire(&spe->lock);
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
-  if (spe->info.memory.used || pagedir_is_dirty (thread_current ()->pagedir,
-						 spe->uaddr))
+  if (spe->info.memory.used || pagedir_is_dirty (thread_current
+        ()->pagedir, spe->uaddr))
   {
     swap_write (spe->uaddr, spe->info.memory.swap_blocks);
     spe->info.memory.used = true;
   } 
 
   spe->info.memory.swapped = true;
-  pagedir_clear_page (thread_current ()->pagedir, spe->uaddr);
+  pagedir_clear_page (spe->t->pagedir, spe->uaddr);
   lock_release(&spe->lock);
   return true;
 }
@@ -261,7 +261,7 @@ page_file (struct s_page_entry *spe)
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
   spe->writing = true;
-  pagedir_clear_page (t->pagedir, spe->uaddr);
+  pagedir_clear_page (spe->t->pagedir, spe->uaddr);
   lock_release (&t->s_page_lock);
 
   if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
