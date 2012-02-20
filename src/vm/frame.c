@@ -157,6 +157,7 @@ frame_free (struct s_page_entry *spe)
       list_remove (&f->elem);
     }
 
+    pagedir_clear_page (spe->t, spe->uaddr);
     free (f);
     spe->frame = NULL;	/* For safety */
   } 

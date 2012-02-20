@@ -100,14 +100,15 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
   uaddr = (uint8_t*)pg_round_down (uaddr);
 
   /* Set fields */
+  struct thread *t = thread_current ();
   spe->uaddr = uaddr;
   spe->writable = writable;
   spe->writing = false;
   spe->frame = NULL;
+  spe->t = t;
   lock_init(&spe->lock);
 	
   /* Install into hash table */
-  struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
   hash_insert (&t->s_page_table, &spe->elem);
   lock_release (&t->s_page_lock);

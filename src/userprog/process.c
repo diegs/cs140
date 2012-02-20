@@ -374,8 +374,8 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
     if (!success)
       return false;
 
-	read_bytes -= page_read_bytes;
-	zero_bytes -= page_zero_bytes;
+    read_bytes -= page_read_bytes;
+    zero_bytes -= page_zero_bytes;
     uaddr += PGSIZE;
     file_page += page_read_bytes;
   }
@@ -465,15 +465,15 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
                 read_bytes = page_offset + phdr.p_filesz;
                 zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz,
                       PGSIZE) - read_bytes);
-	      } else {
+              } else {
                 /* Entirely zero. Don't read anything from disk. */
                 read_bytes = 0;
                 zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
                     PGSIZE);
-	      }
-	      if (!load_segment (pinfo, file_page, mem_page, read_bytes,
-				 zero_bytes, writable))
-                  goto done;
+              }
+              if (!load_segment (pinfo, file_page, mem_page,
+                    read_bytes, zero_bytes, writable))
+                goto done;
             }
           else
             goto done;

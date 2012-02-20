@@ -162,28 +162,28 @@ page_fault (struct intr_frame *f)
   /* The page wasn't in the page table */
   if (not_present)
   {
-	if (page_load ((uint8_t*)fault_addr)) return;
-	if (check_stack(f, fault_addr, user)) return;
-	if (user)
-	{
-	  kill (f); /* Not a valid page to load, kill process */
-	  return;		
-	}
-	/* Set eax to 0xffffffff and copy its former value to eip */
-	if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
-		KERNEL_FLAG)
-	  PANIC ("Double fault -- bug in kernel.");
-	f->eip = (void*)f->eax;
-	f->eax = KERNEL_FLAG;
+    if (page_load ((uint8_t*)fault_addr)) return;
+    if (check_stack(f, fault_addr, user)) return;
+    if (user)
+    {
+      kill (f); /* Not a valid page to load, kill process */
+      return;		
+    }
+    /* Set eax to 0xffffffff and copy its former value to eip */
+    if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
+        KERNEL_FLAG)
+      PANIC ("Double fault -- bug in kernel.");
+    f->eip = (void*)f->eax;
+    f->eax = KERNEL_FLAG;
   } else {
-	/* Read/write error */	
-	if (syscall_context)
-	{
-	  thread_current ()->exit_code = -1;
+    /* Read/write error */	
+    if (syscall_context)
+    {
+      thread_current ()->exit_code = -1;
       thread_exit (); 
-	} else if (user) {
-	  kill (f);
-	}
+    } else if (user) {
+      kill (f);
+    }
   }
 }
 
@@ -192,26 +192,26 @@ page_fault (struct intr_frame *f)
 bool
 check_stack (struct intr_frame *f, void * fault_addr, bool user)
 {
- void * esp = NULL;
+  void * esp = NULL;
   if (user)
   {
-	esp = f->esp;
+    esp = f->esp;
   } else {
-	esp = thread_current ()->saved_esp;
+    esp = thread_current ()->saved_esp;
   }
   //TODO refactor this?
   if (esp == fault_addr || (esp - 4) == fault_addr || 
-	(esp - 32) == fault_addr || 
-	(fault_addr > esp && fault_addr < PHYS_BASE))
+      (esp - 32) == fault_addr || 
+      (fault_addr > esp && fault_addr < PHYS_BASE))
   {
-	bool success = vm_add_memory_page (fault_addr, true);
-	if (!success) 
-	  kill(f);
-	success = page_load ((uint8_t*)fault_addr);
-	if (!success) 
-	  kill(f);
-	return true;
+    bool success = vm_add_memory_page (fault_addr, true);
+    if (!success) 
+      kill(f);
+    success = page_load ((uint8_t*)fault_addr);
+    if (!success) 
+      kill(f);
+    return true;
   }
-  return false;;
+  return false;
 }
 
