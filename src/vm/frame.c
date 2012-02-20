@@ -15,7 +15,7 @@ frame_init (void)
 {
   list_init (&frames);
   lock_init (&frames_lock);
-  clock_hand = list_begin (&frames);
+  clock_hand = list_head (&frames);
 }
 
 /**
