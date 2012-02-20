@@ -258,10 +258,10 @@ page_file (struct s_page_entry *spe)
 
   // TODO Think about all the race conditions ... 
   /* Unmap the file from the thread before it is written */
-  struct thread *t = thread_current ();
+  struct thread *t = spe->t;
   lock_acquire (&t->s_page_lock);
   spe->writing = true;
-  pagedir_clear_page (spe->t->pagedir, spe->uaddr);
+  pagedir_clear_page (t->pagedir, spe->uaddr);
   lock_release (&t->s_page_lock);
 
   if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
