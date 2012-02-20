@@ -103,7 +103,8 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
   spe->writable = writable;
   spe->writing = false;
   spe->frame = NULL;
-
+  lock_init(&spe->lock);
+	
   /* Install into hash table */
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
@@ -177,8 +178,8 @@ vm_free_page (uint8_t *uaddr)
 static bool
 page_swap (struct s_page_entry *spe)
 {
+  lock_acquire(&spe->lock);
   ASSERT (!spe->info.memory.swapped);
-
   /* Only swap if page has been used at some point */
   if (spe->info.memory.used || pagedir_is_dirty (thread_current ()->pagedir,
 						 spe->uaddr))
@@ -189,6 +190,7 @@ page_swap (struct s_page_entry *spe)
 
   spe->info.memory.swapped = true;
   pagedir_clear_page (thread_current ()->pagedir, spe->uaddr);
+  lock_release(&spe->lock);
   return true;
 }
 
@@ -196,33 +198,47 @@ page_swap (struct s_page_entry *spe)
 static bool
 page_unswap (struct s_page_entry *spe)
 {
-  ASSERT (spe->info.memory.swapped);
 
-  /* TODO race condition if we're attempt to unswap something that's
-     swapping */
+  lock_acquire(&spe->lock);
+	
+  if (!spe->info.memory.swapped)
+  {
+    install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
+	lock_release(&spe->lock);
+	return true;
+  }
+
 
   if (spe->info.memory.used)
   {
     /* Fetch from swap */
     spe->frame = frame_get (spe->uaddr, 0);
     if (!spe->frame)
+	{
+	  lock_release(&spe->lock);
       return false;
+	}
     bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
     if (!success)
     {
       frame_free (spe);
+	  lock_release(&spe->lock);
       return false;
     }
   } else {
     /* Brand new page, just allocate it */
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
     if (!spe->frame)
-      return false;
+	{
+	  lock_release(&spe->lock);
+	  return false;
+	}
     spe->info.memory.used = true;
   }
 
   spe->info.memory.swapped = false;
   install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
+  lock_release(&spe->lock);
   return true;
 }
 
@@ -232,7 +248,8 @@ page_file (struct s_page_entry *spe)
 {
   ASSERT (spe != NULL);
 
-  struct frame_entry *frame = frame_get (spe->uaddr, 0);
+  struct frame_entry *frame = spe->frame;
+  ASSERT(frame != NULL);
   struct file_based *info = &spe->info.file;
 
   ASSERT (info->f != NULL);
@@ -332,6 +349,7 @@ page_load (uint8_t *fault_addr)
   struct thread *t = thread_current ();
   uint8_t* uaddr = (uint8_t*)pg_round_down (fault_addr);
   struct s_page_entry key = {.uaddr = uaddr};
+
 
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);

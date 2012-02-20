@@ -13,7 +13,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
-void check_stack (struct intr_frame *f, void * fault_addr, bool user);
+bool check_stack (struct intr_frame *f, void * fault_addr, bool user);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -155,17 +155,15 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  //printf("faulting on %X\n", fault_addr);
+
   syscall_context = thread_current ()->syscall_context;
 
-  /* Expand the stack if needed. We still need to load the page into 
-	 memory below*/
-  check_stack(f, fault_addr, user);
-	
-  /* The page wasn't in ths page table */
+  /* The page wasn't in the page table */
   if (not_present)
   {
-	bool success = page_load ((uint8_t*)fault_addr);
-	if (success) return;	/*Just needed to swap it in */
+	if (page_load ((uint8_t*)fault_addr)) return;
+	if (check_stack(f, fault_addr, user)) return;
 	if (user)
 	{
 	  kill (f); /* Not a valid page to load, kill process */
@@ -191,7 +189,7 @@ page_fault (struct intr_frame *f)
 
 
 
-void
+bool
 check_stack (struct intr_frame *f, void * fault_addr, bool user)
 {
  void * esp = NULL;
@@ -206,11 +204,14 @@ check_stack (struct intr_frame *f, void * fault_addr, bool user)
 	(esp - 32) == fault_addr || 
 	(fault_addr > esp && fault_addr < PHYS_BASE))
   {
-    bool success = vm_add_memory_page (fault_addr, true);
+	bool success = vm_add_memory_page (fault_addr, true);
 	if (!success) 
-	{
 	  kill(f);
-	}
+	success = page_load ((uint8_t*)fault_addr);
+	if (!success) 
+	  kill(f);
+	return true;
   }
+  return false;;
 }
 
