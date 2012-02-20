@@ -183,8 +183,7 @@ page_swap (struct s_page_entry *spe)
   lock_acquire(&spe->lock);
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
-  if (spe->info.memory.used || pagedir_is_dirty (thread_current
-        ()->pagedir, spe->uaddr))
+  if (spe->info.memory.used || pagedir_is_dirty (spe->t, spe->uaddr))
   {
     swap_write (spe->uaddr, spe->info.memory.swap_blocks);
     spe->info.memory.used = true;
