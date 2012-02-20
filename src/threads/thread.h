@@ -124,6 +124,7 @@ struct thread
   struct lock s_page_lock;	/* Lock for page table */
   struct condition s_page_cond;	/* Semaphore for thread notifications */
   void * saved_esp;
+  bool syscall_context;
 #endif
 
   /* Priority data */

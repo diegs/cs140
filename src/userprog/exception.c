@@ -87,6 +87,7 @@ kill (struct intr_frame *f)
      exception originated. */
   switch (f->cs)
     {
+
     case SEL_UCSEG:
       /* User's code segment, so it's a user exception, as we
          expected.  Kill the user process.  */
@@ -131,6 +132,7 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
+  bool syscall_context;
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -153,32 +155,40 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* Expand the stack if needed. We still need to load the page into 
-	memory below*/
-  check_stack(f, fault_addr, user);
+  syscall_context = thread_current ()->syscall_context;
 
+  /* Expand the stack if needed. We still need to load the page into 
+	 memory below*/
+  check_stack(f, fault_addr, user);
+	
+  /* The page wasn't in ths page table */
   if (not_present)
   {
-    bool success = page_load ((uint8_t*)fault_addr);
-    if (!success) 
-    {
-      if (!user)
-      {
-        /* Set eax to 0xffffffff and copy its former value to eip */
-        if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
-            KERNEL_FLAG)
-          PANIC ("Double fault -- bug in kernel.");
-
-        f->eip = (void*)f->eax;
-        f->eax = KERNEL_FLAG;
-      } else {
-        kill (f); /* Not a valid page to load, kill process */
-      }
-    }
-  } else if (user) {
-    kill (f);     /* Present but writing, kill process */
+	bool success = page_load ((uint8_t*)fault_addr);
+	if (success) return;	/*Just needed to swap it in */
+	if (user)
+	{
+	  kill (f); /* Not a valid page to load, kill process */
+	  return;		
+	}
+	/* Set eax to 0xffffffff and copy its former value to eip */
+	if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
+		KERNEL_FLAG)
+	  PANIC ("Double fault -- bug in kernel.");
+	f->eip = (void*)f->eax;
+	f->eax = KERNEL_FLAG;
+  } else {
+	/* Read/write error */	
+	if (syscall_context)
+	{
+	  thread_current ()->exit_code = -1;
+      thread_exit (); 
+	} else if (user) {
+	  kill (f);
+	}
   }
 }
+
 
 
 void

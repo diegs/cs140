@@ -137,6 +137,29 @@ memory_verify (void *ptr, size_t size)
   return;
 }
 
+/* Verifies that size memory at ptr is valid */
+static void
+memory_verify_write (void *ptr, size_t size)
+{
+  /*Get the first page this data spans */
+  uint32_t start_page = (uint32_t)ptr / PGSIZE;
+
+  /*Get the last page this data spans */
+  uint32_t end_page = (uint32_t)(ptr + size - 1) / PGSIZE;
+	
+  /* Check the first byte of each page */
+  uint32_t page;
+  for (page = start_page; page <= end_page; page++)
+  {
+    uint8_t *page_first_byte = (uint8_t *)(page * PGSIZE);
+    if (put_byte (page_first_byte, '\0') == -1)
+    {
+      process_kill ();
+    }
+  }
+  return;
+}
+
 /* Verifies that an entire string is vald memory */
 static void
 memory_verify_string (const char *str)
@@ -151,6 +174,7 @@ memory_verify_string (const char *str)
     str++;
   }
 }
+
 
 /* Convenience method for dereferencing a frame argument */
 static inline void* frame_arg (const struct intr_frame *f, const int i) 
@@ -435,7 +459,8 @@ sys_read (struct intr_frame *f)
   char *user_buffer = frame_arg_ptr (f, 2);
   size_t user_size = frame_arg_int (f, 3);
 
-  memory_verify (user_buffer, user_size);
+  memory_verify(user_buffer, user_size);
+  memory_verify_write (user_buffer, user_size);
 
   int result = -1;
 
@@ -507,6 +532,7 @@ syscall_handler (struct intr_frame *f)
   memory_verify ((void*)f->esp, sizeof (void*));
 #ifdef VM
   thread_current ()->saved_esp = f->esp;
+  thread_current ()->syscall_context = true;
 #endif
   uint32_t syscall = get_frame_syscall (f);
   uint32_t eax = f->eax;
@@ -554,6 +580,7 @@ syscall_handler (struct intr_frame *f)
       break;
   }
 
+  thread_current ()->syscall_context = false;
   /* Set return value */
   f->eax = eax;
 }
