@@ -215,6 +215,7 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, 0);
     if (!spe->frame)
 	{
+	  printf("bad frame\n");
 	  lock_release(&spe->lock);
       return false;
 	}
@@ -227,9 +228,11 @@ page_unswap (struct s_page_entry *spe)
     }
   } else {
     /* Brand new page, just allocate it */
+	printf("new page\n");
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
     if (!spe->frame)
 	{
+	  printf("new page, bad frame\n");
 	  lock_release(&spe->lock);
 	  return false;
 	}
@@ -259,12 +262,20 @@ page_file (struct s_page_entry *spe)
   /* Unmap the file from the thread before it is written */
   struct thread *t = spe->t;
   lock_acquire (&t->s_page_lock);
-  spe->writing = true;
+
   pagedir_clear_page (t->pagedir, spe->uaddr);
+
+  /* Check if we need to write at all */  
+  if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
+  {
+	debug_backtrace();
+    lock_release (&t->s_page_lock);
+    return true;
+  }
+
+  spe->writing = true;
   lock_release (&t->s_page_lock);
 
-  if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
-    return true;
 
   /* Write the file out to disk */
   lock_acquire(&fd_all_lock);
