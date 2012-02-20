@@ -136,14 +136,6 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
   return frame_insert (thread_current (), uaddr, kpage);
 }
 
-static void
-uninstall_frame (struct s_page_entry *spe) 
-{
-  lock_acquire (&spe->t->s_page_lock);
-  pagedir_clear_page (spe->t, spe->uaddr);
-  lock_release (&spe->t->s_page_lock);
-}
-
 /**
  * Deallocates a frame. Returns true if frame was dealloacted successfully.
  */
@@ -165,7 +157,6 @@ frame_free (struct s_page_entry *spe)
       list_remove (&f->elem);
     }
 
-    uninstall_frame (spe);
     free (f);
     spe->frame = NULL;	/* For safety */
   } 
