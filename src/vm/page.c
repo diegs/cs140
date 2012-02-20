@@ -4,6 +4,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "vm/frame.h"
 #include "vm/page.h"
 #include "vm/swap.h"
@@ -198,7 +199,6 @@ page_swap (struct s_page_entry *spe)
 static bool
 page_unswap (struct s_page_entry *spe)
 {
-
   lock_acquire(&spe->lock);
 	
   if (!spe->info.memory.swapped)
@@ -242,6 +242,7 @@ page_unswap (struct s_page_entry *spe)
   return true;
 }
 
+
 /* Writes a FILE_BASED page to its file. Does not free the frame */
 static bool
 page_file (struct s_page_entry *spe) 
@@ -263,11 +264,13 @@ page_file (struct s_page_entry *spe)
   lock_release (&t->s_page_lock);
 
   /* Write the file out to disk */
+  lock_acquire(&fd_all_lock);
   file_seek (info->f, info->offset);
 
   size_t bytes_write = PGSIZE - info->zero_bytes;
   bool num_written = file_write (info->f, frame->kaddr, bytes_write);
 
+  lock_release(&fd_all_lock);
   lock_acquire (&t->s_page_lock);
   spe->writing = false;
   cond_signal (&t->s_page_cond, &t->s_page_lock);
@@ -320,13 +323,17 @@ page_unfile (struct s_page_entry *spe)
 
   ASSERT (info->f != NULL);
   
+  lock_acquire(&fd_all_lock);
   /* Read page into memory */
   file_seek (info->f, info->offset);
 
   size_t bytes_read = PGSIZE - info->zero_bytes;
   if (file_read (info->f, frame->kaddr, bytes_read) != bytes_read) 
-    return false;
-
+  { 
+	lock_release(&fd_all_lock);   
+	return false;
+  }
+  lock_release(&fd_all_lock);
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
 
   /* Update the supplementary page table entry */
@@ -349,7 +356,6 @@ page_load (uint8_t *fault_addr)
   struct thread *t = thread_current ();
   uint8_t* uaddr = (uint8_t*)pg_round_down (fault_addr);
   struct s_page_entry key = {.uaddr = uaddr};
-
 
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);

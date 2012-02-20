@@ -24,7 +24,7 @@ struct fd_hash
 };
 
 struct hash fd_all;
-struct lock fd_all_lock;
+
 
 static struct fd_hash *
 fd_hash_init () 
