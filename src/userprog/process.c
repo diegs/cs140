@@ -363,7 +363,6 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
 	      size_t zero_bytes, bool writable) 
 {
   uint8_t *uaddr = base_uaddr;
-  uint8_t *end_uaddr = base_uaddr + read_bytes + zero_bytes;
 
   while (read_bytes > 0 || zero_bytes > 0)
   {
@@ -375,10 +374,10 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
       if (writable) 
       {
         success = vm_add_file_init_page (uaddr, pinfo->file, file_page,
-				  page_zero_bytes);
+					 page_zero_bytes);
       } else {
         success = vm_add_file_page (uaddr, pinfo->file, file_page,
-				  page_zero_bytes, false);
+				    page_zero_bytes, false);
       }
     }
     else 
@@ -492,7 +491,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
                 zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
                     PGSIZE);
               }
-              if (!load_segment (pinfo, file_page, mem_page,
+              if (!load_segment (pinfo, file_page, (void*)mem_page,
                     read_bytes, zero_bytes, writable))
                 goto done;
             }
