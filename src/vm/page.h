@@ -19,6 +19,7 @@ struct file_based
   struct file *f;
   off_t offset;
   size_t zero_bytes;
+  bool init_only;
 };
 
 struct memory_based
@@ -53,6 +54,8 @@ enum vm_flags
 bool vm_add_memory_page (uint8_t *uaddr, bool writable);
 bool vm_add_file_page (uint8_t *uaddr, struct file *f,
 		       off_t offset, size_t zero_bytes, bool writable);
+bool vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t
+          offset, size_t zero_bytes);
 bool vm_free_page (uint8_t *uaddr);
 void page_init_thread (struct thread *t);
 void page_destroy_thread (struct hash_elem *e, void *aux UNUSED);
