@@ -106,7 +106,6 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
   spe->writing = false;
   spe->frame = NULL;
   spe->t = t;
-  lock_init(&spe->lock);
 	
   /* Install into hash table */
   lock_acquire (&t->s_page_lock);
@@ -196,7 +195,7 @@ static bool
 page_swap (struct s_page_entry *spe)
 {
   ASSERT (spe->type == MEMORY_BASED);
-  lock_acquire(&spe->lock);
+  lock_acquire(&spe->t->s_page_lock);
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
   if (spe->info.memory.used || pagedir_is_dirty (spe->t, spe->uaddr))
@@ -207,7 +206,7 @@ page_swap (struct s_page_entry *spe)
 
   spe->info.memory.swapped = true;
   pagedir_clear_page (spe->t->pagedir, spe->uaddr);
-  lock_release(&spe->lock);
+  lock_release(&spe->t->s_page_lock);
   return true;
 }
 
@@ -215,7 +214,6 @@ page_swap (struct s_page_entry *spe)
 static bool
 page_unswap (struct s_page_entry *spe)
 {
-  lock_acquire(&spe->lock);
 	
   ASSERT(spe->info.memory.swapped);
 
@@ -225,14 +223,14 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, 0);
     if (!spe->frame)
     {
-      lock_release(&spe->lock);
+      lock_release(&spe->t->s_page_lock);
       return false;
     }
     bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
     if (!success)
     {
       frame_free (spe);
-      lock_release(&spe->lock);
+      lock_release(&spe->t->s_page_lock);
       return false;
     }
   } else {
@@ -240,15 +238,17 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
     if (!spe->frame)
     {
-      lock_release(&spe->lock);
+      lock_release(&spe->t->s_page_lock);
       return false;
     }
     spe->info.memory.used = true;
   }
 
+  lock_acquire(&spe->t->s_page_lock);
   spe->info.memory.swapped = false;
+  frame_unpin (spe->frame);
   install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
-  lock_release(&spe->lock);
+  lock_release(&spe->t->s_page_lock);
   return true;
 }
 
@@ -306,15 +306,20 @@ page_evict (struct thread *t, uint8_t *uaddr)
   struct s_page_entry *spe = NULL;
 
   /* Look up supplemental page entry */
-  lock_acquire (&t->s_page_lock);
+  if (t != thread_current()) 
+    lock_acquire (&t->s_page_lock);
+
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
   if (e == NULL)
   {
-    lock_release (&t->s_page_lock);
+    if (t != thread_current())
+      lock_release (&t->s_page_lock);
     return false;
   }
   spe = hash_entry (e, struct s_page_entry, elem);
-  lock_release (&t->s_page_lock);
+
+  if (t != thread_current()) 
+    lock_release (&t->s_page_lock);
 
   /* Perform eviction */
   switch (spe->type)
@@ -336,13 +341,19 @@ static bool
 page_unfile (struct s_page_entry *spe)
 {
   ASSERT (spe != NULL);
+  ASSERT (!lock_held_by_current_thread (&spe->t->s_page_lock));
 
   struct frame_entry *frame = frame_get (spe->uaddr, 0);
   struct file_based *info = &spe->info.file;
 
   ASSERT (info->f != NULL);
+
+  /* Check if currently being written out */
+  while (spe->writing) 
+    cond_wait (&spe->t->s_page_cond, &spe->t->s_page_lock);
   
   lock_acquire(&fd_all_lock);
+
   /* Read page into memory */
   file_seek (info->f, info->offset);
 
@@ -368,6 +379,7 @@ page_unfile (struct s_page_entry *spe)
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
   spe->frame = frame;
+  frame_unpin (frame);
   install_page (frame->uaddr, frame->kaddr, spe->writable);
   lock_release (&t->s_page_lock);
 
