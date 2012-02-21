@@ -372,8 +372,14 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
 
     bool success;
     if (page_read_bytes > 0) {
-      success = vm_add_file_page (uaddr, pinfo->file, file_page,
-				  page_zero_bytes, writable);
+      if (writable) 
+      {
+        success = vm_add_file_init_page (uaddr, pinfo->file, file_page,
+				  page_zero_bytes);
+      } else {
+        success = vm_add_file_page (uaddr, pinfo->file, file_page,
+				  page_zero_bytes, false);
+      }
     }
     else 
       success = vm_add_memory_page (uaddr, writable);
