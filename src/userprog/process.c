@@ -520,13 +520,8 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
     return false; 
 
   /* p_offset must point within FILE. */
-  lock_acquire(&fd_all_lock);
   if (phdr->p_offset > (Elf32_Off) file_length (file)) 
-  {
-    lock_release(&fd_all_lock);
     return false;
-  }
-  lock_acquire(&fd_all_lock);
 
   /* p_memsz must be at least as big as p_filesz. */
   if (phdr->p_memsz < phdr->p_filesz) 
