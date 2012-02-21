@@ -200,8 +200,10 @@ page_swap (struct s_page_entry *spe)
   /* Only swap if page has been used at some point */
   if (spe->info.memory.used || pagedir_is_dirty (spe->t, spe->uaddr))
   {
+    frame_pin (spe->frame);
     swap_write (spe->uaddr, spe->info.memory.swap_blocks);
     spe->info.memory.used = true;
+    frame_unpin (spe->frame);
   } 
 
   spe->info.memory.swapped = true;
@@ -270,7 +272,6 @@ page_file (struct s_page_entry *spe)
   /* Unmap the file from the thread before it is written */
   struct thread *t = spe->t;
   lock_acquire (&t->s_page_lock);
-
   pagedir_clear_page (t->pagedir, spe->uaddr);
 
   /* Check if we need to write at all */  
@@ -280,7 +281,7 @@ page_file (struct s_page_entry *spe)
     return true;
   }
 
-  spe->writing = true;
+  frame_pin (frame);
   lock_release (&t->s_page_lock);
 
 
@@ -292,8 +293,7 @@ page_file (struct s_page_entry *spe)
   lock_release(&fd_all_lock);
 
   lock_acquire (&t->s_page_lock);
-  spe->writing = false;
-  cond_signal (&t->s_page_cond, &t->s_page_lock);
+  frame_unpin (frame); 
   lock_release (&t->s_page_lock);
 
   return bytes_write == num_written;
