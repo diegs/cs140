@@ -171,7 +171,6 @@ vm_free_page (uint8_t *uaddr)
 
   /* Free frame if necessary */
   frame_free (spe);
-  free (spe);
 
   return true;
 }
@@ -314,7 +313,6 @@ page_evict (struct thread *t, uint8_t *uaddr)
     PANIC ("Unknown page type!");
   }
 
-  frame_free(spe);
   return false;
 }
 

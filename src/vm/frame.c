@@ -108,8 +108,25 @@ frame_evict (void)
 
   /* Clean up frame memory */
   uint8_t *kaddr = f->kaddr;
-  frame_free (f);
-  
+
+  /* Look up page table entry */
+  struct thread * t = f->t;
+  struct s_page_entry key = {.uaddr = f->uaddr};
+  struct s_page_entry *spe = NULL;
+
+  lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL)
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+  spe = hash_entry (e, struct s_page_entry, elem);
+  lock_release (&t->s_page_lock);
+
+  /* Free frame entry and set page table pointer to null */
+  free (f);
+  spe->frame = NULL;
   return kaddr;
 }
 
