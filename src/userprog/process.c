@@ -365,10 +365,11 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     bool success;
-    if (page_read_bytes > 0)
+    if (page_read_bytes > 0) {
       success = vm_add_file_page (uaddr, pinfo->file, file_page,
 				  page_zero_bytes, writable);
-    else
+    }
+    else 
       success = vm_add_memory_page (uaddr, writable);
 
     if (!success)

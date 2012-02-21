@@ -180,6 +180,7 @@ vm_free_page (uint8_t *uaddr)
 static bool
 page_swap (struct s_page_entry *spe)
 {
+  ASSERT (spe->type == MEMORY_BASED);
   lock_acquire(&spe->lock);
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
@@ -200,12 +201,12 @@ static bool
 page_unswap (struct s_page_entry *spe)
 {
   lock_acquire(&spe->lock);
-	
+
   if (!spe->info.memory.swapped)
   {
     install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
-	lock_release(&spe->lock);
-	return true;
+    lock_release(&spe->lock);
+    return true;
   }
 
 
@@ -214,28 +215,25 @@ page_unswap (struct s_page_entry *spe)
     /* Fetch from swap */
     spe->frame = frame_get (spe->uaddr, 0);
     if (!spe->frame)
-	{
-	  printf("bad frame\n");
-	  lock_release(&spe->lock);
+    {
+      lock_release(&spe->lock);
       return false;
-	}
+    }
     bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
     if (!success)
     {
       frame_free (spe);
-	  lock_release(&spe->lock);
+      lock_release(&spe->lock);
       return false;
     }
   } else {
     /* Brand new page, just allocate it */
-	printf("new page\n");
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
     if (!spe->frame)
-	{
-	  printf("new page, bad frame\n");
-	  lock_release(&spe->lock);
-	  return false;
-	}
+    {
+      lock_release(&spe->lock);
+      return false;
+    }
     spe->info.memory.used = true;
   }
 
@@ -251,6 +249,7 @@ static bool
 page_file (struct s_page_entry *spe) 
 {
   ASSERT (spe != NULL);
+  ASSERT (spe->type == FILE_BASED);
 
   struct frame_entry *frame = spe->frame;
   ASSERT(frame != NULL);
@@ -268,7 +267,6 @@ page_file (struct s_page_entry *spe)
   /* Check if we need to write at all */  
   if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
   {
-	debug_backtrace();
     lock_release (&t->s_page_lock);
     return true;
   }
@@ -310,6 +308,8 @@ page_evict (struct thread *t, uint8_t *uaddr)
   lock_release (&t->s_page_lock);
 
   /* Perform eviction */
+  // TODO: Fix memory leak in which a frame is not freed because
+  // we immediately return
   switch (spe->type)
   {
   case FILE_BASED:
@@ -343,11 +343,19 @@ page_unfile (struct s_page_entry *spe)
   size_t bytes_read = PGSIZE - info->zero_bytes;
   if (file_read (info->f, frame->kaddr, bytes_read) != bytes_read) 
   { 
-	lock_release(&fd_all_lock);   
-	return false;
+    lock_release(&fd_all_lock);   
+    return false;
   }
   lock_release(&fd_all_lock);
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
+
+  /* If this was writable transform it into a memory page */
+  if (spe->writable) 
+  {
+    spe->type = MEMORY_BASED;
+    spe->info.memory.used = true;
+    spe->info.memory.swapped = false;
+  }
 
   /* Update the supplementary page table entry */
   struct thread *t = thread_current ();
