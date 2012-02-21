@@ -42,7 +42,8 @@ void
 page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
 {
   struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
-  free (spe->frame); /* We do not need to free the allocated page
+  if (spe->frame != NULL) 
+    free (spe->frame); /* We do not need to free the allocated page
                         because it will be freed by the page directory
                         on thread destruction ASSUMPTION: this destroy
                         function should only be called when the thread
@@ -302,8 +303,6 @@ page_evict (struct thread *t, uint8_t *uaddr)
   lock_release (&t->s_page_lock);
 
   /* Perform eviction */
-  // TODO: Fix memory leak in which a frame is not freed because
-  // we immediately return
   switch (spe->type)
   {
   case FILE_BASED:
@@ -317,7 +316,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
   }
 
   frame_free(spe);
-  return true;
+  return false;
 }
 
 static bool
