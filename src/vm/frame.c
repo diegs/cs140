@@ -3,7 +3,7 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 
-static struct list_elem *clock_hand;  /* The hand of the clock algorithm */
+static struct list_elem *clock_hand; /* The hand of the clock algorithm */
 static struct list frames;     /* List of frame_entry for active frames */
 static struct lock frames_lock;	/* Protects struct list frames */
 

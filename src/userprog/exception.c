@@ -114,6 +114,21 @@ kill (struct intr_frame *f)
     }
 }
 
+/**
+ * Handler for special faults that occur when reading/writing user memory
+ * from the kernel.
+ */
+static void
+handle_kernel_error (const void *fault_addr, struct intr_frame *f)
+{
+  /* Set eax to 0xffffffff and copy its former value to eip */
+  if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
+      KERNEL_FLAG)
+    PANIC ("Double fault -- bug in kernel.");
+  f->eip = (void*)f->eax;
+  f->eax = KERNEL_FLAG;
+}
+
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -165,25 +180,17 @@ page_fault (struct intr_frame *f)
     if (page_load ((uint8_t*)fault_addr)) return;
     if (check_stack(f, fault_addr, user)) return;
     if (user)
-    {
       kill (f); /* Not a valid page to load, kill process */
-      return;		
-    }
-    /* Set eax to 0xffffffff and copy its former value to eip */
-    if ((uint32_t)fault_addr == KERNEL_FLAG && f->eax ==
-        KERNEL_FLAG)
-      PANIC ("Double fault -- bug in kernel.");
-    f->eip = (void*)f->eax;
-    f->eax = KERNEL_FLAG;
+    else
+      handle_kernel_error (fault_addr, f);
   } else {
     /* Read/write error */	
     if (syscall_context)
-    {
-      thread_current ()->exit_code = -1;
-      thread_exit (); 
-    } else if (user) {
+      handle_kernel_error (fault_addr, f);
+    else if (user)
       kill (f);
-    }
+    else
+      PANIC ("Unhandled read/write error");
   }
 }
 
