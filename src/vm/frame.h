@@ -18,5 +18,6 @@ void frame_init (void);
 struct frame_entry *frame_get (uint8_t *uaddr, enum vm_flags flags);
 bool frame_free (struct s_page_entry *spe);
 void frame_unpin (struct frame_entry *frame);
+void frame_pin (struct frame_entry *frame);
 
 #endif /* vm/frame.h */
