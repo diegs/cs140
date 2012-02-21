@@ -133,6 +133,9 @@ vm_add_memory_page (uint8_t *uaddr, bool writable)
   return true;
 }
 
+/**
+ * Adds a file-based page to the current process
+ */
 bool
 vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
 		  size_t zero_bytes, bool writable)
