@@ -3,7 +3,7 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 
-static struct list_elem *clock_hand;  /* The hand of the clock algorithm */
+static struct list_elem *clock_hand; /* The hand of the clock algorithm */
 static struct list frames;     /* List of frame_entry for active frames */
 static struct lock frames_lock;	/* Protects struct list frames */
 
@@ -82,7 +82,7 @@ clock_algorithm (void)
  * Evicts a frame from the frame table and reassigns it to the 
  * given user address. 
  */
-static struct uint8_t*
+static uint8_t*
 frame_evict (void)
 {
   /* Choose a frame to evict */
@@ -121,7 +121,7 @@ frame_evict (void)
   if (e == NULL)
   {
     lock_release (&t->s_page_lock);
-    return false;
+    return NULL;
   }
   spe = hash_entry (e, struct s_page_entry, elem);
   lock_release (&t->s_page_lock);

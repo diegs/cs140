@@ -108,9 +108,9 @@ start_process (void *file_name_)
   /* If load failed, allow writes again and quit. */
   if (!success) 
   {
-	  lock_acquire(&fd_all_lock);
+	lock_acquire(&fd_all_lock);
     if (file != NULL) file_allow_write (file);
-  lock_release(&fd_all_lock);
+	lock_release(&fd_all_lock);
     thread_current ()->exit_code = -1;
     thread_exit ();
   } else {
@@ -363,7 +363,6 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
 	      size_t zero_bytes, bool writable) 
 {
   uint8_t *uaddr = base_uaddr;
-  uint8_t *end_uaddr = base_uaddr + read_bytes + zero_bytes;
 
   while (read_bytes > 0 || zero_bytes > 0)
   {
@@ -375,10 +374,10 @@ load_segment (struct process_info *pinfo, uint32_t file_page,
       if (writable) 
       {
         success = vm_add_file_init_page (uaddr, pinfo->file, file_page,
-				  page_zero_bytes);
+					 page_zero_bytes);
       } else {
         success = vm_add_file_page (uaddr, pinfo->file, file_page,
-				  page_zero_bytes, false);
+				    page_zero_bytes, false);
       }
     }
     else 
@@ -410,7 +409,6 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
-  lock_acquire(&fd_all_lock);
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -425,7 +423,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
       goto done; 
     }
 
-
+  lock_acquire(&fd_all_lock);
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -436,6 +434,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024) 
     {
       printf ("load: %s: error loading executable\n", pinfo->prog_name);
+	  lock_release(&fd_all_lock);
       goto done; 
     }
   
@@ -446,11 +445,17 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
       struct Elf32_Phdr phdr;
 
       if (file_ofs < 0 || file_ofs > file_length (file))
+	  {
+		lock_release(&fd_all_lock);
         goto done;
+	  }
       file_seek (file, file_ofs);
 
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+	  {
+	    lock_release(&fd_all_lock);
         goto done;
+	  }
       file_ofs += sizeof phdr;
 
       switch (phdr.p_type) 
@@ -486,7 +491,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
                 zero_bytes = ROUND_UP (page_offset + phdr.p_memsz,
                     PGSIZE);
               }
-              if (!load_segment (pinfo, file_page, mem_page,
+              if (!load_segment (pinfo, file_page, (void*)mem_page,
                     read_bytes, zero_bytes, writable))
                 goto done;
             }
@@ -495,6 +500,7 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
           break;
         }
     }
+  lock_release(&fd_all_lock);
 
   /* Set up stack. */
   if (!setup_stack (esp))
@@ -509,7 +515,6 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  lock_release(&fd_all_lock);
   pinfo->load_success = success;
   sema_up(&pinfo->loaded);
   return success;

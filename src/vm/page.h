@@ -60,5 +60,8 @@ void page_init_thread (struct thread *t);
 void page_destroy_thread (struct hash_elem *e, void *aux UNUSED);
 bool page_evict (struct thread *t, uint8_t *uaddr);
 bool page_load (uint8_t *fault_addr);
-
+bool vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
+		       size_t zero_bytes, bool writable);
+bool vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t offset,
+			    size_t zero_bytes);
 #endif /* vm/page.h */
