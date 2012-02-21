@@ -133,9 +133,9 @@ vm_add_memory_page (uint8_t *uaddr, bool writable)
   return true;
 }
 
-bool
-vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
-		  size_t zero_bytes, bool writable)
+static bool
+add_file_page (uint8_t *uaddr, struct file *f, off_t offset, 
+		  size_t zero_bytes, bool writable, bool init_only)
 {
   struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL)
@@ -145,8 +145,24 @@ vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
   spe->info.file.f = f;
   spe->info.file.offset = offset;
   spe->info.file.zero_bytes = zero_bytes;
+  spe->info.file.init_only = init_only;
 
   return true;
+}
+
+
+bool
+vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
+		  size_t zero_bytes, bool writable)
+{
+  return add_file_page (uaddr, f, offset, zero_bytes, writable, false);
+}
+
+bool
+vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t offset,
+		  size_t zero_bytes) 
+{
+  return add_file_page (uaddr, f, offset, zero_bytes, true, true);
 }
 
 bool
@@ -339,8 +355,9 @@ page_unfile (struct s_page_entry *spe)
   lock_release(&fd_all_lock);
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
 
-  /* If this was writable transform it into a memory page */
-  if (spe->writable) 
+  /* If this page was only initialization, transform it into a memory
+   * page */
+  if (spe->info.file.init_only) 
   {
     spe->type = MEMORY_BASED;
     spe->info.memory.used = true;
