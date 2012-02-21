@@ -186,11 +186,14 @@ page_fault (struct intr_frame *f)
   } else {
     /* Read/write error */	
     if (syscall_context)
-      handle_kernel_error (fault_addr, f);
-    else if (user)
+    {
+      thread_current ()->exit_code = -1;
+      thread_exit ();
+    } else if (user) {
       kill (f);
-    else
+    } else {
       PANIC ("Unhandled read/write error");
+    }
   }
 }
 

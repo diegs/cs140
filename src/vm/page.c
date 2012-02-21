@@ -44,7 +44,8 @@ page_init_thread (struct thread *t)
 }
 
 /**
- * Destroys an entry in the page table (called by process_exit) */
+ * Destroys an entry in the page table (called by process_exit)
+ */
 void
 page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
 {
@@ -79,9 +80,10 @@ install_page (void *upage, void *kpage, bool writable)
   return pagedir_set_page (t->pagedir, upage, kpage, writable);
 }
 
-/* Finds a page entry in a context where the given thread's page 
-   table lock has been acquired.
-   */
+/**
+ * Finds a page entry in a context where the given thread's page table
+ * lock has been acquired.
+ */
 static struct s_page_entry *
 safe_get_page_entry (struct thread *t, uint8_t *uaddr) 
 {
@@ -95,7 +97,10 @@ safe_get_page_entry (struct thread *t, uint8_t *uaddr)
   return spe;
 }
 
-/* Initializes a supplemental page entry */
+/**
+ * Initializes a generic supplemental page entry. Requires further
+ * specialization into a file-based or memory-based page.
+ */
 static struct s_page_entry *
 create_s_page_entry (uint8_t *uaddr, bool writable)
 {
@@ -123,7 +128,8 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
 }
 
 /**
- * Adds a memory-based page to the current process
+ * Adds a memory-based supplemental page table entry to the current
+ * process.
  */
 bool
 vm_add_memory_page (uint8_t *uaddr, bool writable)
@@ -156,7 +162,9 @@ add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
   return true;
 }
 
-
+/**
+ * Adds a file-based supplemental page table entry to the current process.
+ */
 bool
 vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
 		  size_t zero_bytes, bool writable)
