@@ -108,7 +108,7 @@ frame_evict (void)
 
   /* Clean up frame memory */
   uint8_t *kaddr = f->kaddr;
-  free (f);
+  frame_free (f);
   
   return kaddr;
 }

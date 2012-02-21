@@ -42,12 +42,11 @@ void
 page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
 {
   struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  /* We do not need to free the allocated page because it will be freed by
+     the page directory on thread destruction ASSUMPTION: this destroy
+     function should only be called when the thread is being destroyed. */
   if (spe->frame != NULL) 
-    free (spe->frame); /* We do not need to free the allocated page
-                        because it will be freed by the page directory
-                        on thread destruction ASSUMPTION: this destroy
-                        function should only be called when the thread
-                        is being destroyed. */
+    free (spe->frame); 
   free (spe);
 }
 
