@@ -201,14 +201,8 @@ static bool
 page_unswap (struct s_page_entry *spe)
 {
   lock_acquire(&spe->lock);
-
-  if (!spe->info.memory.swapped)
-  {
-    install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
-    lock_release(&spe->lock);
-    return true;
-  }
-
+	
+  ASSERT(spe->info.memory.swapped);
 
   if (spe->info.memory.used)
   {
