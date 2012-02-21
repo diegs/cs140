@@ -9,6 +9,9 @@
 #include "vm/page.h"
 #include "vm/swap.h"
 
+/**
+ * Hashing function to hash a struct s_page_entry by its uaddr field.
+ */
 static unsigned
 uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
@@ -16,6 +19,10 @@ uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED)
   return hash_int ((int)spe->uaddr);
 }
 
+/**
+ * Hashing comparison function to compare two s_page_entrys by their uaddr
+ * fields.
+ */
 static bool
 uaddr_hash_less_func (const struct hash_elem *a, const struct hash_elem *b,
 		void *aux UNUSED)
