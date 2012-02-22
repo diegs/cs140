@@ -145,6 +145,9 @@ vm_add_memory_page (uint8_t *uaddr, bool writable)
   return true;
 }
 
+/**
+ * Constructs a file-based supplemental page table entry.
+ */
 static bool
 add_file_page (uint8_t *uaddr, struct file *f, off_t offset, 
 		  size_t zero_bytes, bool writable, bool init_only)
@@ -163,7 +166,8 @@ add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
 }
 
 /**
- * Adds a file-based supplemental page table entry to the current process.
+ * Adds a file-based supplemental page table entry to the current process
+ * that is paged into and out of the original file..
  */
 bool
 vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
@@ -172,13 +176,21 @@ vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
   return add_file_page (uaddr, f, offset, zero_bytes, writable, false);
 }
 
+/**
+ * Adds a file-based supplemental page table entry to the current process
+ * that can be modified but is not written to disk, but rather later
+ * becomes a memory-based page.
+ */
 bool
 vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t offset,
-		  size_t zero_bytes) 
+		       size_t zero_bytes) 
 {
   return add_file_page (uaddr, f, offset, zero_bytes, true, true);
 }
 
+/**
+ * Frees a supplemental page entry and removes it from the current process.
+ */
 bool
 vm_free_page (uint8_t *uaddr)
 {
@@ -205,7 +217,9 @@ vm_free_page (uint8_t *uaddr)
   return true;
 }
 
-/* Swaps a page to disk. Does not clear the frame. */
+/**
+ * Swaps a page to disk. Does not clear the frame.
+ */
 static bool
 page_swap (struct s_page_entry *spe)
 {
@@ -227,11 +241,12 @@ page_swap (struct s_page_entry *spe)
   return true;
 }
 
-/* Unswaps a page into a frame */
+/**
+ * Unswaps a page into a frame.
+ */
 static bool
 page_unswap (struct s_page_entry *spe)
 {
-	
   ASSERT(spe->info.memory.swapped);
 
   if (spe->info.memory.used)
@@ -269,8 +284,9 @@ page_unswap (struct s_page_entry *spe)
   return true;
 }
 
-
-/* Writes a FILE_BASED page to its file. Does not free the frame */
+/**
+ * Writes a FILE_BASED page to its file. Does not free the frame
+ */
 static bool
 page_file (struct s_page_entry *spe) 
 {
@@ -314,44 +330,9 @@ page_file (struct s_page_entry *spe)
   return bytes_write == num_written;
 }
 
-bool
-page_evict (struct thread *t, uint8_t *uaddr)
-{
-  struct s_page_entry key = {.uaddr = uaddr};
-  struct s_page_entry *spe = NULL;
-
-  /* Look up supplemental page entry */
-  if (t != thread_current()) 
-    lock_acquire (&t->s_page_lock);
-
-  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e == NULL)
-  {
-    if (t != thread_current())
-      lock_release (&t->s_page_lock);
-    return false;
-  }
-  spe = hash_entry (e, struct s_page_entry, elem);
-
-  if (t != thread_current()) 
-    lock_release (&t->s_page_lock);
-
-  /* Perform eviction */
-  switch (spe->type)
-  {
-  case FILE_BASED:
-    return page_file (spe);
-    break;
-  case MEMORY_BASED:
-    return page_swap (spe);
-    break;
-  default:
-    PANIC ("Unknown page type!");
-  }
-
-  return false;
-}
-
+/**
+ * Reads a file-based page back from disk into a frame.
+ */
 static bool
 page_unfile (struct s_page_entry *spe)
 {
@@ -399,6 +380,47 @@ page_unfile (struct s_page_entry *spe)
   lock_release (&t->s_page_lock);
 
   return true;
+}
+
+/**
+ * Evicts the page belonging to thread t associated with the given uaddr.
+ */
+bool
+page_evict (struct thread *t, uint8_t *uaddr)
+{
+  struct s_page_entry key = {.uaddr = uaddr};
+  struct s_page_entry *spe = NULL;
+
+  /* Look up supplemental page entry */
+  if (t != thread_current()) 
+    lock_acquire (&t->s_page_lock);
+
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL)
+  {
+    if (t != thread_current())
+      lock_release (&t->s_page_lock);
+    return false;
+  }
+  spe = hash_entry (e, struct s_page_entry, elem);
+
+  if (t != thread_current()) 
+    lock_release (&t->s_page_lock);
+
+  /* Perform eviction */
+  switch (spe->type)
+  {
+  case FILE_BASED:
+    return page_file (spe);
+    break;
+  case MEMORY_BASED:
+    return page_swap (spe);
+    break;
+  default:
+    PANIC ("Unknown page type!");
+  }
+
+  return false;
 }
 
 /**
