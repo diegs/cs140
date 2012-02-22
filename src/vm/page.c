@@ -76,12 +76,12 @@ install_page (struct s_page_entry *spe)
   bool writable = spe->writable;
   struct thread *t = thread_current ();
 
-  frame_install (spe->frame);
-
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   ASSERT( pagedir_get_page (t->pagedir, upage) == NULL);
-  return pagedir_set_page (t->pagedir, upage, kpage, writable);
+  bool result = pagedir_set_page (t->pagedir, upage, kpage, writable);
+  frame_install (spe->frame);
+  return result;
 }
 
 /**
