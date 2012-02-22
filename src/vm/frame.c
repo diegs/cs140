@@ -66,8 +66,8 @@ clock_next (void)
 
 /**
  * Uses the clock algorithm to find the next frame for eviction. The
- * criteria are that the frame is untagged . After one
- * revolution at least one frame should be untagged.
+ * criteria are that the frame is untagged . After one revolution at least
+ * one frame should be untagged.
  */
 static struct frame_entry *
 clock_algorithm (void)
@@ -109,7 +109,7 @@ frame_evict (void)
 
   list_remove (&f->elem);
   /* Move the clock hand since we will free this entry */
-  clock_hand = clock_next();
+  clock_hand = clock_next();	/* TODO: bad on many levels! */
   lock_release (&frames_lock);
 
   /* Perform the eviction */
