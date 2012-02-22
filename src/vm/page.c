@@ -242,7 +242,9 @@ page_swap (struct s_page_entry *spe)
   } 
 
   spe->info.memory.swapped = true;
+  lock_acquire (&spe->t->s_page_lock);
   pagedir_clear_page (spe->t->pagedir, spe->uaddr);
+  lock_release (&spe->t->s_page_lock);
   return true;
 }
 
