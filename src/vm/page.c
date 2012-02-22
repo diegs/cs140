@@ -204,18 +204,16 @@ vm_free_page (uint8_t *uaddr)
   /* Look up supplemental page entry */
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e == NULL)
+  if (e != NULL)
   {
-    lock_release (&t->s_page_lock);
-    return false;
+    spe = hash_entry (e, struct s_page_entry, elem);
+    hash_delete (&t->s_page_table, &spe->elem);
+    pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
   }
-  spe = hash_entry (e, struct s_page_entry, elem);
-  hash_delete (&t->s_page_table, &spe->elem);
-  pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
   lock_release (&t->s_page_lock);
 
   /* Free frame if necessary */
-  frame_free (spe);
+  if (spe != NULL) frame_free (spe);
 
   return true;
 }
@@ -260,25 +258,25 @@ page_unswap (struct s_page_entry *spe)
   {
     /* Fetch from swap */
     spe->frame = frame_get (spe->uaddr, 0);
-    if (!spe->frame)
-    {
-      return false;
-    }
+    if (!spe->frame) return false;
+
     lock_acquire (&fd_all_lock);
-    bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
+    bool success = swap_load (spe->frame->kaddr,
+                      spe->info.memory.swap_blocks);
     lock_release (&fd_all_lock);
     if (!success)
     {
-      frame_free (spe);
+      /* Don't need to call frame_free here because the frame has not
+         been installed */
+      free (spe->frame);
+      spe->frame = NULL;
       return false;
     }
   } else {
     /* Brand new page, just allocate it */
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
-    if (!spe->frame)
-    {
-      return false;
-    }
+    if (!spe->frame) return false;
+
     spe->info.memory.used = true;
   }
 
