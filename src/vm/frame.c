@@ -43,6 +43,8 @@ frame_create (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   f->t = t;
   f->uaddr = uaddr;
   f->kaddr = kpage;
+  f->elem.prev = NULL; 
+    /* States that the frame has not been installed*/
   
   return f;
 }
@@ -176,14 +178,20 @@ frame_free (struct s_page_entry *spe)
   {
     struct frame_entry *f = spe->frame;
     palloc_free_page (f->kaddr);
-    if (&f->elem == clock_hand)
+
+    /* Only remove if it as been installed -- convention says that
+       it has not been installed if prev is NULL */
+    if (f->elem.prev != NULL) 
     {
-      clock_hand = list_next (clock_hand);
-      list_remove (&f->elem);
-      if (clock_hand == list_end (&frames))
-        clock_hand = list_begin (&frames);
-    } else {
-      list_remove (&f->elem);
+      if (&f->elem == clock_hand)
+      {
+        clock_hand = list_next (clock_hand);
+        list_remove (&f->elem);
+        if (clock_hand == list_end (&frames))
+          clock_hand = list_begin (&frames);
+      } else {
+        list_remove (&f->elem);
+      }
     }
 
     free (f);

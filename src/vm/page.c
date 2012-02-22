@@ -268,10 +268,7 @@ page_unswap (struct s_page_entry *spe)
     lock_release (&fd_all_lock);
     if (!success)
     {
-      /* Don't need to call frame_free here because the frame has not
-         been installed */
-      free (spe->frame);
-      spe->frame = NULL;
+      frame_free (spe);
       return false;
     }
   } else {
@@ -347,6 +344,8 @@ page_unfile (struct s_page_entry *spe)
   ASSERT (spe != NULL);
 
   struct frame_entry *frame = frame_get (spe->uaddr, 0);
+  if (frame == NULL) return false;
+
   struct file_based *info = &spe->info.file;
 
   ASSERT (info->f != NULL);
@@ -359,7 +358,12 @@ page_unfile (struct s_page_entry *spe)
   int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
   lock_release(&fd_all_lock);   
 
-  if (bytes_read != target_bytes) return false;
+  spe->frame = frame;
+  if (bytes_read != target_bytes) 
+  {
+    frame_free (spe);
+    return false;
+  }
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
 
   /* If this page was only initialization, transform it into a memory
@@ -374,7 +378,6 @@ page_unfile (struct s_page_entry *spe)
   /* Update the supplementary page table entry */
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
-  spe->frame = frame;
   install_page (spe);
   lock_release (&t->s_page_lock);
 
