@@ -80,10 +80,7 @@ install_page (struct s_page_entry *spe)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  if (pagedir_get_page (t->pagedir, upage) != NULL)
-  {
-    pagedir_clear_page (t->pagedir, upage);
-  }
+  ASSERT( pagedir_get_page (t->pagedir, upage) == NULL);
   return pagedir_set_page (t->pagedir, upage, kpage, writable);
 }
 
@@ -241,7 +238,7 @@ page_swap (struct s_page_entry *spe)
   if (write_needed)
   {
     lock_acquire (&fd_all_lock);
-    swap_write (spe->uaddr, spe->info.memory.swap_blocks);
+    swap_write (spe->frame->kaddr, spe->info.memory.swap_blocks);
     lock_release (&fd_all_lock);
     spe->info.memory.used = true;
   } 
