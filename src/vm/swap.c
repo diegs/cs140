@@ -4,6 +4,8 @@
 #include "vm/frame.h"
 #include "vm/swap.h"
 
+#define BLOCKS_PER_PAGE PGSIZE/BLOCK_SECTOR_SIZE
+
 struct bitmap *swap_table;
 struct lock swap_lock;
 
@@ -36,19 +38,17 @@ swap_destroy (void)
  * Loads a swap block into uaddr. Returns true on success.
  */
 bool
-swap_load (uint8_t *dest, block_sector_t swap_blocks[])
+swap_load (uint8_t *dest, block_sector_t swap_begin)
 {
   int i;
   lock_acquire (&swap_lock);
-  for (i=0; i<PGSIZE/BLOCK_SECTOR_SIZE; i++)
-  {
-    bitmap_reset (swap_table, swap_blocks[i]);
-  }
+  bitmap_set_multiple (swap_table, swap_begin, BLOCKS_PER_PAGE, false);
   lock_release (&swap_lock);
 
-  for (i=0; i<PGSIZE/BLOCK_SECTOR_SIZE; i++)
+  for (i = 0; i < BLOCKS_PER_PAGE; i++)
   {
-    block_read (get_swap (), swap_blocks[i], dest + i*BLOCK_SECTOR_SIZE);
+    block_read (get_swap (), i + swap_begin, dest +
+                  i*BLOCK_SECTOR_SIZE);
   }
 
   return true;
@@ -59,25 +59,26 @@ swap_load (uint8_t *dest, block_sector_t swap_blocks[])
  * block used.
  */
 bool
-swap_write (uint8_t *src, block_sector_t swap_blocks[])
+swap_write (uint8_t *src, block_sector_t *swap_out)
 {
   int i;
+
   lock_acquire (&swap_lock);
-  for (i=0; i<PGSIZE/BLOCK_SECTOR_SIZE; i++)
+  block_sector_t swap_begin = bitmap_scan_and_flip (swap_table, 
+                    0, BLOCKS_PER_PAGE, false);
+  if (swap_begin == BITMAP_ERROR)
   {
-    swap_blocks[i] = bitmap_scan_and_flip (swap_table, 0, 1, false);
-    if (swap_blocks[i] == BITMAP_ERROR)
-    {
-      lock_release (&swap_lock);
-      PANIC ("Out of swap!");
-    }
+    lock_release (&swap_lock);
+    PANIC ("Out of swap!");
   }
   lock_release (&swap_lock);
 
-  for (i=0; i<PGSIZE/BLOCK_SECTOR_SIZE; i++)
+  for (i = 0; i < BLOCKS_PER_PAGE; i++)
   {
-    block_write (get_swap (), swap_blocks[i], src + i*BLOCK_SECTOR_SIZE);
+    block_write (get_swap (), i + swap_begin, src +
+        i*BLOCK_SECTOR_SIZE);
   }
 
+  *swap_out = swap_begin;
   return true;
 }

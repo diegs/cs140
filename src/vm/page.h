@@ -26,7 +26,7 @@ struct memory_based
 {
   bool used;			/* Has this page been swapped before */
   bool swapped;			/* Is this block swapped */
-  block_sector_t swap_blocks[PGSIZE/BLOCK_SECTOR_SIZE];	/* Swap block */
+  block_sector_t swap_begin;
 };
 
 struct s_page_entry 

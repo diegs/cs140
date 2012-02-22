@@ -236,7 +236,7 @@ page_swap (struct s_page_entry *spe)
   if (write_needed)
   {
     lock_acquire (&fd_all_lock);
-    swap_write (spe->frame->kaddr, spe->info.memory.swap_blocks);
+    swap_write (spe->frame->kaddr, &spe->info.memory.swap_begin);
     lock_release (&fd_all_lock);
     spe->info.memory.used = true;
   } 
@@ -264,7 +264,7 @@ page_unswap (struct s_page_entry *spe)
 
     lock_acquire (&fd_all_lock);
     bool success = swap_load (spe->frame->kaddr,
-                      spe->info.memory.swap_blocks);
+                      spe->info.memory.swap_begin);
     lock_release (&fd_all_lock);
     if (!success)
     {
