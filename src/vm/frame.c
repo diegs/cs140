@@ -173,7 +173,8 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
 }
 
 /**
- * Deallocates a frame. Returns true if frame was dealloacted successfully.
+ * Deallocates a frame. Returns true if frame was deallocated
+ * successfully.
  */
 bool
 frame_free (struct s_page_entry *spe)
