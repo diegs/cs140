@@ -33,7 +33,6 @@ frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   f->t = t;
   f->uaddr = uaddr;
   f->kaddr = kpage;
-  sema_init (&f->pinned, 1);
 
   /* Insert into list */
   lock_acquire (&frames_lock);
@@ -59,9 +58,8 @@ clock_next (void)
 
 /**
  * Uses the clock algorithm to find the next frame for eviction. The
- * criteria are that the frame is untagged and not pinned. After one
- * revolution at least one frame should be untagged, though it is possible
- * (but unlikely) that all frames are pinned.
+ * criteria are that the frame is untagged . After one
+ * revolution at least one frame should be untagged.
  */
 static struct frame_entry *
 clock_algorithm (void)
@@ -76,7 +74,6 @@ clock_algorithm (void)
   while ((f = list_entry (clock_next (), struct frame_entry, elem)) !=
 	 clock_start)
   {
-    if (!f->pinned.value) continue;
     if (pagedir_is_accessed (f->t->pagedir, f->uaddr))
       pagedir_set_accessed (f->t->pagedir, f->uaddr, false);
     else 
@@ -190,18 +187,4 @@ frame_free (struct s_page_entry *spe)
   lock_release (&frames_lock);
 
   return true;
-}
-
-void frame_unpin (struct frame_entry *frame) 
-{
-  lock_acquire (&frames_lock);
-  sema_up (&frame->pinned);
-  lock_release (&frames_lock);
-}
-
-void frame_pin (struct frame_entry *frame) 
-{
-  lock_acquire (&frames_lock);
-  sema_down (&frame->pinned);
-  lock_release (&frames_lock);
 }

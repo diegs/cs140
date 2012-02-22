@@ -40,7 +40,6 @@ struct s_page_entry
     struct file_based file;
     struct memory_based memory;
   } info;				/* Attributes of entry */
-  bool writing;			/* Flags that a page is being written */
   struct frame_entry *frame;	/* Frame entry if frame is allocated */
   struct hash_elem elem;	/* Entry in thread's hash table */
 };
