@@ -85,23 +85,6 @@ install_page (struct s_page_entry *spe)
 }
 
 /**
- * Finds a page entry in a context where the given thread's page table
- * lock has been acquired.
- */
-static struct s_page_entry *
-safe_get_page_entry (struct thread *t, uint8_t *uaddr) 
-{
-  struct s_page_entry key = {.uaddr = uaddr};
-  struct s_page_entry *spe = NULL;
-
-  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e != NULL)
-    spe = hash_entry (e, struct s_page_entry, elem);
-
-  return spe;
-}
-
-/**
  * Initializes a generic supplemental page entry. Requires further
  * specialization into a file-based or memory-based page.
  */
@@ -356,7 +339,7 @@ page_unfile (struct s_page_entry *spe)
 
   /* Read page into memory */
   file_seek (info->f, info->offset);
-  size_t target_bytes = PGSIZE - info->zero_bytes;
+  int target_bytes = PGSIZE - info->zero_bytes;
   int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
   lock_release(&fd_all_lock);   
 
