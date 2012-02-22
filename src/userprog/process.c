@@ -626,7 +626,6 @@ static void
 stack_push (void **esp, void *data, size_t size)
 {
   *esp -= size;
-  if (!verify_esp((uint32_t) *esp)) return;
   memcpy(*esp, data, size);
 }
 
