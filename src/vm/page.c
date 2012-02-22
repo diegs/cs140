@@ -255,7 +255,6 @@ page_unswap (struct s_page_entry *spe)
 
   lock_acquire(&spe->t->s_page_lock);
   spe->info.memory.swapped = false;
-  frame_unpin (spe->frame);
   install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
   lock_release(&spe->t->s_page_lock);
   return true;
@@ -279,18 +278,17 @@ page_file (struct s_page_entry *spe)
   /* Unmap the file from the thread before it is written */
   struct thread *t = spe->t;
   lock_acquire (&t->s_page_lock);
-  pagedir_clear_page (t->pagedir, spe->uaddr);
 
   /* Check if we need to write at all */  
   if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
   {
+    pagedir_clear_page (t->pagedir, spe->uaddr);
     lock_release (&t->s_page_lock);
     return true;
   }
 
   frame_pin (frame);
   lock_release (&t->s_page_lock);
-
 
   /* Write the file out to disk */
   lock_acquire(&fd_all_lock);
@@ -300,6 +298,7 @@ page_file (struct s_page_entry *spe)
   lock_release(&fd_all_lock);
 
   lock_acquire (&t->s_page_lock);
+  pagedir_clear_page (t->pagedir, spe->uaddr);
   frame_unpin (frame); 
   lock_release (&t->s_page_lock);
 
@@ -355,9 +354,8 @@ page_unfile (struct s_page_entry *spe)
 
   ASSERT (info->f != NULL);
 
-  /* Check if currently being written out */
-  while (spe->writing) 
-    cond_wait (&spe->t->s_page_cond, &spe->t->s_page_lock);
+  /* Make sure the page is not currently being written out */
+  frame_pin (frame);
   
   lock_acquire(&fd_all_lock);
 

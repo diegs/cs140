@@ -3,12 +3,13 @@
 
 #include <list.h>
 #include "threads/thread.h"
+#include "threads/synch.h"
 #include "vm/page.h"
 
 struct frame_entry
 {
   struct thread *t;  /* Owner process */
-  bool pinned;
+  struct semaphore pinned;
   uint8_t *uaddr;    /* User address in owner process */
   uint8_t *kaddr;    /* Physical address */
   struct list_elem elem;	/* Linked list of frame entries */

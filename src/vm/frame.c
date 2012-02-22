@@ -33,7 +33,7 @@ frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   f->t = t;
   f->uaddr = uaddr;
   f->kaddr = kpage;
-  f->pinned = true;
+  sema_init (&f->pinned, 1);
 
   /* Insert into list */
   lock_acquire (&frames_lock);
@@ -68,7 +68,7 @@ clock_algorithm (void)
   while ((f = list_entry (clock_next (), struct frame_entry, elem)) !=
 	 clock_start)
   {
-    if (f->pinned) continue;
+    if (!f->pinned.value) continue;
     if (pagedir_is_accessed (f->t->pagedir, f->uaddr))
       pagedir_set_accessed (f->t->pagedir, f->uaddr, false);
     else 
@@ -187,13 +187,13 @@ frame_free (struct s_page_entry *spe)
 void frame_unpin (struct frame_entry *frame) 
 {
   lock_acquire (&frames_lock);
-  frame->pinned = false;
+  sema_up (&frame->pinned);
   lock_release (&frames_lock);
 }
 
 void frame_pin (struct frame_entry *frame) 
 {
   lock_acquire (&frames_lock);
-  frame->pinned = true;
+  sema_down (&frame->pinned);
   lock_release (&frames_lock);
 }
