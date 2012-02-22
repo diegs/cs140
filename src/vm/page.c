@@ -232,9 +232,17 @@ page_swap (struct s_page_entry *spe)
   ASSERT (spe->type == MEMORY_BASED);
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
-  if (spe->info.memory.used || pagedir_is_dirty (spe->t->pagedir, spe->uaddr))
+
+  lock_acquire (&spe->t->s_page_lock);
+  bool write_needed = spe->info.memory.used || pagedir_is_dirty
+    (spe->t->pagedir, spe->uaddr);
+  lock_release (&spe->t->s_page_lock);
+
+  if (write_needed)
   {
+    lock_acquire (&fd_all_lock);
     swap_write (spe->uaddr, spe->info.memory.swap_blocks);
+    lock_release (&fd_all_lock);
     spe->info.memory.used = true;
   } 
 
@@ -259,7 +267,9 @@ page_unswap (struct s_page_entry *spe)
     {
       return false;
     }
+    lock_acquire (&fd_all_lock);
     bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
+    lock_release (&fd_all_lock);
     if (!success)
     {
       frame_free (spe);
@@ -276,7 +286,9 @@ page_unswap (struct s_page_entry *spe)
   }
 
   spe->info.memory.swapped = false;
+  lock_acquire (&spe->t->s_page_lock);
   install_page (spe);
+  lock_release (&spe->t->s_page_lock);
 
   return true;
 }
@@ -299,30 +311,33 @@ page_file (struct s_page_entry *spe)
   // TODO Think about all the race conditions ... 
   /* Unmap the file from the thread before it is written */
   struct thread *t = spe->t;
-  lock_acquire (&t->s_page_lock);
 
   /* Check if we need to write at all */  
-  if (!spe->writable || !pagedir_is_dirty(t->pagedir, spe->uaddr)) 
+  lock_acquire (&spe->t->s_page_lock);
+  bool write_needed = spe->writable && pagedir_is_dirty (t->pagedir,
+      spe->uaddr);
+  lock_release (&spe->t->s_page_lock);
+
+  bool result = false;
+  if(write_needed)
   {
-    pagedir_clear_page (t->pagedir, spe->uaddr);
-    lock_release (&t->s_page_lock);
-    return true;
+    /* Write the file out to disk */
+    lock_acquire(&fd_all_lock);
+    file_seek (info->f, info->offset);
+    size_t bytes_write = PGSIZE - info->zero_bytes;
+    bool num_written = file_write (info->f, frame->kaddr, bytes_write);
+    lock_release(&fd_all_lock);
+
+    result = bytes_write == num_written;
+  } else {
+    result = true;
   }
-
-  lock_release (&t->s_page_lock);
-
-  /* Write the file out to disk */
-  lock_acquire(&fd_all_lock);
-  file_seek (info->f, info->offset);
-  size_t bytes_write = PGSIZE - info->zero_bytes;
-  bool num_written = file_write (info->f, frame->kaddr, bytes_write);
-  lock_release(&fd_all_lock);
 
   lock_acquire (&t->s_page_lock);
   pagedir_clear_page (t->pagedir, spe->uaddr);
   lock_release (&t->s_page_lock);
 
-  return bytes_write == num_written;
+  return result;
 }
 
 /**
@@ -343,14 +358,11 @@ page_unfile (struct s_page_entry *spe)
 
   /* Read page into memory */
   file_seek (info->f, info->offset);
+  size_t target_bytes = PGSIZE - info->zero_bytes;
+  int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
+  lock_release(&fd_all_lock);   
 
-  size_t bytes_read = PGSIZE - info->zero_bytes;
-  if (file_read (info->f, frame->kaddr, bytes_read) != bytes_read) 
-  { 
-    lock_release(&fd_all_lock);   
-    return false;
-  }
-  lock_release(&fd_all_lock);
+  if (bytes_read != target_bytes) return false;
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
 
   /* If this page was only initialization, transform it into a memory
@@ -382,7 +394,10 @@ page_evict (struct thread *t, uint8_t *uaddr)
   struct s_page_entry *spe = NULL;
 
   /* Look up supplemental page entry */
+  lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  lock_release (&t->s_page_lock);
+
   if (e == NULL) return false;
   spe = hash_entry (e, struct s_page_entry, elem);
 
@@ -415,15 +430,10 @@ page_load (uint8_t *fault_addr)
 
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e == NULL)
-  {
-    /* Not a valid page */
-    lock_release (&t->s_page_lock);
-    return false;
-  }
-
-  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
   lock_release (&t->s_page_lock);
+
+  if (e == NULL) return false;
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
 
   /* Load the page */
   switch (spe->type)
