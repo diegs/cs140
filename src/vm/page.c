@@ -120,7 +120,6 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
   spe->uaddr = uaddr;
   spe->writable = writable;
   spe->frame = NULL;
-  spe->t = t;
 	
   /* Install into hash table */
   lock_acquire (&t->s_page_lock);
@@ -228,10 +227,11 @@ page_swap (struct s_page_entry *spe)
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
 
-  lock_acquire (&spe->t->s_page_lock);
+  struct thread *t = spe->frame->t;
+  lock_acquire (&t->s_page_lock);
   bool write_needed = spe->info.memory.used || pagedir_is_dirty
-    (spe->t->pagedir, spe->uaddr);
-  lock_release (&spe->t->s_page_lock);
+    (t->pagedir, spe->uaddr);
+  lock_release (&t->s_page_lock);
 
   if (write_needed)
   {
@@ -242,9 +242,9 @@ page_swap (struct s_page_entry *spe)
   } 
 
   spe->info.memory.swapped = true;
-  lock_acquire (&spe->t->s_page_lock);
-  pagedir_clear_page (spe->t->pagedir, spe->uaddr);
-  lock_release (&spe->t->s_page_lock);
+  lock_acquire (&t->s_page_lock);
+  pagedir_clear_page (t->pagedir, spe->uaddr);
+  lock_release (&t->s_page_lock);
   return true;
 }
 
@@ -283,9 +283,10 @@ page_unswap (struct s_page_entry *spe)
   }
 
   spe->info.memory.swapped = false;
-  lock_acquire (&spe->t->s_page_lock);
+  struct thread *t = thread_current ();
+  lock_acquire (&t->s_page_lock);
   install_page (spe);
-  lock_release (&spe->t->s_page_lock);
+  lock_release (&t->s_page_lock);
 
   return true;
 }
@@ -307,13 +308,13 @@ page_file (struct s_page_entry *spe)
 
   // TODO Think about all the race conditions ... 
   /* Unmap the file from the thread before it is written */
-  struct thread *t = spe->t;
+  struct thread *t = spe->frame->t;
 
   /* Check if we need to write at all */  
-  lock_acquire (&spe->t->s_page_lock);
+  lock_acquire (&t->s_page_lock);
   bool write_needed = spe->writable && pagedir_is_dirty (t->pagedir,
       spe->uaddr);
-  lock_release (&spe->t->s_page_lock);
+  lock_release (&t->s_page_lock);
 
   bool result = false;
   if(write_needed)
@@ -344,7 +345,6 @@ static bool
 page_unfile (struct s_page_entry *spe)
 {
   ASSERT (spe != NULL);
-  ASSERT (!lock_held_by_current_thread (&spe->t->s_page_lock));
 
   struct frame_entry *frame = frame_get (spe->uaddr, 0);
   struct file_based *info = &spe->info.file;
