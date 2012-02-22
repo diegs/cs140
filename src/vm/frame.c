@@ -43,7 +43,8 @@ frame_create (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   f->t = t;
   f->uaddr = uaddr;
   f->kaddr = kpage;
-  f->elem.prev = NULL; 
+  f->elem.prev = NULL;
+  f->elem.next = NULL; 
     /* States that the frame has not been installed*/
   
   return f;
@@ -105,7 +106,10 @@ frame_evict (void)
     lock_release (&frames_lock);
     return NULL;	/* Could not find a frame to evict */
   }
+
   list_remove (&f->elem);
+  /* Move the clock hand since we will free this entry */
+  clock_hand = clock_next();
   lock_release (&frames_lock);
 
   /* Perform the eviction */
@@ -152,6 +156,7 @@ frame_evict (void)
 struct frame_entry*
 frame_get (uint8_t *uaddr, enum vm_flags flags)
 {
+
   /* Attempt to allocate a brand new frame */
   uint8_t *kpage = palloc_get_page (PAL_USER | flags);
 
