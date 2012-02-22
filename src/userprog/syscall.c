@@ -118,6 +118,7 @@ process_kill (void)
 static void
 memory_verify (void *ptr, size_t size)
 {
+  if (size == 0) return;
   /*Get the first page this data spans */
   uint32_t start_page = (uint32_t)ptr / PGSIZE;
 
@@ -141,6 +142,7 @@ memory_verify (void *ptr, size_t size)
 static void
 memory_verify_write (void *ptr, size_t size)
 {
+  if (size == 0) return;
   /*Get the first page this data spans */
   uint32_t start_page = (uint32_t)ptr / PGSIZE;
 
@@ -152,6 +154,7 @@ memory_verify_write (void *ptr, size_t size)
   for (page = start_page; page <= end_page; page++)
   {
     uint8_t *page_first_byte = (uint8_t *)(page * PGSIZE);
+	if ((void *)page_first_byte < ptr) page_first_byte = ptr;
     if (put_byte (page_first_byte, '\0') == -1)
     {
       process_kill ();
@@ -492,8 +495,8 @@ sys_write (const struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   const char* buffer = frame_arg_ptr (f, 2);
-  memory_verify_string (buffer);
   size_t size = frame_arg_int (f, 3);
+  memory_verify ((void *)buffer, size);
 
   // Handle special case for writing to the console
   if (fd == 1) 
