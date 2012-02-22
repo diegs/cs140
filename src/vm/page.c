@@ -76,12 +76,12 @@ install_page (struct s_page_entry *spe)
   bool writable = spe->writable;
   struct thread *t = thread_current ();
 
-  frame_install (spe->frame);
-
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   ASSERT( pagedir_get_page (t->pagedir, upage) == NULL);
-  return pagedir_set_page (t->pagedir, upage, kpage, writable);
+  bool result = pagedir_set_page (t->pagedir, upage, kpage, writable);
+  frame_install (spe->frame);
+  return result;
 }
 
 /**
@@ -120,7 +120,6 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
   spe->uaddr = uaddr;
   spe->writable = writable;
   spe->frame = NULL;
-  spe->t = t;
 	
   /* Install into hash table */
   lock_acquire (&t->s_page_lock);
@@ -204,18 +203,16 @@ vm_free_page (uint8_t *uaddr)
   /* Look up supplemental page entry */
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e == NULL)
+  if (e != NULL)
   {
-    lock_release (&t->s_page_lock);
-    return false;
+    spe = hash_entry (e, struct s_page_entry, elem);
+    hash_delete (&t->s_page_table, &spe->elem);
+    pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
   }
-  spe = hash_entry (e, struct s_page_entry, elem);
-  hash_delete (&t->s_page_table, &spe->elem);
-  pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
   lock_release (&t->s_page_lock);
 
   /* Free frame if necessary */
-  frame_free (spe);
+  if (spe != NULL) frame_free (spe);
 
   return true;
 }
@@ -230,10 +227,11 @@ page_swap (struct s_page_entry *spe)
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
 
-  lock_acquire (&spe->t->s_page_lock);
+  struct thread *t = spe->frame->t;
+  lock_acquire (&t->s_page_lock);
   bool write_needed = spe->info.memory.used || pagedir_is_dirty
-    (spe->t->pagedir, spe->uaddr);
-  lock_release (&spe->t->s_page_lock);
+    (t->pagedir, spe->uaddr);
+  lock_release (&t->s_page_lock);
 
   if (write_needed)
   {
@@ -244,7 +242,9 @@ page_swap (struct s_page_entry *spe)
   } 
 
   spe->info.memory.swapped = true;
-  pagedir_clear_page (spe->t->pagedir, spe->uaddr);
+  lock_acquire (&t->s_page_lock);
+  pagedir_clear_page (t->pagedir, spe->uaddr);
+  lock_release (&t->s_page_lock);
   return true;
 }
 
@@ -260,12 +260,11 @@ page_unswap (struct s_page_entry *spe)
   {
     /* Fetch from swap */
     spe->frame = frame_get (spe->uaddr, 0);
-    if (!spe->frame)
-    {
-      return false;
-    }
+    if (!spe->frame) return false;
+
     lock_acquire (&fd_all_lock);
-    bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
+    bool success = swap_load (spe->frame->kaddr,
+                      spe->info.memory.swap_blocks);
     lock_release (&fd_all_lock);
     if (!success)
     {
@@ -275,17 +274,16 @@ page_unswap (struct s_page_entry *spe)
   } else {
     /* Brand new page, just allocate it */
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
-    if (!spe->frame)
-    {
-      return false;
-    }
+    if (!spe->frame) return false;
+
     spe->info.memory.used = true;
   }
 
   spe->info.memory.swapped = false;
-  lock_acquire (&spe->t->s_page_lock);
+  struct thread *t = thread_current ();
+  lock_acquire (&t->s_page_lock);
   install_page (spe);
-  lock_release (&spe->t->s_page_lock);
+  lock_release (&t->s_page_lock);
 
   return true;
 }
@@ -307,13 +305,13 @@ page_file (struct s_page_entry *spe)
 
   // TODO Think about all the race conditions ... 
   /* Unmap the file from the thread before it is written */
-  struct thread *t = spe->t;
+  struct thread *t = spe->frame->t;
 
   /* Check if we need to write at all */  
-  lock_acquire (&spe->t->s_page_lock);
+  lock_acquire (&t->s_page_lock);
   bool write_needed = spe->writable && pagedir_is_dirty (t->pagedir,
       spe->uaddr);
-  lock_release (&spe->t->s_page_lock);
+  lock_release (&t->s_page_lock);
 
   bool result = false;
   if(write_needed)
@@ -344,9 +342,10 @@ static bool
 page_unfile (struct s_page_entry *spe)
 {
   ASSERT (spe != NULL);
-  ASSERT (!lock_held_by_current_thread (&spe->t->s_page_lock));
 
   struct frame_entry *frame = frame_get (spe->uaddr, 0);
+  if (frame == NULL) return false;
+
   struct file_based *info = &spe->info.file;
 
   ASSERT (info->f != NULL);
@@ -359,7 +358,12 @@ page_unfile (struct s_page_entry *spe)
   int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
   lock_release(&fd_all_lock);   
 
-  if (bytes_read != target_bytes) return false;
+  spe->frame = frame;
+  if (bytes_read != target_bytes) 
+  {
+    frame_free (spe);
+    return false;
+  }
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
 
   /* If this page was only initialization, transform it into a memory
@@ -374,7 +378,6 @@ page_unfile (struct s_page_entry *spe)
   /* Update the supplementary page table entry */
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
-  spe->frame = frame;
   install_page (spe);
   lock_release (&t->s_page_lock);
 

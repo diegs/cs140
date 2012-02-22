@@ -32,7 +32,6 @@ struct memory_based
 struct s_page_entry 
 {
   enum entry_type type;		/* Type of entry */
-  struct thread *t; /* Thread that owns this s_page_entry */
   uint8_t *uaddr;		/* User page address (page-aligned) */
   bool writable;		/* Whether page is writable */
   union 
