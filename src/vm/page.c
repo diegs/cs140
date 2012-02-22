@@ -136,6 +136,7 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
 bool
 vm_add_memory_page (uint8_t *uaddr, bool writable)
 {
+  ASSERT (uaddr < PHYS_BASE);
   struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL)
     return false;
@@ -154,6 +155,7 @@ static bool
 add_file_page (uint8_t *uaddr, struct file *f, off_t offset, 
 		  size_t zero_bytes, bool writable, bool init_only)
 {
+  ASSERT (uaddr < PHYS_BASE);
   struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL)
     return false;
@@ -423,6 +425,8 @@ page_evict (struct thread *t, uint8_t *uaddr)
 bool
 page_load (uint8_t *fault_addr)
 {
+  ASSERT (fault_addr < PHYS_BASE);
+
   /* Look up the supplemental page entry */
   struct thread *t = thread_current ();
   uint8_t* uaddr = (uint8_t*)pg_round_down (fault_addr);
