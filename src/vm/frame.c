@@ -43,7 +43,10 @@ frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   return f;
 }
 
-/* Treats the list as a circularly linked list */
+/**
+ * Helper function for the clock algorithm to treat the frame list as a
+ * circularly linked list.
+ */
 static struct list_elem *
 clock_next (void)
 {
@@ -54,7 +57,12 @@ clock_next (void)
   return clock_hand;
 }
 
-/* Magic algorithm: find the next frame that is untagged */
+/**
+ * Uses the clock algorithm to find the next frame for eviction. The
+ * criteria are that the frame is untagged and not pinned. After one
+ * revolution at least one frame should be untagged, though it is possible
+ * (but unlikely) that all frames are pinned.
+ */
 static struct frame_entry *
 clock_algorithm (void)
 {

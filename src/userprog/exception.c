@@ -177,20 +177,25 @@ page_fault (struct intr_frame *f)
   /* The page wasn't in the page table */
   if (not_present)
   {
+	/* Check if we just need to swap in the page */
     if (page_load ((uint8_t*)fault_addr)) return;
+	/* Check if we just need to extend the stack */
     if (check_stack(f, fault_addr, user)) return;
     if (user)
       kill (f); /* Not a valid page to load, kill process */
     else
       handle_kernel_error (fault_addr, f);
-  } else {
+  } else { 
     /* Read/write error */	
     if (syscall_context)
-      handle_kernel_error (fault_addr, f);
-    else if (user)
+    {
+      thread_current ()->exit_code = -1;
+      thread_exit ();
+    } else if (user) {
       kill (f);
-    else
+    } else {
       PANIC ("Unhandled read/write error");
+    }
   }
 }
 
