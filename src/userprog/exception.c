@@ -170,8 +170,6 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  //printf("faulting on %X\n", fault_addr);
-
   syscall_context = thread_current ()->syscall_context;
 
   /* The page wasn't in the page table */
