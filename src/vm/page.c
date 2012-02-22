@@ -60,16 +60,23 @@ page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
 
 /**
  * Adds a mapping from user virtual address UPAGE to kernel virtual
- * address KPAGE to the page table.  If WRITABLE is true, the user process
- * may modify the page; otherwise, it is read-only.  UPAGE must not
- * already be mapped.  KPAGE should probably be a page obtained from the
- * user pool with palloc_get_page().  Returns true on success, false if
- * UPAGE is already mapped or if memory allocation fails.
+ * address KPAGE to the page table.  If WRITABLE is true, the user
+ * process may modify the page; otherwise, it is read-only.  UPAGE
+ * must not already be mapped.  KPAGE should probably be a page
+ * obtained from the user pool with palloc_get_page().  Returns true
+ * on success, false if UPAGE is already mapped or if memory
+ * allocation fails.
  */
 static bool
-install_page (void *upage, void *kpage, bool writable)
+install_page (struct s_page_entry *spe)
 {
+  ASSERT (spe->frame != NULL);
+  void *upage = spe->uaddr;
+  void *kpage = spe->frame->kaddr;
+  bool writable = spe->writable;
   struct thread *t = thread_current ();
+
+  frame_install (spe->frame);
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
@@ -223,10 +230,9 @@ static bool
 page_swap (struct s_page_entry *spe)
 {
   ASSERT (spe->type == MEMORY_BASED);
-  lock_acquire(&spe->t->s_page_lock);
   ASSERT (!spe->info.memory.swapped);
   /* Only swap if page has been used at some point */
-  if (spe->info.memory.used || pagedir_is_dirty (spe->t, spe->uaddr))
+  if (spe->info.memory.used || pagedir_is_dirty (spe->t->pagedir, spe->uaddr))
   {
     swap_write (spe->uaddr, spe->info.memory.swap_blocks);
     spe->info.memory.used = true;
@@ -234,7 +240,6 @@ page_swap (struct s_page_entry *spe)
 
   spe->info.memory.swapped = true;
   pagedir_clear_page (spe->t->pagedir, spe->uaddr);
-  lock_release(&spe->t->s_page_lock);
   return true;
 }
 
@@ -252,14 +257,12 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, 0);
     if (!spe->frame)
     {
-      lock_release(&spe->t->s_page_lock);
       return false;
     }
     bool success = swap_load (spe->frame->kaddr, spe->info.memory.swap_blocks);
     if (!success)
     {
       frame_free (spe);
-      lock_release(&spe->t->s_page_lock);
       return false;
     }
   } else {
@@ -267,16 +270,14 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe->uaddr, PAL_ZERO);
     if (!spe->frame)
     {
-      lock_release(&spe->t->s_page_lock);
       return false;
     }
     spe->info.memory.used = true;
   }
 
-  lock_acquire(&spe->t->s_page_lock);
   spe->info.memory.swapped = false;
-  install_page (spe->uaddr, spe->frame->kaddr, spe->writable);
-  lock_release(&spe->t->s_page_lock);
+  install_page (spe);
+
   return true;
 }
 
@@ -365,7 +366,7 @@ page_unfile (struct s_page_entry *spe)
   struct thread *t = thread_current ();
   lock_acquire (&t->s_page_lock);
   spe->frame = frame;
-  install_page (frame->uaddr, frame->kaddr, spe->writable);
+  install_page (spe);
   lock_release (&t->s_page_lock);
 
   return true;
@@ -381,20 +382,9 @@ page_evict (struct thread *t, uint8_t *uaddr)
   struct s_page_entry *spe = NULL;
 
   /* Look up supplemental page entry */
-  if (t != thread_current()) 
-    lock_acquire (&t->s_page_lock);
-
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e == NULL)
-  {
-    if (t != thread_current())
-      lock_release (&t->s_page_lock);
-    return false;
-  }
+  if (e == NULL) return false;
   spe = hash_entry (e, struct s_page_entry, elem);
-
-  if (t != thread_current()) 
-    lock_release (&t->s_page_lock);
 
   /* Perform eviction */
   switch (spe->type)

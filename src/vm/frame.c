@@ -21,8 +21,18 @@ frame_init (void)
 /**
  * Inserts an entry for a page belonging to a thread into the frame table
  */
+void
+frame_install (struct frame_entry *f) 
+{
+  /* Insert into list */
+  lock_acquire (&frames_lock);
+  list_push_back (&frames, &f->elem);
+  lock_release (&frames_lock);
+}
+
+/* Creates a frame with the given parameters */
 static struct frame_entry *
-frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
+frame_create (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
 {
   /* Create entry */
   struct frame_entry *f = malloc (sizeof (struct frame_entry));
@@ -33,11 +43,6 @@ frame_insert (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
   f->t = t;
   f->uaddr = uaddr;
   f->kaddr = kpage;
-
-  /* Insert into list */
-  lock_acquire (&frames_lock);
-  list_push_back (&frames, &f->elem);
-  lock_release (&frames_lock);
   
   return f;
 }
@@ -157,7 +162,7 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
     return NULL;
 
   /* Make a new frame table entry */
-  return frame_insert (thread_current (), uaddr, kpage);
+  return frame_create (thread_current (), uaddr, kpage);
 }
 
 /**
