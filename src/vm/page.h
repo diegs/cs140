@@ -6,6 +6,7 @@
 #include "devices/block.h"
 #include "filesys/file.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 #include "threads/vaddr.h"
 
 enum entry_type
@@ -41,6 +42,7 @@ struct s_page_entry
   } info;				/* Attributes of entry */
   struct frame_entry *frame;	/* Frame entry if frame is allocated */
   struct hash_elem elem;	/* Entry in thread's hash table */
+  struct lock l;		/* Lock for when this page is "in play" */
 };
 
 enum vm_flags

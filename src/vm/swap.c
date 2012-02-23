@@ -41,6 +41,7 @@ bool
 swap_load (uint8_t *dest, block_sector_t swap_begin)
 {
   int i;
+
   lock_acquire (&swap_lock);
   bitmap_set_multiple (swap_table, swap_begin, BLOCKS_PER_PAGE, false);
   lock_release (&swap_lock);
@@ -65,7 +66,7 @@ swap_write (uint8_t *src, block_sector_t *swap_out)
 
   lock_acquire (&swap_lock);
   block_sector_t swap_begin = bitmap_scan_and_flip (swap_table, 
-                    0, BLOCKS_PER_PAGE, false);
+						    0, BLOCKS_PER_PAGE, false);
   if (swap_begin == BITMAP_ERROR)
   {
     lock_release (&swap_lock);
@@ -76,9 +77,10 @@ swap_write (uint8_t *src, block_sector_t *swap_out)
   for (i = 0; i < BLOCKS_PER_PAGE; i++)
   {
     block_write (get_swap (), i + swap_begin, src +
-        i*BLOCK_SECTOR_SIZE);
+		 i*BLOCK_SECTOR_SIZE);
   }
 
   *swap_out = swap_begin;
+
   return true;
 }

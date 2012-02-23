@@ -613,13 +613,6 @@ push_args(struct process_info *pinfo, void **esp) {
   stack_push(esp, &zero, sizeof(zero));
 }
 
-/* Check that the stack pointer we want to write to is within the page
-   boundary */
-static bool verify_esp(uint32_t esp)
-{
-  return (esp < (uint32_t)PHYS_BASE && esp > (uint32_t) (PHYS_BASE - PGSIZE));
-}
-
 /* Push an element of size 'size' onto a stack.  This will check
    the page boundary */
 static void
