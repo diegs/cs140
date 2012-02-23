@@ -56,7 +56,7 @@ page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
      function should only be called when the thread is being destroyed. */
   /* TODO properly handle freeing of swapped items, etc. */
   if (spe->frame != NULL) 
-    frame_free (spe->frame); 
+    free (spe->frame); 
   free (spe);
 }
 
@@ -197,6 +197,7 @@ vm_free_page (uint8_t *uaddr)
   {
     spe = hash_entry (e, struct s_page_entry, elem);
     hash_delete (&t->s_page_table, &spe->elem);
+    /* TODO probably handle writing out files and/or freeing up swap */
     pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
   }
   lock_release (&t->s_page_lock);
@@ -227,16 +228,12 @@ page_swap (struct s_page_entry *spe)
   if (write_needed)
   {
     lock_acquire (&fd_all_lock);
-    //    printf ("spe is at %p\n", spe);
     swap_write (spe->frame->kaddr, &spe->info.memory.swap_begin);
     lock_release (&fd_all_lock);
     spe->info.memory.used = true;
   } 
 
   spe->info.memory.swapped = true;
-  lock_acquire (&t->s_page_lock);
-  pagedir_clear_page (t->pagedir, spe->uaddr);
-  lock_release (&t->s_page_lock);
 
   return true;
 }
@@ -293,7 +290,7 @@ page_file (struct s_page_entry *spe)
   ASSERT (lock_held_by_current_thread (&spe->l));
 
   struct frame_entry *frame = spe->frame;
-  ASSERT(frame != NULL);
+  ASSERT (frame != NULL);
   struct file_based *info = &spe->info.file;
 
   ASSERT (info->f != NULL);
@@ -322,10 +319,6 @@ page_file (struct s_page_entry *spe)
   } else {
     result = true;
   }
-
-  lock_acquire (&t->s_page_lock);
-  pagedir_clear_page (t->pagedir, spe->uaddr);
-  lock_release (&t->s_page_lock);
 
   return result;
 }
@@ -357,7 +350,7 @@ page_unfile (struct s_page_entry *spe)
   spe->frame = frame;
   if (bytes_read != target_bytes) 
   {
-    frame_free (spe);
+    free (spe);
     return false;
   }
   memset (frame->kaddr + bytes_read, 0, info->zero_bytes);
@@ -400,6 +393,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
 
   /* Lock on this supplemental page entry */
   lock_acquire (&spe->l);
+  pagedir_clear_page (t->pagedir, spe->uaddr);
 
   /* Perform eviction */
   bool result = false;
@@ -415,6 +409,9 @@ page_evict (struct thread *t, uint8_t *uaddr)
     PANIC ("Unknown page type!");
   }
 
+  if (!result)
+    PANIC ("Failure during eviction");
+
   lock_release (&spe->l);
 
   return result;
@@ -426,8 +423,6 @@ page_evict (struct thread *t, uint8_t *uaddr)
 bool
 page_load (uint8_t *fault_addr)
 {
-  //if (fault_addr >= PHYS_BASE)
-    //    printf ("faulting due to access at %p\n", fault_addr);
   ASSERT (fault_addr < PHYS_BASE);
 
   /* Look up the supplemental page entry */
