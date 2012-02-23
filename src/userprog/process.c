@@ -234,10 +234,10 @@ process_exit (void)
   /* Allow writes to the exec file again */
   if (cur->exec_file != NULL) 
   {
-	lock_acquire(&fd_all_lock);
+    lock_acquire(&fd_all_lock);
     file_allow_write (cur->exec_file);
     file_close (cur->exec_file);
-	lock_release(&fd_all_lock);
+    lock_release(&fd_all_lock);
   }
 
   /* Close files that the process holds */

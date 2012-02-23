@@ -41,7 +41,6 @@ page_init_thread (struct thread *t)
 {
   hash_init (&t->s_page_table, uaddr_hash_func, uaddr_hash_less_func, NULL);
   lock_init (&t->s_page_lock);
-  cond_init (&t->s_page_cond);
 }
 
 /**
@@ -50,14 +49,7 @@ page_init_thread (struct thread *t)
 void
 page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
 {
-  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
-  /* We do not need to free the allocated page because it will be freed by
-     the page directory on thread destruction ASSUMPTION: this destroy
-     function should only be called when the thread is being destroyed. */
-  /* TODO properly handle freeing of swapped items, etc. */
-  if (spe->frame != NULL) 
-    free (spe->frame); 
-  free (spe);
+  vm_free_page (hash_entry (e, struct s_page_entry, elem));
 }
 
 /**
@@ -183,29 +175,18 @@ vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t offset,
 }
 
 /**
- * Frees a supplemental page entry and removes it from the current process.
+ * Frees a supplemental page entry and removes it from the current
+ * process.
  */
 bool
-vm_free_page (uint8_t *uaddr)
+vm_free_page (struct s_page_entry *spe)
 {
-  struct thread *t = thread_current ();
-  struct s_page_entry key = {.uaddr = uaddr};
-  struct s_page_entry *spe = NULL;
-  
-  /* Look up supplemental page entry */
-  lock_acquire (&t->s_page_lock);
-  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e != NULL)
-  {
-    spe = hash_entry (e, struct s_page_entry, elem);
-    hash_delete (&t->s_page_table, &spe->elem);
-    /* TODO probably handle writing out files and/or freeing up swap */
-    pagedir_clear_page (t->pagedir, uaddr); /* No longer valid for page fault */
-  }
-  lock_release (&t->s_page_lock);
+  lock_acquire (&spe->l);
+  /* TODO handle writing out files and/or freeing up swap */
 
-  /* Free frame if necessary */
-  if (spe != NULL) frame_free (spe);
+  frame_free (spe);		/* Free frame */
+  lock_release (&spe->l);
+  free (spe);			/* Free s_page_entry */
 
   return true;
 }
@@ -259,7 +240,7 @@ page_unswap (struct s_page_entry *spe)
     lock_release (&fd_all_lock);
     if (!success)
     {
-      frame_free (spe);
+      frame_unpin (spe->frame);
       return false;
     }
   } else {
@@ -382,13 +363,16 @@ page_evict (struct thread *t, uint8_t *uaddr)
   /* Look up supplemental page entry */
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL) 
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+  spe = hash_entry (e, struct s_page_entry, elem);
+  lock_acquire (&spe->l);
   lock_release (&t->s_page_lock);
 
-  if (e == NULL) return false;
-  spe = hash_entry (e, struct s_page_entry, elem);
-
   /* Lock on this supplemental page entry */
-  lock_acquire (&spe->l);
   pagedir_clear_page (t->pagedir, spe->uaddr);
 
   /* Perform eviction */
@@ -408,6 +392,7 @@ page_evict (struct thread *t, uint8_t *uaddr)
   if (!result)
     PANIC ("Failure during eviction");
 
+  spe->frame = NULL;
   lock_release (&spe->l);
 
   return result;
@@ -428,13 +413,16 @@ page_load (uint8_t *fault_addr)
 
   lock_acquire (&t->s_page_lock);
   struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  lock_release (&t->s_page_lock);
-
-  if (e == NULL) return false;
-  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  if (e == NULL) 
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
 
   /* Lock on this supplemental page entry */
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
   lock_acquire (&spe->l);
+  lock_release (&t->s_page_lock);
 
   /* Load the page */
   bool result = false;

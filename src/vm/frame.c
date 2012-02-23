@@ -148,7 +148,6 @@ frame_evict (struct thread *t, uint8_t *uaddr)
     lock_release (&frames_lock);
     return NULL;	/* Could not find a frame to evict */
   }
-
   lock_release (&frames_lock);
 
   /* Perform the eviction */
@@ -160,20 +159,6 @@ frame_evict (struct thread *t, uint8_t *uaddr)
     frame_unpin (f);		/* Need to unpin */
     return NULL;
   }
-
-  /* Disassociate with previous page table entry */
-  struct thread *old_t = f->t;
-  struct s_page_entry key = {.uaddr = f->uaddr};
-  struct s_page_entry *spe = NULL;
-
-  lock_acquire (&old_t->s_page_lock);
-  struct hash_elem *e = hash_find (&old_t->s_page_table, &key.elem);
-  if (e == NULL)
-    PANIC ("Bug in code: frame became detached from its thread!");
-
-  spe = hash_entry (e, struct s_page_entry, elem);
-  spe->frame = NULL;
-  lock_release (&old_t->s_page_lock);
 
   /* Associate with new thread */
   f->t = t;
@@ -201,7 +186,7 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
   } else {
     /* Evict an existing frame, could be NULL */
     struct frame_entry *f = frame_evict (thread_current (), uaddr);
-    if (flags & PAL_ZERO)
+    if (f != NULL && (flags & PAL_ZERO))
       memset (f->kaddr, 0, PGSIZE); /* Zero out the page if requested */
     return f;
   }
@@ -215,10 +200,9 @@ bool
 frame_free (struct s_page_entry *spe)
 {
   lock_acquire (&frames_lock);
-  if (spe->frame != NULL)
+  if (spe->frame != NULL && spe->frame->pinned != true)
   {
     struct frame_entry *f = spe->frame;
-    palloc_free_page (f->kaddr);
 
     if (&f->elem == clock_hand)
     {

@@ -55,7 +55,7 @@ bool vm_add_file_page (uint8_t *uaddr, struct file *f,
 		       off_t offset, size_t zero_bytes, bool writable);
 bool vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t
           offset, size_t zero_bytes);
-bool vm_free_page (uint8_t *uaddr);
+bool vm_free_page (struct s_page_entry *spe);
 void page_init_thread (struct thread *t);
 void page_destroy_thread (struct hash_elem *e, void *aux UNUSED);
 bool page_evict (struct thread *t, uint8_t *uaddr);

@@ -122,8 +122,7 @@ struct thread
 #ifdef VM
   struct hash s_page_table;	/* Supplemental page table for process */
   struct lock s_page_lock;	/* Lock for page table */
-  struct condition s_page_cond;	/* Semaphore for thread notifications */
-  void * saved_esp;
+  void *saved_esp;
   bool syscall_context;
 #endif
 
