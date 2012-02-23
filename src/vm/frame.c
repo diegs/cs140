@@ -1,3 +1,4 @@
+#include <string.h>
 #include "threads/malloc.h"
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
@@ -199,7 +200,10 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
     return frame_create (thread_current (), uaddr, kpage);
   } else {
     /* Evict an existing frame, could be NULL */
-    return frame_evict (thread_current (), uaddr);
+    struct frame_entry *f = frame_evict (thread_current (), uaddr);
+    if (flags & PAL_ZERO)
+      memset (f->kaddr, 0, PGSIZE); /* Zero out the page if requested */
+    return f;
   }
 }
 

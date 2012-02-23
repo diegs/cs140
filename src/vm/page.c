@@ -72,7 +72,9 @@ page_destroy_thread (struct hash_elem *e, void *aux UNUSED)
 static bool
 install_page (struct s_page_entry *spe)
 {
+  ASSERT (lock_held_by_current_thread (&spe->l));
   ASSERT (spe->frame != NULL);
+
   void *upage = spe->uaddr;
   void *kpage = spe->frame->kaddr;
   bool writable = spe->writable;
@@ -220,10 +222,8 @@ page_swap (struct s_page_entry *spe)
   ASSERT (lock_held_by_current_thread (&spe->l));
 
   struct thread *t = spe->frame->t;
-  lock_acquire (&t->s_page_lock);
   bool write_needed = spe->info.memory.used || pagedir_is_dirty
     (t->pagedir, spe->uaddr);
-  lock_release (&t->s_page_lock);
 
   if (write_needed)
   {
@@ -244,7 +244,7 @@ page_swap (struct s_page_entry *spe)
 static bool
 page_unswap (struct s_page_entry *spe)
 {
-  ASSERT(spe->info.memory.swapped);
+  ASSERT (spe->info.memory.swapped);
   ASSERT (lock_held_by_current_thread (&spe->l));
 
   if (spe->info.memory.used)
@@ -271,10 +271,9 @@ page_unswap (struct s_page_entry *spe)
   }
 
   spe->info.memory.swapped = false;
-  struct thread *t = thread_current ();
-  lock_acquire (&t->s_page_lock);
+
+  /* Install the page into the page table */
   install_page (spe);
-  lock_release (&t->s_page_lock);
 
   return true;
 }
@@ -364,11 +363,8 @@ page_unfile (struct s_page_entry *spe)
     spe->info.memory.swapped = false;
   }
 
-  /* Update the supplementary page table entry */
-  struct thread *t = thread_current ();
-  lock_acquire (&t->s_page_lock);
+  /* Install the page into the page table */
   install_page (spe);
-  lock_release (&t->s_page_lock);
 
   return true;
 }
