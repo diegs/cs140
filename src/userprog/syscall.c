@@ -516,6 +516,17 @@ sys_write (const struct intr_frame *f)
   return result;
 }
 
+static int
+sys_mmap (struct intr_frame *f) 
+{
+  return -1;
+}
+
+static void 
+sys_munmap (struct intr_frame *f)
+{
+}
+
 /* Registers the system call handler for internal interrupts. */
 void
 syscall_init (void) 
@@ -580,6 +591,12 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_CLOSE:
       sys_close (f);
+      break;
+    case SYS_MMAP:
+      eax = sys_mmap (f);
+      break;
+    case SYS_MUNMAP:
+      sys_munmap (f);
       break;
   }
 
