@@ -527,9 +527,7 @@ sys_mmap (struct intr_frame *f)
 
   /* Grab file associated with fd */
   struct thread *t = thread_current ();
-  lock_acquire (&fd_all_lock);
   struct process_fd *pfd = process_get_file (t, fd);
-  lock_release (&fd_all_lock);
   if (pfd == NULL) return -1;
 
   struct process_mmap *mmap = mmap_create (pfd->file);
@@ -544,8 +542,8 @@ sys_mmap (struct intr_frame *f)
   uint32_t offset = 0;
   while (offset < mmap->size)
   {
-    bool add_fail = mmap_add (mmap, uaddr + offset, offset);
-    if (add_fail) 
+    bool success = mmap_add (mmap, uaddr + offset, offset);
+    if (!success) 
     {
       mmap_destroy (mmap);
       return -1;
