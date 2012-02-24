@@ -186,7 +186,12 @@ vm_free_page (struct s_page_entry *spe)
   lock_acquire (&spe->l);
   /* TODO handle writing out files and/or freeing up swap */
 
-  frame_free (spe);		/* Free frame */
+  /* Free frame object if needed */
+  if (spe->frame != NULL)
+  {
+    frame_free (spe->frame);
+    spe->frame = NULL;
+  }
   lock_release (&spe->l);
   free (spe);			/* Free s_page_entry */
 

@@ -148,11 +148,12 @@ frame_evict (struct thread *t, uint8_t *uaddr)
     lock_release (&frames_lock);
     return NULL;	/* Could not find a frame to evict */
   }
-  lock_release (&frames_lock);
 
   /* Perform the eviction */
-  bool success = page_evict (f->t, f->uaddr);
-  
+  bool success = true;
+  if (f->t != NULL)
+    success = page_evict (f->t, f->uaddr);
+
   /* Failure to evict */
   if (!success) 
   {
@@ -197,26 +198,26 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
  * successfully.
  */
 bool
-frame_free (struct s_page_entry *spe)
+frame_free (struct frame_entry *f)
 {
   lock_acquire (&frames_lock);
-  if (spe->frame != NULL && spe->frame->pinned != true)
-  {
-    struct frame_entry *f = spe->frame;
 
+  if (f->pinned == false)
+  {
     if (&f->elem == clock_hand)
-    {
-      clock_hand = list_next (clock_hand);
-      list_remove (&f->elem);
-      if (clock_hand == list_end (&frames))
-	clock_hand = list_begin (&frames);
-    } else {
+      {
+	clock_hand = list_next (clock_hand);
+	list_remove (&f->elem);
+	if (clock_hand == list_end (&frames))
+	  clock_hand = list_begin (&frames);
+      } else {
       list_remove (&f->elem);
     }
 
     free (f);
-    spe->frame = NULL;	/* For safety */
-  } 
+  } else {
+    f->t = NULL;
+  }
   lock_release (&frames_lock);
 
   return true;
