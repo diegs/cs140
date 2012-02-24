@@ -1,3 +1,4 @@
+#include <hash.h>
 #include <string.h>
 #include "threads/malloc.h"
 #include "userprog/pagedir.h"
@@ -26,7 +27,7 @@ frame_init (void)
  * the list of frames, but pinned.
  */
 static struct frame_entry *
-frame_create (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
+frame_create (struct thread *t, struct s_page_entry *spe, uint8_t *kpage)
 {
   /* Create entry */
   struct frame_entry *f = malloc (sizeof (struct frame_entry));
@@ -35,9 +36,10 @@ frame_create (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
 
   /* Populate fields */
   f->t = t;
-  f->uaddr = uaddr;
+  f->spe = spe;
   f->kaddr = kpage;
   f->pinned = true;
+  cond_init (&f->unpinned);
 
   /* Insert into list */
   lock_acquire (&frames_lock);
@@ -53,7 +55,8 @@ frame_create (struct thread *t, uint8_t *uaddr, uint8_t *kpage)
 static void
 frame_pin_no_lock (struct frame_entry *f)
 {
-  ASSERT (!f->pinned)
+  ASSERT (!f->pinned);
+  //  printf ("%d: pinning %p\n", thread_current ()->tid, f);
   f->pinned = true;
 }
 
@@ -67,9 +70,10 @@ frame_unpin (struct frame_entry *f)
 
   lock_acquire (&frames_lock);
 
-  ASSERT (f->pinned)
-  f->pinned = false;
+  ASSERT (f->pinned);
 
+  //  printf ("%d: unpinning %p\n", thread_current ()->tid, f);
+  f->pinned = false;
   lock_release (&frames_lock);
 }
 
@@ -120,8 +124,8 @@ clock_algorithm (void)
   do {
     if (!f->pinned)
     {
-      if (pagedir_is_accessed (f->t->pagedir, f->uaddr))
-	pagedir_set_accessed (f->t->pagedir, f->uaddr, false);
+      if (pagedir_is_accessed (f->t->pagedir, f->spe->uaddr))
+	pagedir_set_accessed (f->t->pagedir, f->spe->uaddr, false);
       else
 	break;
     }
@@ -138,7 +142,7 @@ clock_algorithm (void)
  * use.
  */
 static struct frame_entry *
-frame_evict (struct thread *t, uint8_t *uaddr)
+frame_evict (void)
 {
   /* Choose a frame to evict */
   lock_acquire (&frames_lock);
@@ -148,11 +152,13 @@ frame_evict (struct thread *t, uint8_t *uaddr)
     lock_release (&frames_lock);
     return NULL;	/* Could not find a frame to evict */
   }
+  struct s_page_entry *spe = f->spe;
 
   /* Perform the eviction */
-  bool success = true;
-  if (f->t != NULL)
-    success = page_evict (f->t, f->uaddr);
+  lock_acquire (&spe->l);
+  lock_release (&frames_lock);
+  bool success = page_evict (f->t, f->spe);
+  lock_release (&spe->l);
 
   /* Failure to evict */
   if (!success) 
@@ -160,10 +166,6 @@ frame_evict (struct thread *t, uint8_t *uaddr)
     frame_unpin (f);		/* Need to unpin */
     return NULL;
   }
-
-  /* Associate with new thread */
-  f->t = t;
-  f->uaddr = uaddr;
 
   return f;
 }
@@ -174,7 +176,7 @@ frame_evict (struct thread *t, uint8_t *uaddr)
  * previously-allocated frame. The frame will be pinned.
  */
 struct frame_entry*
-frame_get (uint8_t *uaddr, enum vm_flags flags)
+frame_get (struct s_page_entry *spe, enum vm_flags flags)
 {
 
   /* Attempt to allocate a brand new frame */
@@ -183,12 +185,19 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
   if (kpage != NULL)
   {
     /* Make a brand new frame */
-    return frame_create (thread_current (), uaddr, kpage);
+    return frame_create (thread_current (), spe, kpage);
   } else {
     /* Evict an existing frame, could be NULL */
-    struct frame_entry *f = frame_evict (thread_current (), uaddr);
-    if (f != NULL && (flags & PAL_ZERO))
-      memset (f->kaddr, 0, PGSIZE); /* Zero out the page if requested */
+    struct frame_entry *f = frame_evict ();
+    if (f == NULL) return NULL;
+
+    /* Associate with new thread */
+    f->t = thread_current ();
+    f->spe = spe;
+
+    /* Zero out the page if requested */
+    if (flags & PAL_ZERO)
+      memset (f->kaddr, 0, PGSIZE); 
     return f;
   }
 }
@@ -201,7 +210,6 @@ bool
 frame_free (struct frame_entry *f)
 {
   lock_acquire (&frames_lock);
-
   if (f->pinned == false)
   {
     if (&f->elem == clock_hand)
@@ -215,8 +223,6 @@ frame_free (struct frame_entry *f)
     }
 
     free (f);
-  } else {
-    f->t = NULL;
   }
   lock_release (&frames_lock);
 

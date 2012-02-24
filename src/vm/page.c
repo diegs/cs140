@@ -189,6 +189,8 @@ vm_free_page (struct s_page_entry *spe)
   /* Free frame object if needed */
   if (spe->frame != NULL)
   {
+    while (spe->frame->pinned)
+      cond_wait (&spe->frame->unpinned, &spe->l);
     frame_free (spe->frame);
     spe->frame = NULL;
   }
@@ -238,7 +240,7 @@ page_unswap (struct s_page_entry *spe)
   if (spe->info.memory.used)
   {
     /* Fetch from swap */
-    spe->frame = frame_get (spe->uaddr, 0);
+    spe->frame = frame_get (spe, 0);
     if (!spe->frame) return false;
 
     lock_acquire (&fd_all_lock);
@@ -252,12 +254,13 @@ page_unswap (struct s_page_entry *spe)
     }
   } else {
     /* Brand new page, just allocate it */
-    spe->frame = frame_get (spe->uaddr, PAL_ZERO);
+    spe->frame = frame_get (spe, PAL_ZERO);
     if (!spe->frame) return false;
 
     spe->info.memory.used = true;
   }
 
+  //  printf ("%d: got %p\n", thread_current ()->tid, spe->frame);
   spe->info.memory.swapped = false;
 
   /* Install the page into the page table */
@@ -319,7 +322,7 @@ page_unfile (struct s_page_entry *spe)
   ASSERT (spe != NULL);
   ASSERT (lock_held_by_current_thread (&spe->l));
 
-  struct frame_entry *frame = frame_get (spe->uaddr, 0);
+  struct frame_entry *frame = frame_get (spe, 0);
   if (frame == NULL) return false;
 
   struct file_based *info = &spe->info.file;
@@ -353,7 +356,6 @@ page_unfile (struct s_page_entry *spe)
 
   /* Install the page into the page table */
   install_page (spe);
-
   return true;
 }
 
@@ -362,22 +364,9 @@ page_unfile (struct s_page_entry *spe)
  * uaddr. Assumes the frame associated with it is pinned.
  */
 bool
-page_evict (struct thread *t, uint8_t *uaddr)
+page_evict (struct thread *t, struct s_page_entry *spe)
 {
-  struct s_page_entry key = {.uaddr = uaddr};
-  struct s_page_entry *spe = NULL;
-
-  /* Look up supplemental page entry */
-  lock_acquire (&t->s_page_lock);
-  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
-  if (e == NULL) 
-  {
-    lock_release (&t->s_page_lock);
-    return false;
-  }
-  spe = hash_entry (e, struct s_page_entry, elem);
-  lock_acquire (&spe->l);
-  lock_release (&t->s_page_lock);
+  ASSERT (spe != NULL);
 
   /* Lock on this supplemental page entry */
   pagedir_clear_page (t->pagedir, spe->uaddr);
@@ -400,7 +389,6 @@ page_evict (struct thread *t, uint8_t *uaddr)
     PANIC ("Failure during eviction");
 
   spe->frame = NULL;
-  lock_release (&spe->l);
 
   return result;
 }
