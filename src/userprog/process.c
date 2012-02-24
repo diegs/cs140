@@ -22,8 +22,8 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "vm/frame.h"
 #ifdef VM
+#include "vm/frame.h"
 #include "vm/page.h"
 #endif
 
@@ -692,7 +692,7 @@ process_remove_file (struct thread *t, int fd)
 
 
 struct process_mmap* 
-mmap_create (struct thread *t, struct file *file) 
+mmap_create (struct file *file) 
 {
   struct process_mmap *mmap= malloc (sizeof (struct process_mmap));
 
@@ -717,18 +717,36 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
     zero_bytes = PGSIZE - file_remain;
 
   struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
-  entry->spe = NULL; // vm_add_file_page (uaddr, mmap->file, offset, ;
+  entry->spe = vm_add_file_page (uaddr, mmap->file, offset,
+      zero_bytes, true);
 
-  return false;
+  list_push_back (&mmap->entries, &entry->elem);
+
+  return true;
 }
 
 void mmap_destroy (struct process_mmap *mmap)
 {
+  /* Unmap each of the entries in the entire map */
+  struct list_elem *e = NULL; 
+  for (e = list_begin (&mmap->entries); 
+        e != list_end (&mmap->entries); e = list_next (e))
+  {
+    struct mmap_entry *entry = list_entry (e, struct mmap_entry, elem);
+    vm_free_page (entry->spe);
+    free (entry);
+  }
+
   free (mmap);
 }
 
 int process_add_mmap (struct process_mmap *mmap)
 {
-  return INVALID_MMAP_ID;
+  struct thread *t = thread_current ();
+  mmap->id = t->next_mmap++;
+
+  list_push_back (&t->mmap_list, &mmap->elem);
+
+  return mmap->id;
 }
 
