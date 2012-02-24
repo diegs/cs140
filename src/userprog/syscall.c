@@ -25,15 +25,15 @@ struct fd_hash
 
 struct hash fd_all;
 
-
-static struct fd_hash *
-fd_hash_init () 
+static struct fd_hash*
+fd_hash_init (void)
 {
   struct fd_hash *fd = calloc (1, sizeof (struct fd_hash));
   return fd;
 }
 
-static void fd_hash_destroy (struct fd_hash *h)
+static void
+fd_hash_destroy (struct fd_hash *h)
 {
   hash_delete (&fd_all, &h->elem);
   if (h->filename != NULL) free (h->filename);
@@ -41,17 +41,17 @@ static void fd_hash_destroy (struct fd_hash *h)
 }
 
 
-static unsigned hash_hash_fd_hash (const struct hash_elem *e, 
-                            void *aux UNUSED) 
+static unsigned
+hash_hash_fd_hash (const struct hash_elem *e, void *aux UNUSED) 
 {
   struct fd_hash *e_fd = hash_entry (e, struct fd_hash, elem);
   unsigned hash_val = hash_string (e_fd->filename);
   return hash_val;
 }
 
-static bool hash_less_fd_hash (const struct hash_elem *a,
-                             const struct hash_elem *b,
-                             void *aux UNUSED)
+static bool
+hash_less_fd_hash (const struct hash_elem *a, const struct hash_elem *b,
+		   void *aux UNUSED)
 {
   struct fd_hash *a_fd = hash_entry (a, struct fd_hash, elem);
   struct fd_hash *b_fd = hash_entry (b, struct fd_hash, elem);
@@ -327,7 +327,6 @@ sys_remove (const struct intr_frame *f)
   return result;
 }
 
-
 static int
 sys_open (const struct intr_frame *f) 
 {
@@ -384,7 +383,6 @@ sys_filesize (struct intr_frame *f)
   lock_release (&fd_all_lock);
   return len;
 }
-
 
 static void
 sys_seek (struct intr_frame *f) 
@@ -557,8 +555,9 @@ sys_mmap (struct intr_frame *f)
 }
 
 static void 
-sys_munmap (struct intr_frame *f)
+sys_munmap (struct intr_frame *f UNUSED)
 {
+  /* TODO */
 }
 
 /* Registers the system call handler for internal interrupts. */

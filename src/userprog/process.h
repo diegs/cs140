@@ -21,7 +21,7 @@ struct process_fd
 struct mmap_entry
 {
   struct list_elem elem;
-  struct s_page_entry *spe;
+  uint8_t *uaddr;
 };
 
 struct process_mmap

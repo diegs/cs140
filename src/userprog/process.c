@@ -717,8 +717,14 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
     zero_bytes = PGSIZE - file_remain;
 
   struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
-  entry->spe = vm_add_file_page (uaddr, mmap->file, offset,
-				 zero_bytes, true);
+  entry->uaddr = uaddr;
+  bool success = vm_add_file_page (uaddr, mmap->file, offset,
+				   zero_bytes, true);
+  if (!success) 
+  {
+    free (entry);
+    return false;
+  }
 
   list_push_back (&mmap->entries, &entry->elem);
 
@@ -728,6 +734,8 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
 void mmap_destroy (struct process_mmap *mmap)
 {
   /* Unmap each of the entries in the entire map */
+  struct thread *t = thread_current ();
+
   struct list_elem *e = NULL; 
   struct list_elem *next_e = NULL;
   for (e = list_begin (&mmap->entries); 
@@ -735,7 +743,20 @@ void mmap_destroy (struct process_mmap *mmap)
   {
     next_e = list_next (e);
     struct mmap_entry *entry = list_entry (e, struct mmap_entry, elem);
-    vm_free_page (entry->spe);
+
+    lock_acquire (&t->s_page_lock);
+    struct s_page_entry key = {.uaddr = entry->uaddr};
+    struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+    if (e == NULL) 
+    {
+      lock_release (&t->s_page_lock);
+      PANIC ("Error in mmap code, missing page entry");
+    }
+
+    /* Lock on this supplemental page entry */
+    struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+    lock_release (&t->s_page_lock);
+    vm_free_page (spe);
     free (entry);
   }
 
