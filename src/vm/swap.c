@@ -84,3 +84,14 @@ swap_write (uint8_t *src, block_sector_t *swap_out)
 
   return true;
 }
+
+/**
+ * Frees the swap blocks starting at the designated sector.
+ */
+void
+swap_free (block_sector_t swap_begin)
+{
+  lock_acquire (&swap_lock);
+  bitmap_set_multiple (swap_table, swap_begin, BLOCKS_PER_PAGE, false);
+  lock_release (&swap_lock);
+}

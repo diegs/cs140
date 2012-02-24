@@ -688,8 +688,6 @@ process_remove_file (struct thread *t, int fd)
   free (pfd);
 }
 
-
-
 struct process_mmap* 
 mmap_create (struct file *file) 
 {
@@ -720,7 +718,7 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
 
   struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
   entry->spe = vm_add_file_page (uaddr, mmap->file, offset,
-      zero_bytes, true);
+				 zero_bytes, true);
 
   list_push_back (&mmap->entries, &entry->elem);
 

@@ -9,6 +9,7 @@
 #include "vm/page.h"
 #include "vm/swap.h"
 
+static bool page_file (struct s_page_entry *spe);
 /**
  * Hashing function to hash a struct s_page_entry by its uaddr field.
  */
@@ -117,10 +118,10 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
  * Adds a memory-based supplemental page table entry to the current
  * process.
  */
-struct s_page_entry *
+bool
 vm_add_memory_page (uint8_t *uaddr, bool writable)
 {
-  ASSERT (uaddr < PHYS_BASE);
+  ASSERT ((void*)uaddr < PHYS_BASE);
   struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL)
     return false;
@@ -139,7 +140,7 @@ static struct s_page_entry*
 add_file_page (uint8_t *uaddr, struct file *f, off_t offset, 
 		  size_t zero_bytes, bool writable, bool init_only)
 {
-  ASSERT (uaddr < PHYS_BASE);
+  ASSERT ((void*)uaddr < PHYS_BASE);
   struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
   if (spe == NULL) return NULL;
 
@@ -183,7 +184,22 @@ bool
 vm_free_page (struct s_page_entry *spe)
 {
   lock_acquire (&spe->l);
-  /* TODO handle writing out files and/or freeing up swap */
+
+  /* Handle writing out files and/or freeing up swap */
+  switch (spe->type)
+  {
+  case FILE_BASED:
+    if (spe->frame != NULL)
+      page_file (spe);
+    break;
+  case MEMORY_BASED:
+    if (spe->info.memory.swapped)
+      swap_free (spe->info.memory.swap_begin);
+    break;
+  default:
+    PANIC ("Corrupted page table entry!!");
+    break;
+  }
 
   /* Free frame object if needed */
   if (spe->frame != NULL)
@@ -288,20 +304,18 @@ page_file (struct s_page_entry *spe)
   struct thread *t = spe->frame->t;
 
   /* Check if we need to write at all */  
-  lock_acquire (&t->s_page_lock);
   bool write_needed = spe->writable && pagedir_is_dirty (t->pagedir,
       spe->uaddr);
-  lock_release (&t->s_page_lock);
 
   bool result = false;
   if(write_needed)
   {
     /* Write the file out to disk */
-    lock_acquire(&fd_all_lock);
+    lock_acquire (&fd_all_lock);
     file_seek (info->f, info->offset);
     size_t bytes_write = PGSIZE - info->zero_bytes;
     bool num_written = file_write (info->f, frame->kaddr, bytes_write);
-    lock_release(&fd_all_lock);
+    lock_release (&fd_all_lock);
 
     result = bytes_write == num_written;
   } else {
@@ -397,7 +411,7 @@ page_evict (struct thread *t, struct s_page_entry *spe)
 bool
 page_load (uint8_t *fault_addr)
 {
-  ASSERT (fault_addr < PHYS_BASE);
+  ASSERT ((void*)fault_addr < PHYS_BASE);
 
   /* Look up the supplemental page entry */
   struct thread *t = thread_current ();

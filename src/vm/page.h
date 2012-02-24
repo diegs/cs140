@@ -50,8 +50,7 @@ enum vm_flags
   VM_ZERO = PAL_ZERO             /* Zero page contents. */
 };
 
-struct s_page_entry *
-  vm_add_memory_page (uint8_t *uaddr, bool writable);
+bool vm_add_memory_page (uint8_t *uaddr, bool writable);
 struct s_page_entry *
   vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
       size_t zero_bytes, bool writable);
