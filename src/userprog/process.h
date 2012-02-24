@@ -16,6 +16,21 @@ struct process_fd
   int fd;
 };
 
+struct mmap_entry
+{
+  struct list_elem elem;
+  struct s_page_entry *spe;
+};
+
+struct process_mmap
+{
+  struct list_elem elem;
+  struct list entries;
+
+  unsigned size;
+  int id;
+};
+
 struct process_status
 {
   tid_t tid;                 /* Child thread id */
@@ -41,5 +56,13 @@ int process_add_file (struct thread *t, struct file *file,
 struct process_fd* process_get_file (struct thread *t, int fd);
 void process_remove_file (struct thread *t, int fd);
 
+/* Functions for manipulating mmapps for a given process */
+struct process_mmap* 
+mmap_create (struct thread *t, struct file *file);
+bool mmap_add (struct process_mmap *mmap, void* uaddr, 
+                   unsigned offset);
+void mmap_destroy (struct process_mmap *mmap);
+
+int process_add_mmap (struct process_mmap *mmap);
 
 #endif /* userprog/process.h */

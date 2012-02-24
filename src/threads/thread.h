@@ -124,6 +124,9 @@ struct thread
   struct lock s_page_lock;	/* Lock for page table */
   void *saved_esp;
   bool syscall_context;
+
+  struct list mmap_list;
+  int next_mmap;
 #endif
 
   /* Priority data */

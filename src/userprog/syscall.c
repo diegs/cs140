@@ -427,8 +427,8 @@ syscall_close (int fd)
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
   if (fd_found == NULL)
   {
-	lock_release(&fd_all_lock);
-	return;
+    lock_release(&fd_all_lock);
+    return;
   }
   file_close (pfd->file);
 
@@ -519,7 +519,42 @@ sys_write (const struct intr_frame *f)
 static int
 sys_mmap (struct intr_frame *f) 
 {
-  return -1;
+  int fd = frame_arg_int (f, 1);
+  void *uaddr = frame_arg_ptr (f, 2);
+
+  /* Verify that the uaddr is page aligned */
+  if (pg_round_down (uaddr) != uaddr) return -1;
+
+  /* Grab file associated with fd */
+  struct thread *t = thread_current ();
+  lock_acquire (&fd_all_lock);
+  struct process_fd *pfd = process_get_file (t, fd);
+  lock_release (&fd_all_lock);
+  if (pfd == NULL) return -1;
+
+  struct process_mmap *mmap = mmap_create (t, pfd->file);
+  if (mmap == NULL) return -1;
+
+  /* Break file into pages, making sure to note the number of zeros
+     in the remainder of the last page, and making sure that none 
+     of the addresses we want to add overlap with the stack, the 
+     data segment or the code segment (i.e. there is no existing
+     virtual mapping in the page directory)*/
+  uint32_t offset = 0;
+  while (offset < mmap->size)
+  {
+    bool add_fail = mmap_add (mmap, uaddr + offset, offset);
+    if (add_fail) 
+    {
+      mmap_destroy (mmap);
+      return -1;
+    }
+
+    offset += PGSIZE;
+  }
+
+  /* Generate a valid mapid_t for the process */
+  return process_add_mmap (mmap);
 }
 
 static void 

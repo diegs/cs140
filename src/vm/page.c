@@ -41,6 +41,9 @@ page_init_thread (struct thread *t)
 {
   hash_init (&t->s_page_table, uaddr_hash_func, uaddr_hash_less_func, NULL);
   lock_init (&t->s_page_lock);
+
+  list_init (&t->mmap_list);
+  t->next_mmap = 0;
 }
 
 /**
@@ -115,7 +118,7 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
  * Adds a memory-based supplemental page table entry to the current
  * process.
  */
-bool
+struct s_page_entry *
 vm_add_memory_page (uint8_t *uaddr, bool writable)
 {
   ASSERT (uaddr < PHYS_BASE);
@@ -133,14 +136,13 @@ vm_add_memory_page (uint8_t *uaddr, bool writable)
 /**
  * Constructs a file-based supplemental page table entry.
  */
-static bool
+static struct s_page_entry*
 add_file_page (uint8_t *uaddr, struct file *f, off_t offset, 
 		  size_t zero_bytes, bool writable, bool init_only)
 {
   ASSERT (uaddr < PHYS_BASE);
   struct s_page_entry *spe = create_s_page_entry (uaddr, writable);
-  if (spe == NULL)
-    return false;
+  if (spe == NULL) return NULL;
 
   spe->type = FILE_BASED;
   spe->info.file.f = f;
@@ -148,14 +150,14 @@ add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
   spe->info.file.zero_bytes = zero_bytes;
   spe->info.file.init_only = init_only;
 
-  return true;
+  return spe;
 }
 
 /**
  * Adds a file-based supplemental page table entry to the current process
  * that is paged into and out of the original file..
  */
-bool
+struct s_page_entry *
 vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
 		  size_t zero_bytes, bool writable)
 {
@@ -167,7 +169,7 @@ vm_add_file_page (uint8_t *uaddr, struct file *f, off_t offset,
  * that can be modified but is not written to disk, but rather later
  * becomes a memory-based page.
  */
-bool
+struct s_page_entry *
 vm_add_file_init_page (uint8_t *uaddr, struct file *f, off_t offset,
 		       size_t zero_bytes) 
 {

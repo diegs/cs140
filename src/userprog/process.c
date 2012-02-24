@@ -691,4 +691,24 @@ process_remove_file (struct thread *t, int fd)
 
 
 
+struct process_mmap* 
+mmap_create (struct thread *t, struct file *file) 
+{
+  return NULL;
+}
+
+bool mmap_add (struct process_mmap *mmap, void* uaddr, 
+                   unsigned offset)
+{
+  return false;
+}
+
+void mmap_destroy (struct process_mmap *mmap)
+{
+}
+
+int process_add_mmap (struct process_mmap *mmap)
+{
+  return -1;
+}
 
