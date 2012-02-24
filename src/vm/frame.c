@@ -56,7 +56,6 @@ static void
 frame_pin_no_lock (struct frame_entry *f)
 {
   ASSERT (!f->pinned);
-  //  printf ("%d: pinning %p\n", thread_current ()->tid, f);
   f->pinned = true;
 }
 
@@ -67,12 +66,8 @@ void
 frame_unpin (struct frame_entry *f)
 {
   ASSERT (!lock_held_by_current_thread (&frames_lock));
-
   lock_acquire (&frames_lock);
-
   ASSERT (f->pinned);
-
-  //  printf ("%d: unpinning %p\n", thread_current ()->tid, f);
   f->pinned = false;
   lock_release (&frames_lock);
 }

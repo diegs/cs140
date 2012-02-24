@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "lib/string.h"
 #include "filesys/file.h"
 #include "threads/malloc.h"
@@ -260,7 +259,6 @@ page_unswap (struct s_page_entry *spe)
     spe->info.memory.used = true;
   }
 
-  //  printf ("%d: got %p\n", thread_current ()->tid, spe->frame);
   spe->info.memory.swapped = false;
 
   /* Install the page into the page table */
