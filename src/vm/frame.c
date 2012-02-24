@@ -1,6 +1,5 @@
 #include <string.h>
 #include "threads/malloc.h"
-#include "threads/synch.h"
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/page.h"
@@ -11,10 +10,6 @@ static struct lock frames_lock;	/* Protects struct list frames */
 
 static void frame_pin_no_lock (struct frame_entry *f);
 
-static int transition_frames;
-
-static struct condition no_transitions;
-
 /**
  * Initializes the frame table
  */
@@ -24,9 +19,6 @@ frame_init (void)
   list_init (&frames);
   lock_init (&frames_lock);
   clock_hand = list_head (&frames);
-  transition_frames = 0;
-
-  cond_init (&no_transitions);
 }
 
 /**
@@ -156,8 +148,6 @@ frame_evict (struct thread *t, uint8_t *uaddr)
     lock_release (&frames_lock);
     return NULL;	/* Could not find a frame to evict */
   }
-
-  transition_frames++;
   lock_release (&frames_lock);
 
   /* Perform the eviction */
@@ -167,18 +157,12 @@ frame_evict (struct thread *t, uint8_t *uaddr)
   if (!success) 
   {
     frame_unpin (f);		/* Need to unpin */
-    f = NULL;
-  } else {
-    /* Associate with new thread */
-    f->t = t;
-    f->uaddr = uaddr;
+    return NULL;
   }
 
-  lock_acquire (&frames_lock);
-  transition_frames--;
-  if(transition_frames == 0) 
-    cond_broadcast (&no_transitions, &frames_lock);
-  lock_release (&frames_lock);
+  /* Associate with new thread */
+  f->t = t;
+  f->uaddr = uaddr;
 
   return f;
 }
@@ -208,24 +192,6 @@ frame_get (uint8_t *uaddr, enum vm_flags flags)
   }
 }
 
-static
-void clock_safe_frame_remove (struct s_page_entry *spe) 
-{
-  struct frame_entry *f = spe->frame;
-  if (&f->elem == clock_hand)
-  {
-    clock_hand = list_next (clock_hand);
-    list_remove (&f->elem);
-    if (clock_hand == list_end (&frames))
-      clock_hand = list_begin (&frames);
-  } else {
-    list_remove (&f->elem);
-  }
-
-  free (f);
-  spe->frame = NULL;	/* For safety */
-}
-
 /**
  * Deallocates a frame. Returns true if frame was deallocated
  * successfully.
@@ -236,32 +202,22 @@ frame_free (struct s_page_entry *spe)
   lock_acquire (&frames_lock);
   if (spe->frame != NULL && spe->frame->pinned != true)
   {
-    clock_safe_frame_remove (spe);
+    struct frame_entry *f = spe->frame;
+
+    if (&f->elem == clock_hand)
+    {
+      clock_hand = list_next (clock_hand);
+      list_remove (&f->elem);
+      if (clock_hand == list_end (&frames))
+	clock_hand = list_begin (&frames);
+    } else {
+      list_remove (&f->elem);
+    }
+
+    free (f);
+    spe->frame = NULL;	/* For safety */
   } 
   lock_release (&frames_lock);
 
   return true;
-}
-
-/* Shoudl only be called when frames_lock is held */
-static void frame_remove_hash_action (struct hash_elem *e, 
-                                        void *aux UNUSED) 
-{
-  struct s_page_entry *entry = 
-      hash_entry (e, struct s_page_entry, elem);
-
-  if (entry->frame != NULL) 
-    clock_safe_frame_remove (entry);
-}
-
-void 
-frame_clear (struct thread *t) 
-{
-  lock_acquire (&frames_lock);
-  if (transition_frames > 0) 
-    cond_wait (&no_transitions, &frames_lock);
-
-  hash_apply (&t->s_page_table, frame_remove_hash_action);
-
-  lock_release (&frames_lock);
 }

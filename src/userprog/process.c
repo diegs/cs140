@@ -22,7 +22,6 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "vm/frame.h"
 #ifdef VM
 #include "vm/page.h"
 #endif
@@ -252,7 +251,6 @@ process_exit (void)
 
 #ifdef VM
   /* Unallocate all remaining pages in the supplemental page table */
-  frame_clear (cur);
   lock_acquire (&cur->s_page_lock);
   hash_destroy (&cur->s_page_table, page_destroy_thread);
   lock_release (&cur->s_page_lock);
