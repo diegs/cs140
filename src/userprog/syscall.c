@@ -536,10 +536,11 @@ sys_mmap (struct intr_frame *f)
   if (mmap == NULL) return -1;
 
   /* Break file into pages, making sure to note the number of zeros
-     in the remainder of the last page, and making sure that none 
-     of the addresses we want to add overlap with the stack, the 
-     data segment or the code segment (i.e. there is no existing
-     virtual mapping in the page directory)*/
+     in the remainder of the last page, and making sure that none of
+     the addresses we want to add overlap with the stack, the data
+     segment or the code segment (i.e. there is no existing virtual
+     mapping in the page directory). All of this 
+     checking/miscellaneous stuff is handled by mmap_add*/
   uint32_t offset = 0;
   while (offset < mmap->size)
   {

@@ -694,21 +694,41 @@ process_remove_file (struct thread *t, int fd)
 struct process_mmap* 
 mmap_create (struct thread *t, struct file *file) 
 {
-  return NULL;
-}
+  struct process_mmap *mmap= malloc (sizeof (struct process_mmap));
 
+  list_init (&mmap->entries);
+  mmap->size = file_length (file);
+  mmap->id = INVALID_MMAP_ID;
+
+  return mmap;
+}
 bool mmap_add (struct process_mmap *mmap, void* uaddr, 
                    unsigned offset)
 {
+  /* Check that there is no existing mapping for the current thread
+     for this address */
+  struct thread *t = thread_current();
+  if (pagedir_get_page (t->pagedir, uaddr)) return false;
+
+  /* Check if there are zero bytes on this page */
+  uint32_t zero_bytes = 0;
+  uint32_t file_remain = mmap->size - offset;
+  if (PGSIZE - file_remain > 0) 
+    zero_bytes = PGSIZE - file_remain;
+
+  struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
+  entry->spe = NULL; // vm_add_file_page (uaddr, mmap->file, offset, ;
+
   return false;
 }
 
 void mmap_destroy (struct process_mmap *mmap)
 {
+  free (mmap);
 }
 
 int process_add_mmap (struct process_mmap *mmap)
 {
-  return -1;
+  return INVALID_MMAP_ID;
 }
 

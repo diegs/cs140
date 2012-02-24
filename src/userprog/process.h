@@ -6,6 +6,8 @@
 #include "threads/synch.h"
 #include "filesys/file.h"
 
+#define INVALID_MMAP_ID -1
+
 struct process_fd 
 {
   struct list_elem elem;     /* List placement in owning process */
