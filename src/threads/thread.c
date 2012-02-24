@@ -327,6 +327,9 @@ thread_create (const char *name, int priority,
   page_init_thread (t);
   t->saved_esp = NULL;
   t->syscall_context = false;
+
+  list_init (&t->mmap_list);
+  t->next_mmap = 0;
 #endif
 
   /* Prepare thread for first run by initializing its stack.
