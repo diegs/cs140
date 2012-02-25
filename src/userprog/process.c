@@ -788,3 +788,26 @@ int process_add_mmap (struct process_mmap *mmap)
   return mmap->id;
 }
 
+struct process_mmap *
+process_get_mmap (int id) 
+{
+  struct process_mmap *result = NULL;
+
+  struct thread *t = thread_current ();
+
+  struct list_elem *e = NULL; 
+  for (e = list_begin (&t->mmap_list); 
+        e != list_end (&t->mmap_list); e = list_next(e))
+  {
+    struct process_mmap *entry = list_entry 
+                                (e, struct process_mmap, elem);
+    if (entry->id == id) 
+    {
+      result = entry;
+      break;
+    }
+  }
+
+  return result;
+}
+
