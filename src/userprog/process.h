@@ -67,5 +67,6 @@ void mmap_destroy (struct process_mmap *mmap);
 
 int process_add_mmap (struct process_mmap *mmap);
 bool process_remove_mmap (int id);
+void process_mmap_file_close (struct file* file);
 
 #endif /* userprog/process.h */
