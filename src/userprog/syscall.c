@@ -520,8 +520,9 @@ sys_mmap (struct intr_frame *f)
   int fd = frame_arg_int (f, 1);
   void *uaddr = frame_arg_ptr (f, 2);
 
-  /* Verify that the uaddr is page aligned */
+  /* Verify that the uaddr is page aligned and is not NULL*/
   if (pg_round_down (uaddr) != uaddr) return -1;
+  if (uaddr == NULL) return -1;
 
   /* Grab file associated with fd */
   struct thread *t = thread_current ();
@@ -557,7 +558,10 @@ sys_mmap (struct intr_frame *f)
 static void 
 sys_munmap (struct intr_frame *f UNUSED)
 {
-  /* TODO */
+  int id = frame_arg_int (f, 1);
+  void *uaddr = frame_arg_ptr (f, 2);
+
+  process_remove_mmap (id);
 }
 
 /* Registers the system call handler for internal interrupts. */

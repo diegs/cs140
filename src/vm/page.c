@@ -209,6 +209,7 @@ vm_free_page (struct s_page_entry *spe)
     frame_free (spe->frame);
     spe->frame = NULL;
   }
+  hash_delete (&thread_current ()->s_page_table, &spe->elem);
   lock_release (&spe->l);
   free (spe);			/* Free s_page_entry */
 

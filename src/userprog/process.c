@@ -796,3 +796,16 @@ process_get_mmap (int id)
   return result;
 }
 
+bool
+process_remove_mmap (int id)
+{
+  struct process_mmap *mmap = process_get_mmap (id);
+  if (mmap == NULL) return false;
+
+  list_remove (&mmap->elem);
+  
+  mmap_destroy (mmap);
+  
+  return true;
+}
+
