@@ -67,5 +67,6 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
 void mmap_destroy (struct process_mmap *mmap);
 
 int process_add_mmap (struct process_mmap *mmap);
+struct process_mmap *process_get_mmap (int id);
 
 #endif /* userprog/process.h */
