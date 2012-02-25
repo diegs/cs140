@@ -51,6 +51,9 @@ process_execute (const char *file_name)
 {
   tid_t tid;
   struct process_info *pinfo =  malloc(sizeof(struct process_info));
+  if (pinfo == NULL)
+    return TID_ERROR;
+
   memset (pinfo, 0, sizeof (struct process_info));
   sema_init (&pinfo->loaded, 0);
   
@@ -58,14 +61,20 @@ process_execute (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   pinfo->args_copy = palloc_get_page (0);
   if (pinfo->args_copy == NULL) {
-    free(pinfo);
+    free (pinfo);
     return TID_ERROR;
   }
   strlcpy (pinfo->args_copy, file_name, PGSIZE);
 
   /* Extract the program name */
   int name_len = strcspn(file_name, " ");
-  char * prog_name = calloc(sizeof(char), name_len + 1);
+  char *prog_name = calloc(sizeof(char), name_len + 1);
+  if (prog_name == NULL) 
+  {
+    free (pinfo);
+    return TID_ERROR;
+  }
+
   memcpy(prog_name, file_name, name_len);
   pinfo->prog_name = prog_name;
 
@@ -175,12 +184,12 @@ process_wait (tid_t child_tid)
 }
 
 /* Creates a PCB for a thread and initialize relevant fields */
-void
+bool
 process_create_pcb (struct thread *t)
 {
   /* Allocate object */
   t->pcb = malloc (sizeof (struct process_status));
-  if (t->pcb == NULL) return;
+  if (t->pcb == NULL) return false;
 
   /* Initialize object */
   t->pcb->tid = t->tid;
@@ -196,6 +205,8 @@ process_create_pcb (struct thread *t)
 
   /* Link new thread's PCB up to its parent thread */
   list_push_back (&thread_current ()->pcb_children, &t->pcb->elem);
+
+  return true;
 }
 
 /* Free the current process's resources. */
@@ -692,7 +703,9 @@ struct process_mmap*
 mmap_create (struct file *file) 
 {
   ASSERT (file != NULL);
-  struct process_mmap *mmap= malloc (sizeof (struct process_mmap));
+  struct process_mmap *mmap = malloc (sizeof (struct process_mmap));
+  if (mmap == NULL)
+    return NULL;
 
   list_init (&mmap->entries);
   mmap->size = file_length (file);
@@ -717,6 +730,8 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
     zero_bytes = PGSIZE - file_remain;
 
   struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
+  if (entry == NULL) return false;
+
   entry->uaddr = uaddr;
   bool success = vm_add_file_page (uaddr, mmap->file, offset,
 				   zero_bytes, true);

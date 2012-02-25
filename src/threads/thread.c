@@ -315,8 +315,7 @@ thread_create (const char *name, int priority,
 
 #ifdef USERPROG
   /* Allocate PCB */
-  process_create_pcb (t);
-  if (t->pcb == NULL)
+  if (!process_create_pcb (t))
   {
     palloc_free_page (t);
     return TID_ERROR;
