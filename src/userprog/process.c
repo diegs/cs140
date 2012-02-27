@@ -726,9 +726,10 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
   /* Check if there are zero bytes on this page */
   uint32_t zero_bytes = 0;
   uint32_t file_remain = mmap->size - offset;
-  if (PGSIZE - file_remain > 0) 
-    zero_bytes = PGSIZE - file_remain;
 
+  if (file_remain < PGSIZE) 
+    zero_bytes = PGSIZE - file_remain;
+ 
   struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
   if (entry == NULL) return false;
 
