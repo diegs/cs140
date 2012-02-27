@@ -345,7 +345,7 @@ page_unfile (struct s_page_entry *spe)
   lock_acquire(&fd_all_lock);
 
   /* Read page into memory */
-  uint32_t old_pos = file_tell(info->f);
+  off_t old_pos = file_tell(info->f);
   file_seek (info->f, info->offset);
   int target_bytes = PGSIZE - info->zero_bytes;
   int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
