@@ -533,7 +533,11 @@ sys_mmap (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (t, fd);
   if (pfd == NULL) return -1;
 
-  struct process_mmap *mmap = mmap_create (pfd->file);
+  /* Make a copy of the file struct. */
+  struct file * file = file_reopen(pfd->file);
+  if (file == NULL) return -1;
+
+  struct process_mmap *mmap = mmap_create (file);
   if (mmap == NULL) return -1;
 
   /* Break file into pages, making sure to note the number of zeros

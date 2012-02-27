@@ -774,6 +774,7 @@ void mmap_destroy (struct process_mmap *mmap)
     lock_release (&t->s_page_lock);
     vm_free_page (spe);
     free (entry);
+	free(mmap->file);
   }
 
   free (mmap);
