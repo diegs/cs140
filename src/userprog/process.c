@@ -721,7 +721,20 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
   /* Check that there is no existing mapping for the current thread
      for this address */
   struct thread *t = thread_current();
+
   if (pagedir_get_page (t->pagedir, uaddr)) return false;
+
+  /* Also chheck the supplemental page table */
+  struct s_page_entry key = {.uaddr = uaddr};
+
+  lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e != NULL) 
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+  lock_release (&t->s_page_lock);
 
   /* Check if there are zero bytes on this page */
   uint32_t zero_bytes = 0;
@@ -732,6 +745,7 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
  
   struct mmap_entry *entry = malloc (sizeof (struct mmap_entry));
   if (entry == NULL) return false;
+
 
   entry->uaddr = uaddr;
   bool success = vm_add_file_page (uaddr, mmap->file, offset,
