@@ -60,7 +60,7 @@ void process_remove_file (struct thread *t, int fd);
 
 /* Functions for manipulating mmapps for a given process */
 struct process_mmap* 
-mmap_create (struct file *file);
+mmap_create (const char *filename);
 bool mmap_add (struct process_mmap *mmap, void* uaddr, 
                    unsigned offset);
 void mmap_destroy (struct process_mmap *mmap);

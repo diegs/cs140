@@ -255,13 +255,17 @@ process_exit (void)
   /* Close files that the process holds */
   struct list *fds = &cur->fd_list;
   while (!list_empty (fds))
-    {
-      struct list_elem *e = list_front (fds);
-      struct process_fd * fd = list_entry (e, struct process_fd, elem);
-      syscall_close (fd->fd);
-    }
+  {
+    struct list_elem *e = list_front (fds);
+    struct process_fd * fd = list_entry (e, struct process_fd, elem);
+
+    process_mmap_file_close (fd->file);
+
+    syscall_close (fd->fd);
+  }
 
 #ifdef VM
+
   /* Unallocate all remaining pages in the supplemental page table */
   lock_acquire (&cur->s_page_lock);
   hash_destroy (&cur->s_page_table, page_destroy_thread);
@@ -700,15 +704,17 @@ process_remove_file (struct thread *t, int fd)
 }
 
 struct process_mmap* 
-mmap_create (struct file *file_orig) 
+mmap_create (const char *filename)
 {
-  ASSERT (file_orig != NULL);
+  ASSERT (filename != NULL);
   struct process_mmap *mmap = malloc (sizeof (struct process_mmap));
   if (mmap == NULL)
     return NULL;
 
   /* Make a copy of the file struct. */
-  struct file * file = file_reopen(file_orig);
+  int fd = syscall_open (filename);
+  struct process_fd *pfd = process_get_file (thread_current (), fd);
+  struct file * file = pfd->file;
   if (file == NULL) return NULL;
 
   list_init (&mmap->entries);
@@ -791,7 +797,6 @@ void mmap_destroy (struct process_mmap *mmap)
     struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
     lock_release (&t->s_page_lock);
     vm_free_page (spe);
-    file_close (mmap->file);
     free (entry);
   }
 

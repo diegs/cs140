@@ -327,12 +327,9 @@ sys_remove (const struct intr_frame *f)
   return result;
 }
 
-static int
-sys_open (const struct intr_frame *f) 
+int
+syscall_open (const char *filename) 
 {
-  const char *filename = frame_arg_ptr (f, 1);
-  memory_verify_string (filename);
-
   lock_acquire (&fd_all_lock);
   struct file* file = filesys_open (filename); 
   if (file == NULL) 
@@ -347,12 +344,12 @@ sys_open (const struct intr_frame *f)
   if (fd_found == NULL) 
   {
     fd_found = fd_hash_init ();
-	if (fd_found == NULL)
-	{
-	  lock_release(&fd_all_lock);
-	  return -1;
+    if (fd_found == NULL)
+    {
+      lock_release(&fd_all_lock);
+      return -1;
     }
-	fd_found->filename = strdup (filename);
+    fd_found->filename = strdup (filename);
     hash_insert (&fd_all, &fd_found->elem);
   }
   /* Makes sure it isn't marked for deletion */
@@ -361,13 +358,22 @@ sys_open (const struct intr_frame *f)
     lock_release (&fd_all_lock);
     return -1;
   }
-	
+
   fd_found->count++;
   int fd = process_add_file (thread_current (), 
 			     file, fd_found->filename);
   lock_release (&fd_all_lock);
 
   return fd;
+}
+
+static int
+sys_open (const struct intr_frame *f) 
+{
+  const char *filename = frame_arg_ptr (f, 1);
+  memory_verify_string (filename);
+
+  return syscall_open (filename);
 }
 
 static int32_t
@@ -529,7 +535,7 @@ sys_mmap (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (t, fd);
   if (pfd == NULL) return -1;
 
-  struct process_mmap *mmap = mmap_create (pfd->file);
+  struct process_mmap *mmap = mmap_create (pfd->filename);
   if (mmap == NULL) return -1;
 
   /* Break file into pages, making sure to note the number of zeros
@@ -559,7 +565,6 @@ static void
 sys_munmap (struct intr_frame *f UNUSED)
 {
   int id = frame_arg_int (f, 1);
-  void *uaddr = frame_arg_ptr (f, 2);
 
   process_remove_mmap (id);
 }
