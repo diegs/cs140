@@ -175,14 +175,14 @@ page_fault (struct intr_frame *f)
   /* The page wasn't in the page table */
   if (not_present)
   {
-	/* Check if we just need to swap in the page */
+    /* Check if we just need to swap in the page */
     if (page_load ((uint8_t*)fault_addr)) return;
-	/* Check if we just need to extend the stack */
+    /* Check if we just need to extend the stack */
     if (check_stack(f, fault_addr, user)) return;
-    if (user)
-      kill (f); /* Not a valid page to load, kill process */
-    else
-      handle_kernel_error (fault_addr, f);
+    /* Not a valid page to load, kill process */
+    if (user) kill (f);
+    /* May have originated from within kernel, check for that */
+    else handle_kernel_error (fault_addr, f);
   } else { 
     /* Read/write error */	
     if (syscall_context)
@@ -196,8 +196,6 @@ page_fault (struct intr_frame *f)
     }
   }
 }
-
-
 
 bool
 check_stack (struct intr_frame *f, void * fault_addr, bool user)

@@ -204,8 +204,6 @@ vm_free_page (struct s_page_entry *spe)
   /* Free frame object if needed */
   if (spe->frame != NULL)
   {
-    while (spe->frame->pinned)
-      cond_wait (&spe->frame->unpinned, &spe->l);
     frame_free (spe->frame);
     spe->frame = NULL;
   }
@@ -300,7 +298,6 @@ page_file (struct s_page_entry *spe)
 
   ASSERT (info->f != NULL);
 
-  // TODO Think about all the race conditions ... 
   /* Unmap the file from the thread before it is written */
   struct thread *t = spe->frame->t;
 

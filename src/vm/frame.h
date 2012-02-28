@@ -13,8 +13,6 @@ struct frame_entry
   uint8_t *kaddr;		/* Physical address */
   struct list_elem elem;	/* Linked list of frame entries */
   bool pinned;			/* Whether this frame is pinned or not */
-  struct condition unpinned;	/* Condition variable to signal when a
-				   frame is unpinned */
 };
 
 void frame_init (void);

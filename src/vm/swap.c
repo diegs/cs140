@@ -6,8 +6,8 @@
 
 #define BLOCKS_PER_PAGE PGSIZE/BLOCK_SECTOR_SIZE
 
-struct bitmap *swap_table;
-struct lock swap_lock;
+struct bitmap *swap_table;	/* Directory of free/used swap blocks */
+struct lock swap_lock;		/* Protects swap_table */
 
 static inline struct block *
 get_swap (void)
@@ -21,7 +21,19 @@ get_swap (void)
 void
 swap_init (void)
 {
-  swap_table = bitmap_create (block_size (get_swap ()));
+  struct block *swap;
+  size_t size;
+
+  /* Gracefully handle absence of swap */
+  swap = get_swap ();
+  if (swap == NULL)
+    size = 0;
+  else
+    size = block_size (swap);
+
+  swap_table = bitmap_create (size);
+  if (swap_table == NULL)
+    PANIC ("Could not initialize swap");
   lock_init (&swap_lock);
 }
 

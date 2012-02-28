@@ -39,7 +39,6 @@ frame_create (struct thread *t, struct s_page_entry *spe, uint8_t *kpage)
   f->spe = spe;
   f->kaddr = kpage;
   f->pinned = true;
-  cond_init (&f->unpinned);
 
   /* Insert into list */
   lock_acquire (&frames_lock);

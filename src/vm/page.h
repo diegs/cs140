@@ -17,17 +17,17 @@ enum entry_type
 
 struct file_based
 {
-  struct file *f;
-  off_t offset;
-  size_t zero_bytes;
-  bool init_only;
+  struct file *f;		/* File struct to access the filesystem */
+  off_t offset;			/* Current offset into the file */
+  size_t zero_bytes;		/* Number of zero-padding in this page */
+  bool init_only;		/* Marks a page as write-to-swap (i.e. .bss) */
 };
 
 struct memory_based
 {
   bool used;			/* Has this page been swapped before */
   bool swapped;			/* Is this block swapped */
-  block_sector_t swap_begin;
+  block_sector_t swap_begin;	/* The starting swap block containing the page*/
 };
 
 struct s_page_entry 
