@@ -700,12 +700,16 @@ process_remove_file (struct thread *t, int fd)
 }
 
 struct process_mmap* 
-mmap_create (struct file *file) 
+mmap_create (struct file *file_orig) 
 {
-  ASSERT (file != NULL);
+  ASSERT (file_orig != NULL);
   struct process_mmap *mmap = malloc (sizeof (struct process_mmap));
   if (mmap == NULL)
     return NULL;
+
+  /* Make a copy of the file struct. */
+  struct file * file = file_reopen(file_orig);
+  if (file == NULL) return NULL;
 
   list_init (&mmap->entries);
   mmap->size = file_length (file);
@@ -787,8 +791,8 @@ void mmap_destroy (struct process_mmap *mmap)
     struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
     lock_release (&t->s_page_lock);
     vm_free_page (spe);
+    file_close (mmap->file);
     free (entry);
-	free(mmap->file);
   }
 
   free (mmap);
