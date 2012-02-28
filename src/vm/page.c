@@ -312,7 +312,7 @@ page_file (struct s_page_entry *spe)
     lock_acquire (&fd_all_lock);
     file_seek (info->f, info->offset);
     size_t bytes_write = PGSIZE - info->zero_bytes;
-    bool num_written = file_write (info->f, frame->kaddr, bytes_write);
+    size_t num_written = file_write (info->f, frame->kaddr, bytes_write);
     lock_release (&fd_all_lock);
 
     result = bytes_write == num_written;
