@@ -428,11 +428,6 @@ syscall_close (int fd)
     lock_release(&fd_all_lock);
     return;
   }
-  lock_release(&fd_all_lock);
-  /* Perform an unmapping if necessary */
-  process_mmap_file_close (pfd->file);
-
-  lock_acquire (&fd_all_lock);
   file_close (pfd->file);
 
   /* Perform syscall level bookkeeping */
