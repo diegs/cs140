@@ -44,6 +44,7 @@ page_init_thread (struct thread *t)
 
   list_init (&t->mmap_list);
   t->next_mmap = 0;
+
 }
 
 /**
@@ -80,8 +81,8 @@ install_page (struct s_page_entry *spe)
   ASSERT (pagedir_get_page (t->pagedir, upage) == NULL);
 
   bool result = pagedir_set_page (t->pagedir, upage, kpage, writable);
-  frame_unpin (spe->frame);
-
+  if (!t->pin_pages)
+	frame_unpin (spe->frame);
   return result;
 }
 
@@ -403,6 +404,58 @@ page_evict (struct thread *t, struct s_page_entry *spe)
   spe->frame = NULL;
 
   return result;
+}
+
+bool page_pin(uint8_t *fault_addr)
+{
+  struct thread *t = thread_current ();
+  uint8_t* uaddr = (uint8_t*)pg_round_down (fault_addr);
+  struct s_page_entry key = {.uaddr = uaddr};
+
+  lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL) 
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+
+  /* Lock on this supplemental page entry */
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  lock_acquire (&spe->l);
+  lock_release (&t->s_page_lock);
+  if (spe->frame == NULL)
+  {
+	lock_release(&spe->l);
+	return false;
+  }
+  frame_pin(spe->frame);
+  lock_release(&spe->l);
+  return true;
+}
+
+bool 
+page_unpin(uint8_t *fault_addr)
+{
+  struct thread *t = thread_current ();
+  uint8_t* uaddr = (uint8_t*)pg_round_down (fault_addr);
+  struct s_page_entry key = {.uaddr = uaddr};
+
+  lock_acquire (&t->s_page_lock);
+  struct hash_elem *e = hash_find (&t->s_page_table, &key.elem);
+  if (e == NULL) 
+  {
+    lock_release (&t->s_page_lock);
+    return false;
+  }
+
+  /* Lock on this supplemental page entry */
+  struct s_page_entry *spe = hash_entry (e, struct s_page_entry, elem);
+  lock_acquire (&spe->l);
+  lock_release (&t->s_page_lock);
+  frame_unpin(spe->frame);
+  lock_release(&spe->l);
+  return true;
 }
 
 /**

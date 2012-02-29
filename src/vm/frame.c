@@ -59,6 +59,20 @@ frame_pin_no_lock (struct frame_entry *f)
 }
 
 /**
+ * Acquires the frames_lock and pins a frame.
+ */
+void
+frame_pin (struct frame_entry *f)
+{
+  ASSERT (!lock_held_by_current_thread (&frames_lock));
+  lock_acquire (&frames_lock);
+  ASSERT (!f->pinned);
+  f->pinned = true;
+  lock_release (&frames_lock);
+}
+
+
+/**
  * Acquires the frames_lock and unpins a frame.
  */
 void
