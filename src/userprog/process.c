@@ -219,6 +219,18 @@ process_exit (void)
   /* Print exit message */
   printf ("%s: exit(%d)\n", cur->name, cur->exit_code);
 
+  /* Close files that the process holds */
+  struct list *fds = &cur->fd_list;
+  while (!list_empty (fds))
+  {
+    struct list_elem *e = list_front (fds);
+    struct process_fd * fd = list_entry (e, struct process_fd, elem);
+
+    process_mmap_file_close (fd->file);
+
+    syscall_close (fd->fd);
+  }
+
   /* Interact with our pcb object */
   if (cur->pcb != NULL)
   {
@@ -250,18 +262,6 @@ process_exit (void)
     file_allow_write (cur->exec_file);
     file_close (cur->exec_file);
     lock_release(&fd_all_lock);
-  }
-
-  /* Close files that the process holds */
-  struct list *fds = &cur->fd_list;
-  while (!list_empty (fds))
-  {
-    struct list_elem *e = list_front (fds);
-    struct process_fd * fd = list_entry (e, struct process_fd, elem);
-
-    process_mmap_file_close (fd->file);
-
-    syscall_close (fd->fd);
   }
 
 #ifdef VM
