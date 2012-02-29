@@ -115,8 +115,6 @@ struct frame_entry
   uint8_t *kaddr;		/* Physical address */
   struct list_elem elem;	/* Linked list of frame entries */
   bool pinned;			/* Whether this frame is pinned or not */
-  struct condition unpinned;	/* Condition variable to signal when a
-				   frame is unpinned */
 };
 
 Defines the data needed for a frame table entry. The comments describe the
@@ -291,23 +289,47 @@ the opposite (creating a cycle), but we eliminated any code that did this
 by adding a pointer from a frame table entry to its associated page table
 entry.
 
-The last concurrency item we added was a condition variable to handle
-
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
 >> the page during the eviction process?  How do you avoid a race
 >> between P evicting Q's frame and Q faulting the page back in?
+
+We have a lock on the supplemental page table entry, which must be
+acquired before a page is evicted or unevicted. Therefore, if Q faults it
+will block until P is done evicting its frame.
+
+We prevent Q from being able to write the page mid-eviction (and thus
+causing it to fault immediately) by removing the mapping from Q's page
+table before beginning the eviction process.
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
 
+We prevented this by implemented pinning for frames. Whenever a frame is
+retrieved by a process for loading it is marked as pinned. Pinned frames
+cannot be considered by the clock algorithm and therefore are not
+candidates to be given to another process Q until they are unpinned, which
+occurs after the loading process finishes.
+
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
 >> in user programs), or do you have a mechanism for "locking" frames
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
+
+Our implementation uses page faults to bring in pages as usual, since all
+of our kernel code accesses user data using the user virtual addresses. In
+project 2 we elected to go with the eax-esp trick for checking user data
+before access, and so this naturally extended to the page faulting
+code.
+
+Specifically, in our page fault handler we first attempt to pull in
+the page. If that fails (i.e. the page was not valid) then we see if we
+need to extend the stack. Then, if the processor is in the user context we
+kill the process, but if it is in the kernel process we check for the
+special variables used to signal an error to the kernel.
 
 ---- RATIONALE ----
 
@@ -318,26 +340,29 @@ The last concurrency item we added was a condition variable to handle
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
 
-Our design falls along the lines of more locks for higher parallelism, but
-we definitely wrestled with some deadlock issues as a result. The two
-areas of contention were the frame table lock and the per-process page
-(hash) table lock. These are used together to evict and then load a page
-during a fault, but they cannot be overlapped due to the possibility that
-two processes attempt to evict each others' frames simultaneously.
+For simplicity we began by using as coarse locks as possible. For this
+reason we only have one lock for the frame table, one lock for the swap
+allocation bitmap, and one lock for each process's supplemental page table
+hashmap. Still, we attempted to make the critical sections as small as
+possible by only holding these locks when accessing the data structures
+they protect and never holding them recursively.
 
-We addressed this issue by implementing pinning and condition variables to
-avoid overlapping the locks.
+This worked well and this implementation did not appear to have any
+deadlocks. However, we soon found that we needed to add locks to the
+supplemental page table entries to prevent the race conditions discussed
+above, specifically when two processes are attempting to evict and unevict
+the same frame. While the finer-grained locks solved this issue while
+still allowing for the same degree of parallelism, the potential for
+deadlock was introduced. We solved it by being as careful as possible with
+our code, reasoning about possible concurrent access patterns and
+attempting to eliminate any potential circular lock dependencies.
 
-The other piece of our design that uses fine-grained locking is the
-supplemental page table entry. We avoided this lock at first but found
-that race conditions were plentiful after addressing the deadlock issues
-described above. These locks were reasonable, as there should never be
-concurrent access to an individual entry. However, once again we had to be
-careful with recursively locking the supplemental page hash table and then
-supplemental page table entry, since that could cause deadlock. We were
-able to avoid this by linking each frame to the supplemental page table
-entry it is associated with, eliminating the need to use the hash table in
-some cases.
+In summary, our design approach was to have as coarse locks as possible
+while maximizing concurrency, only introducing fine-grained locks when
+needed while attempting to keep their uses orthogonal to other locks to
+keep potential deadlock conditions to a minimum. Though we discovered and
+avoided many deadlocks, it is admittedly very hard to say with confidence
+that we avoided them all.
 
                          MEMORY MAPPED FILES
                          ===================
