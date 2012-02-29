@@ -458,6 +458,34 @@ sys_close (struct intr_frame *f)
   syscall_close (fd);
 }
 
+/* This function performs some file operation one page at a time so
+   that we do not need to worry about having a frame removed from
+   under us */
+static int
+safe_file_block_ops (struct file *file, char *buffer, size_t size, 
+    off_t (operation) (struct file*, void*, off_t))
+{
+  size_t size_accum = 0;
+
+  while (size_accum < size) 
+  {
+    int cur_size = size - size_accum;
+    if (cur_size > PGSIZE) cur_size = PGSIZE;
+
+    char *cur_buff = buffer + size_accum;
+
+    // TODO: Add an atomic pin here to pin the page before
+    // doing the file operation
+    lock_acquire (&fd_all_lock);
+    int op_result = operation (file, cur_buff, cur_size);
+    lock_release (&fd_all_lock);
+
+    size_accum += op_result;
+    
+    if (op_result != cur_size) break;
+  }
+  return size_accum;
+}
 
 static int32_t 
 sys_read (struct intr_frame *f) 
@@ -486,9 +514,7 @@ sys_read (struct intr_frame *f)
     struct process_fd *pfd = process_get_file (thread_current (), fd);
     if (pfd == NULL) return -1;
 
-    lock_acquire (&fd_all_lock);
-    result = file_read (pfd->file, user_buffer, user_size);
-    lock_release (&fd_all_lock);
+    result = safe_file_block_ops (pfd->file, user_buffer, user_size, file_read);
   }
 
   return result;
@@ -513,9 +539,11 @@ sys_write (const struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return 0;
 
-  lock_acquire (&fd_all_lock);
-  int result =  file_write(pfd->file, buffer, size);
-  lock_release (&fd_all_lock);
+  /* Cast to get rid of warning */
+  off_t (*operation) (struct file *, void *, off_t) = 
+    (off_t (*) (struct file *, void *, off_t))file_write;
+  int result = safe_file_block_ops 
+    (pfd->file, (void*)buffer, size, operation);
 
   return result;
 }
