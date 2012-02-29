@@ -197,24 +197,32 @@ page_fault (struct intr_frame *f)
   }
 }
 
+/* Check to see if we need to extend the stack.  If so, add a page to our
+   supplementary page table and load the page into memory */
 bool
 check_stack (struct intr_frame *f, void * fault_addr, bool user)
 {
+  /* Get the stack pointer */
   void * esp = NULL;
   if (user)
   {
     esp = f->esp;
   } else {
+	/* We faulted in kernel mode.  Grab the saved esp */
     esp = thread_current ()->saved_esp;
   }
-  //TODO refactor this?
+
+  /* PUSH and PUSHA fault 4 and 32 below the stack pointer.  Any faults above the
+	 stack pointer should extend the stack as well. */
   if (esp == fault_addr || (esp - 4) == fault_addr || 
       (esp - 32) == fault_addr || 
       (fault_addr > esp && fault_addr < PHYS_BASE))
   {
+	/* Add an entry to our supplementary page table */
     bool success = vm_add_memory_page (fault_addr, true);
     if (!success) 
       kill(f);
+	/* Now load that page into memory */
     success = page_load ((uint8_t*)fault_addr);
     if (!success) 
       kill(f);

@@ -257,7 +257,17 @@ longer in the process's page table.
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
 
-TODO Evie
+First, we try loading the page containing the fault address into memory,
+in case we just needed to swap it in.  If that fails, then we check for
+stack growth conditions.
+
+First, we check if the faults were due to a PUSH or PUSHA instruction, in
+which case we fault 4 and 32, respectively, below the stack pointer.
+We extend the stack when we detect PUSH and PUSHA accesses.
+
+Next, we check to see if we faulted on a virtual address above the stack
+pointer.  Any faults above the stack pointer (and in user memory space)
+trigger stack growth.
 
 ---- SYNCHRONIZATION ----
 
