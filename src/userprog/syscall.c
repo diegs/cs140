@@ -474,21 +474,11 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size,
 
     char *cur_buff = buffer + size_accum;
 
-	/*Try to pin the page before we write to it.  If we can't, then call
-	  it back into memory by page faulting with pin_pages turned on */	
-	if (!page_pin(cur_buff))
-	{
-	  thread_current ()->pin_pages = true;
-	  memory_verify(cur_buff, 1);
-	  thread_current ()->pin_pages = false;
-	}
-
+    // TODO: Add an atomic pin here to pin the page before
+    // doing the file operation
     lock_acquire (&fd_all_lock);
     int op_result = operation (file, cur_buff, cur_size);
     lock_release (&fd_all_lock);
-
-	/*It's safe to unpin the page now */
-	page_unpin(cur_buff);
 
     size_accum += op_result;
     
@@ -517,8 +507,10 @@ sys_read (struct intr_frame *f)
       user_buffer[read_size] = input_getc ();
       read_size++;
     }
+
     result = read_size;
-  } else {	
+  } else {
+
     struct process_fd *pfd = process_get_file (thread_current (), fd);
     if (pfd == NULL) return -1;
 

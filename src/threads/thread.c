@@ -326,7 +326,7 @@ thread_create (const char *name, int priority,
   page_init_thread (t);
   t->saved_esp = NULL;
   t->syscall_context = false;
-  t->pin_pages = false;
+
   list_init (&t->mmap_list);
   t->next_mmap = 0;
 #endif

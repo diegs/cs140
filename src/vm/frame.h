@@ -19,7 +19,6 @@ void frame_init (void);
 struct frame_entry *frame_get (struct s_page_entry *spe, enum vm_flags flags);
 bool frame_free (struct frame_entry *f);
 void frame_install (struct frame_entry *f);
-void frame_pin (struct frame_entry *f);
 void frame_unpin (struct frame_entry *f);
 void frame_destroy_thread (void);
 void thread_pin_frames (struct thread *t);

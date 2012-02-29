@@ -90,7 +90,6 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-
 struct thread
 {
   /* Owned by thread.c. */
@@ -124,10 +123,7 @@ struct thread
   struct hash s_page_table;	/* Supplemental page table for process */
   struct lock s_page_lock;	/* Lock for page table */
   void *saved_esp;
-
-  /* Used for keeping track of state in page faults */
   bool syscall_context;
-  bool pin_pages;
 
   struct list mmap_list;
   int next_mmap;
@@ -148,8 +144,6 @@ struct thread
   /* Owned by thread.c. */
   unsigned magic;                     /* Detects stack overflow. */
 };
-
-
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

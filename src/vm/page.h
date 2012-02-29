@@ -63,7 +63,4 @@ void page_init_thread (struct thread *t);
 void page_destroy_thread (struct hash_elem *e, void *aux UNUSED);
 bool page_evict (struct thread *t, struct s_page_entry *spe);
 bool page_load (uint8_t *fault_addr);
-bool page_pin(uint8_t *fault_addr);
-bool page_unpin(uint8_t *fault_addr);
-
 #endif /* vm/page.h */
