@@ -462,10 +462,12 @@ sys_close (struct intr_frame *f)
    that we do not need to worry about having a frame removed from
    under us */
 static int
-safe_file_block_ops (struct file *file, char *buffer, size_t size, 
-    off_t (operation) (struct file*, void*, off_t))
+safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
 {
   size_t size_accum = 0;
+  bool read = !write;
+
+  char * tmp_buf = malloc(PGSIZE);
 
   while (size_accum < size) 
   {
@@ -474,16 +476,24 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size,
 
     char *cur_buff = buffer + size_accum;
 
-    // TODO: Add an atomic pin here to pin the page before
-    // doing the file operation
+	if (write)
+	  memcpy(tmp_buf, cur_buff, cur_size);
+	int op_result;
     lock_acquire (&fd_all_lock);
-    int op_result = operation (file, cur_buff, cur_size);
+	if (read)
+      op_result = file_read (file, tmp_buf, cur_size);
+	else
+	  op_result = file_write (file, tmp_buf, cur_size);
     lock_release (&fd_all_lock);
+
+	if (read)
+	  memcpy(cur_buff, tmp_buf, cur_size);
 
     size_accum += op_result;
     
     if (op_result != cur_size) break;
   }
+  free(tmp_buf);
   return size_accum;
 }
 
@@ -514,7 +524,7 @@ sys_read (struct intr_frame *f)
     struct process_fd *pfd = process_get_file (thread_current (), fd);
     if (pfd == NULL) return -1;
 
-    result = safe_file_block_ops (pfd->file, user_buffer, user_size, file_read);
+    result = safe_file_block_ops (pfd->file, user_buffer, user_size, false);
   }
 
   return result;
@@ -539,11 +549,8 @@ sys_write (const struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return 0;
 
-  /* Cast to get rid of warning */
-  off_t (*operation) (struct file *, void *, off_t) = 
-    (off_t (*) (struct file *, void *, off_t))file_write;
   int result = safe_file_block_ops 
-    (pfd->file, (void*)buffer, size, operation);
+    (pfd->file, (void*)buffer, size, true);
 
   return result;
 }
