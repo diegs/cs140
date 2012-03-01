@@ -383,14 +383,64 @@ that we avoided them all.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* Stores the information that allows us to identify which pages in
+   virtual memory belong to a given mmapping. */
+struct mmap_entry
+{
+  struct list_elem elem;    /* list_elem for storage in process_mmap */
+  uint8_t *uaddr;           /* Virtual page that is backed by a file */
+};
+
+/* Stores the data that is common to all of the individual page 
+   mappings for a single mmapped file. */
+struct process_mmap
+{
+  struct list_elem elem;    /* list_elem for storage in a process */
+
+  struct file *file;        /* The file that is backing our pages */
+  struct list entries;      /* List of virtual pages in this mmap */
+  unsigned size;            /* Total size of the file */
+  int id;                   /* mmap id for this mmap */
+};
+
+In the thread struct, we added the following fields:
+struct thread 
+{
+  ...
+  
+  struct list mmap_list;
+  int next_mmap;
+
+  ...
+};
+
+mmap_list contains the list of mmapped files.
+next_mmap represents that next available mmap_id.
+
+
  ---- ALGORITHMS ----
 
 >> C2: Describe how memory mapped files integrate into your virtual
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+We leverage the virtual memory code by creating a writable FILE_BASED
+virtual page for each page in the file. When we remove a mmap, we 
+simply free the virtual memory pages that the file backs. Our virtual
+memory code automatically synchronizes with the file upon freeing.
+Swap faulting and eviction differs from file faulting only in the way
+that we restore/store the pages. We restore/store swap pages from/in
+the swap partition and we use the normal file system for file based
+files.  An additional difference is that the file pages are
+potentially not written entirely to memory if they represent the end
+of a file (i.e.  the page extends beyond the region of the file that
+it is supposed to represent).
+
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+
+We determine whether a new file mapping overlaps an existing segment
+by checking if there is an existing mapping in page directory.
 
 ---- RATIONALE ----
 
@@ -400,6 +450,14 @@ that we avoided them all.
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+
+Our implementation shares all of the code for faulting the page in
+from file. Since the executable data can not be written back, we
+transform the page entry into a swap entry the first time that it read
+in. This means that the data page will never be written back to the
+executable. In the case of mmapped pages, we do not perform this 
+transformation. This means that it will be written back to the file on
+an eviction or a free.
 
                            SURVEY QUESTIONS
                            ================
