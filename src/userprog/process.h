@@ -18,20 +18,24 @@ struct process_fd
   int fd;
 };
 
+/* Stores the information that allows us to identify which pages in
+   virtual memory belong to a given mmapping. */
 struct mmap_entry
 {
-  struct list_elem elem;
-  uint8_t *uaddr;
+  struct list_elem elem;    /* list_elem for storage in process_mmap */
+  uint8_t *uaddr;           /* Virtual page that is backed by a file */
 };
 
+/* Stores the data that is common to all of the individual page 
+   mappings for a single mmapped file. */
 struct process_mmap
 {
-  struct list_elem elem;
+  struct list_elem elem;    /* list_elem for storage in a process */
 
-  struct file *file;
-  struct list entries;
-  unsigned size;
-  int id;
+  struct file *file;        /* The file that is backing our pages */
+  struct list entries;      /* List of virtual pages in this mmap */  
+  unsigned size;            /* Total size of the file */
+  int id;                   /* mmap id for this mmap */
 };
 
 struct process_status

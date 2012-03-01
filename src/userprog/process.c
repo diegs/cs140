@@ -771,6 +771,8 @@ bool mmap_add (struct process_mmap *mmap, void* uaddr,
   return true;
 }
 
+/* Frees the memmory associated with an mmap and unmaps its pages
+   from memory */
 void mmap_destroy (struct process_mmap *mmap)
 {
   /* Unmap each of the entries in the entire map */
@@ -803,6 +805,7 @@ void mmap_destroy (struct process_mmap *mmap)
   free (mmap);
 }
 
+/* Adds the mmap to the current process and returns its id */
 int process_add_mmap (struct process_mmap *mmap)
 {
   struct thread *t = thread_current ();
@@ -813,6 +816,7 @@ int process_add_mmap (struct process_mmap *mmap)
   return mmap->id;
 }
 
+/* Finds the mmap with the given id */
 static struct process_mmap *
 process_get_mmap (int id) 
 {
@@ -836,6 +840,7 @@ process_get_mmap (int id)
   return result;
 }
 
+/* Helper for cleaning up a an mmapping from its process. */
 static bool
 process_kill_mmap (struct process_mmap *mmap) 
 {
