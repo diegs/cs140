@@ -204,6 +204,7 @@ vm_free_page (struct s_page_entry *spe)
   /* Free frame object if needed */
   if (spe->frame != NULL)
   {
+	pagedir_clear_page (thread_current ()->pagedir, spe->uaddr);
     frame_free (spe->frame);
     spe->frame = NULL;
   }
@@ -380,7 +381,6 @@ page_evict (struct thread *t, struct s_page_entry *spe)
 {
   ASSERT (spe != NULL);
 
-  /* Lock on this supplemental page entry */
   pagedir_clear_page (t->pagedir, spe->uaddr);
 
   /* Perform eviction */
