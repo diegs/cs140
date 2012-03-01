@@ -468,6 +468,7 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
   bool read = !write;
 
   char * tmp_buf = malloc(PGSIZE);
+  if (tmp_buf == NULL) return -1;
 
   while (size_accum < size) 
   {
