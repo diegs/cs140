@@ -207,15 +207,15 @@ frame_free (struct frame_entry *f)
   if (f->pinned == false)
   {
     if (&f->elem == clock_hand)
-      {
+    {
 	clock_hand = list_next (clock_hand);
 	list_remove (&f->elem);
 	if (clock_hand == list_end (&frames))
 	  clock_hand = list_begin (&frames);
-      } else {
+    } else {
       list_remove (&f->elem);
     }
-
+	palloc_free_page(f->kaddr);
     free (f);
   }
   lock_release (&frames_lock);
