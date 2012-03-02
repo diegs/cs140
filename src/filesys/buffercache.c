@@ -17,6 +17,7 @@ static int buffercache_find_entry (int sector);
 static int buffercache_evict(void);
 static void buffercache_read_ahead_if_necessary(struct cache_entry *entry);
 static void buffercache_flush_entry (struct cache_entry *entry);
+static int clock_algorithm(void);
 static int clock_next(void);
 
 /**
@@ -160,6 +161,12 @@ buffercache_allocate_block (struct cache_entry *entry)
 static void
 buffercache_flush_entry (struct cache_entry *entry)
 {
+  if (entry->accessed & DIRTY)
+  {
+	//write it
+  }
+
+  entry->accessed |= CLEAN;	
 }
 
 /**
@@ -187,7 +194,8 @@ buffercache_find_entry (int sector)
   int i;
   for (i = 0; i < cache_size; i++)
   {
-	
+	if (cache[i].accessed & CLEAN)
+	  return i;
   }
   return -1;
 }
@@ -196,25 +204,29 @@ buffercache_find_entry (int sector)
    disk */
 static int buffercache_evict()
 {
-  	
-	
-  return -1;
+  int evicted = clock_algorithm (); 
+  if (evicted == -1) return -1;
+  buffercache_flush_entry(&cache[evicted]);
+  return evicted;
 }
 
 
 /* Runs the clock algorithm to find the next entry to evict.  The cache
-   lock should be held when calling this */
-static int 
+   lock should be held when calling this.  Returns -1 if it couldn't find
+   an entry to free */
+static int
 clock_algorithm(void)
 {
-  ASSERT(lock_held_by_current_thread(&cache_lock));
+  ASSERT(lock_held_by_current_thread (&cache_lock));
+
   int clock_start = clock_next ();
-  struct cache_entry e = cache[clock_start];
+  struct cache_entry * e = &cache[clock_start];
 	
-  while (e.state == WRITING)
+  while (e->state == WRITING)
   {	
-	e = cache[clock_next ()];
-	if (clock_hand == clock_start) return NULL;
+	e = &cache[clock_next ()];
+	/* Check that we haven't looped all the way around */
+	if (clock_hand == clock_start) return -1;
   }
   return clock_hand;
 }
