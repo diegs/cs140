@@ -13,8 +13,8 @@ static int cache_size;		  /* Size of the cache */
 static int clock_hand;		  /* For clock algorithm */
 
 static bool buffercache_allocate_block (struct cache_entry *entry);
-static struct cache_entry * buffercache_find_entry (const block_sector_t sector);
-static struct cache_entry * buffercache_evict (void);
+static int buffercache_find_entry (const block_sector_t sector);
+static int buffercache_evict (void);
 static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
 static void buffercache_flush_entry (struct cache_entry *entry);
 static int clock_algorithm (void);
@@ -93,6 +93,7 @@ int
 buffercache_write (const block_sector_t sector, const int sector_ofs,
 		   const off_t size, const void *buf)
 {
+
   struct cache_entry *entry;
 
   /* Searches for an existing entry and returns it locked */
@@ -143,6 +144,7 @@ buffercache_flush (void)
   }
 
   lock_release (&cache_lock);
+
   return true;
 }
 
@@ -199,7 +201,7 @@ buffercache_read_ahead_if_necessary (const block_sector_t sector)
 
 /* Looks for an entry  */
 static struct cache_entry *
-buffercache_find_entry (const block_sector_t sector)
+buffercache_find_entry (int sector)
 {
   lock_acquire(&cache_lock);
   struct cache_entry * e;
