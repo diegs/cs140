@@ -19,8 +19,6 @@ static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
 static void buffercache_flush_entry (struct cache_entry *entry);
 static int clock_algorithm (void);
 static int clock_next (void);
-struct cache_entry * buffercache_find_open_entry();
-struct cache_entry * buffercache_get_clean_entry();
 
 /**
  * Initializes the buffer cache system
@@ -68,19 +66,16 @@ buffercache_read (const block_sector_t sector, const int sector_ofs,
   if (entry == NULL)
   {
 	/* Try to free a cache entry */
-	entry = buffercache_get_clean_entry();
+	entry = buffercache_evict();
 
 	/* If that failed too, read it without caching */
 	if (entry == NULL)
 	{
-	  /* Todo: kernel space bounce? */
 	  block_read (fs_device, sector, buf);
 	  return size;
 	}
-
 	/* Read the file block into our cache entry */
 	block_read (fs_device, sector, entry->kaddr);
-	
 	entry->accessed |= ACCESSED;
   }
   /* Copy it from cache into buf*/    
@@ -107,7 +102,7 @@ buffercache_write (const block_sector_t sector, const int sector_ofs,
   if (entry == NULL)
   {
 	/* Try to free a cache entry */
-	entry = buffercache_get_clean_entry ();
+	entry = buffercache_evict();
 
 	/* If that failed too, read it without caching */
 	if (entry == NULL)
@@ -166,6 +161,7 @@ buffercache_flush_entry (struct cache_entry *entry)
   }
 	
   /* Reset entry to blank state */
+  entry->kaddr = NULL;
   entry->state = READY;
   entry->accessed = CLEAN;
   entry->sector = 0;
@@ -201,7 +197,7 @@ buffercache_read_ahead_if_necessary (const block_sector_t sector)
   return;
 }
 
-/* Looks for an entry for the sector */
+/* Looks for an entry  */
 static struct cache_entry *
 buffercache_find_entry (const block_sector_t sector)
 {
@@ -228,7 +224,7 @@ buffercache_find_entry (const block_sector_t sector)
 static struct cache_entry * buffercache_evict()
 {
   lock_acquire(&cache_lock);
-  int evicted = clock_algorithm ();
+  int evicted = clock_algorithm (); 
   if (evicted == -1) return NULL;
   struct cache_entry * e = &cache[evicted];
   lock_acquire(&e->l);
@@ -237,37 +233,15 @@ static struct cache_entry * buffercache_evict()
   return e;
 }
 
-/* Returns an entry ready for use.  May evict another entry */
-struct cache_entry *
-buffercache_get_clean_entry()
-{
-  struct cache_entry * e;
-  e = buffercache_find_open_entry ();
-  if (e == NULL)
-	e = buffercache_evict ();
-  return e;
-}
-
 /* Searches for an open entry in the buffer cache */
-struct cache_entry *
-buffercache_find_open_entry()
+int buffercache_find_open_entry()
 {
   int i;
-  struct cache_entry * e;
-  lock_acquire(&cache_lock);
   for (i = 0; i < cache_size; i++)
   {
-	e = &cache[i];
-	/* Found one! */
-	if (e->accessed == CLEAN)
-	{
-	  lock_acquire(&e->l);
-	  lock_release(&cache_lock);
-	  return e;
-	}
+	if (cache[i].kaddr == NULL) return i;
   }
-  lock_release(&cache_lock);
-  return NULL;
+  return -1;
 }
 
 /**
