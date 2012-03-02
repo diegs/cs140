@@ -23,14 +23,14 @@ filesys_init (bool format)
     PANIC ("No file system device found, can't initialize file system.");
 
   inode_init ();
+  buffercache_init (BUFFERCACHE_SIZE);
   free_map_init ();
-
 
   if (format) 
     do_format ();
 
   free_map_open ();
-  buffercache_init (BUFFERCACHE_SIZE);
+  
 }
 
 /* Shuts down the file system module, writing any unwritten data
