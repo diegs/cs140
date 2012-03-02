@@ -1,9 +1,11 @@
+#include <debug.h>
 #include "filesys/buffercache.h"
 #include "filesys/filesys.h"
 #include "devices/block.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "lib/string.h"
+
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
@@ -15,6 +17,7 @@ static int buffercache_find_entry (int sector);
 static int buffercache_evict(void);
 static void buffercache_read_ahead_if_necessary(struct cache_entry *entry);
 static void buffercache_flush_entry (struct cache_entry *entry);
+static int clock_next(void);
 
 /**
  * Initializes the buffer cache system
@@ -189,7 +192,40 @@ buffercache_find_entry (int sector)
   return -1;
 }
 
+/* Use the clock algorithm to find an entry to evict and flush it to
+   disk */
 static int buffercache_evict()
 {
+  	
+	
   return -1;
+}
+
+
+/* Runs the clock algorithm to find the next entry to evict.  The cache
+   lock should be held when calling this */
+static int 
+clock_algorithm(void)
+{
+  ASSERT(lock_held_by_current_thread(&cache_lock));
+  int clock_start = clock_next ();
+  struct cache_entry e = cache[clock_start];
+	
+  while (e.state == WRITING)
+  {	
+	e = cache[clock_next ()];
+	if (clock_hand == clock_start) return NULL;
+  }
+  return clock_hand;
+}
+
+/* Helper function for the clock algorithm which treats the entries as a
+   circularly linked list */
+static int 
+clock_next(void)
+{
+  clock_hand = clock_hand + 1;
+  if (clock_hand == cache_size)
+	clock_hand = 0;
+  return clock_hand;
 }
