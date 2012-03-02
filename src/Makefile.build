@@ -36,7 +36,6 @@ devices_SRC += devices/intq.c		# Interrupt queue.
 devices_SRC += devices/rtc.c		# Real-time clock.
 devices_SRC += devices/shutdown.c	# Reboot and power off.
 devices_SRC += devices/speaker.c	# PC speaker.
-
 # Library code shared between kernel and user programs.
 lib_SRC  = lib/debug.c			# Debug helpers.
 lib_SRC += lib/random.c			# Pseudo-random numbers.
@@ -74,6 +73,7 @@ filesys_SRC += filesys/file.c		# Files.
 filesys_SRC += filesys/directory.c	# Directories.
 filesys_SRC += filesys/inode.c		# File headers.
 filesys_SRC += filesys/fsutil.c		# Utilities.
+filesys_SRC += filesys/buffercache.c	# Buffer Cache
 
 SOURCES = $(foreach dir,$(KERNEL_SUBDIRS),$($(dir)_SRC))
 OBJECTS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(SOURCES)))

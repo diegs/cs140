@@ -1,7 +1,9 @@
 #include "filesys/buffercache.h"
 #include "filesys/filesys.h"
 #include "devices/block.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "lib/string.h"
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
@@ -9,6 +11,10 @@ static int cache_size;		  /* Size of the cache */
 static int clock_hand;		  /* For clock algorithm */
 
 static bool buffercache_allocate_block (struct cache_entry *entry);
+static int buffercache_find_entry (int sector);
+static int buffercache_evict(void);
+static void buffercache_read_ahead_if_necessary(struct cache_entry *entry);
+static void buffercache_flush_entry (struct cache_entry *entry);
 
 /**
  * Initializes the buffer cache system
@@ -57,15 +63,15 @@ buffercache_read (int sector, void *buf)
   if (entry_num != -1) 
   {
     /* Read from the cache entry */
-    entry = &cache[i];
-      buffercache_read_ahead_if_neccessary ();
+    entry = &cache[entry_num];
+    buffercache_read_ahead_if_necessary (entry);
     entry->accessed |= ACCESSED;
     
-    memcpy (buf, entry->kaddr, BLOCK_SECTOR_SIZE);
+    memcpy ((void *)buf, (void *)entry->kaddr, BLOCK_SECTOR_SIZE);
     lock_release (&entry->l);
   } else {
     /* Failsafe: bypass the cache */
-    block_sector_read (fs_device, sector, buf);
+    block_read (fs_device, sector, buf);
   }
 
   return BLOCK_SECTOR_SIZE;
@@ -89,14 +95,14 @@ buffercache_write (int sector, const void *buf)
   if (entry_num != -1) 
   {
     /* Read from the cache entry */
-    entry = &cache[i];
-    memcpy (entry->kaddr, buf, BLOCK_SECTOR_SIZE);
+    entry = &cache[entry_num];
+    memcpy ((void *)entry->kaddr, (void *)buf, BLOCK_SECTOR_SIZE);
     entry->accessed |= DIRTY;
     /* TODO: invoke read-ahead if necessary */
     lock_release (&entry->l);
   } else {
     /* Failsafe: bypass the cache */
-    block_sector_write (fs_device, sector, buf);
+    block_write (fs_device, sector, buf);
   }
 
   return BLOCK_SECTOR_SIZE;
@@ -115,9 +121,9 @@ buffercache_flush (void)
   {
     if (cache[i].accessed & DIRTY)
     {
-      lock_acquire (&cache[i]->l);
+      lock_acquire (&cache[i].l);
       buffercache_flush_entry (&cache[i]);
-      lock_release (&cache[i]->l);
+      lock_release (&cache[i].l);
     }
   }
 
@@ -132,21 +138,23 @@ buffercache_flush (void)
 static bool
 buffercache_allocate_block (struct cache_entry *entry)
 {
-  entry->kaddr = palloc_get_page (0);
-  if (entry->kaddr == NULL) return false;
+  entry->kaddr = (uint32_t)palloc_get_page (0);
+  if ((void *)entry->kaddr == NULL) return false;
 
   entry->state = READY;
   entry->accessed = CLEAN;
 
   lock_init (&entry->l);
   cond_init (&entry->c);
+
+  return true;
 }
 
 /**
  * Flushes the specified cache entry to disk. Assumes the entry lock is
  * already held.
  */
-static int
+static void
 buffercache_flush_entry (struct cache_entry *entry)
 {
 }
@@ -168,4 +176,20 @@ buffercache_read_ahead_if_necessary (struct cache_entry *entry)
   if (entry_num != -1) return;	/* Already pre-fetched */
 
   /* TODO Invoke pre-fetch */
+}
+
+static int
+buffercache_find_entry (int sector)
+{
+  int i;
+  for (i = 0; i < cache_size; i++)
+  {
+	
+  }
+  return -1;
+}
+
+static int buffercache_evict()
+{
+  return -1;
 }

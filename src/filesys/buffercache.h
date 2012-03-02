@@ -29,7 +29,7 @@ enum cache_accessed
  */
 struct cache_entry
 {
-  uint16_t kaddr;		/* Address of cache block */
+  uint32_t kaddr;		/* Address of cache block */
   int next_sector;		/* Sector number of next sector */
   enum cache_state state;	/* Current state of block */
   enum cache_accessed accessed;	/* Accessed bits for block */
