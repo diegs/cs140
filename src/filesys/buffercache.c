@@ -74,13 +74,12 @@ buffercache_read (const block_sector_t sector, const int sector_ofs,
     ASSERT (lock_held_by_current_thread (&entry->l));
 
     entry->accessed |= ACCESSED;
-    memcpy ((void*)buf, (void*)entry->kaddr, BLOCK_SECTOR_SIZE);
+    memcpy ((void*)buf, (void*)entry->kaddr + sector_ofs, size);
 
     lock_release (&entry->l);
   } else {
     /* Failsafe: bypass the cache */
     /* TODO: use bounce buffer */
-    block_read (fs_device, sector, buf);
   }
 
   buffercache_read_ahead_if_necessary (sector);
@@ -114,10 +113,16 @@ buffercache_write (const block_sector_t sector, const int sector_ofs,
     memcpy ((void *)entry->kaddr + sector_ofs, (void *)buf, size);
 
     lock_release (&entry->l);
+
+    /* We are done with this block */
+    lock_acquire (&cache_lock);
+    entry->accessors--;
+    if (entry->accessors == 0)
+      cond_broadcast (&entry->c, &cache_lock);
+    lock_release (&cache_lock);
   } else {
     /* Failsafe: bypass the cache */
     /* TODO: use bounce buffer */
-    block_write (fs_device, sector, buf);
   }
 
   buffercache_read_ahead_if_necessary (sector);
@@ -133,12 +138,12 @@ buffercache_flush (void)
 {
   int i;
 
-  lock_acquire (&cache_lock);
-
   for (i = 0; i < cache_size; i++)
+  {
+    lock_acquire (&cache_lock);
     buffercache_flush_entry (&cache[i]);
-
-  lock_release (&cache_lock);
+    lock_release (&cache_lock);
+  }
 }
 
 /**
@@ -150,49 +155,59 @@ buffercache_allocate_block (struct cache_entry *entry)
   entry->kaddr = (uint32_t)palloc_get_page (0);
   if ((void *)entry->kaddr == NULL) return false;
 
+  entry->accessors = 0;
   entry->sector = -1;
   entry->state = READY;
   entry->accessed = CLEAN;
 
-  lock_init (&entry->l);
+  lock_init (&entry->l);	/* TODO remove? */
   cond_init (&entry->c);
 
   return true;
 }
 
 /**
- * Flushes the specified cache entry to disk if necssary.
+ * Flushes the specified cache entry to disk (if necssary).
  */
 static void
 buffercache_flush_entry (struct cache_entry *entry)
 {
-  lock_acquire (&entry->l);
-
-  if (entry->accessed & DIRTY)
+  /* Only flush a dirty entry that is fully read/written */
+  if (entry->accessed & DIRTY && entry->state == READY)
   {
+    /* Wait for current accessors to finish */
+    entry->state = WRITE_REQUESTED;
+    while (entry->accessors > 0)
+      cond_wait (&entry->c, &cache_lock);
+    
     /* Write to disk */
+    entry->state = WRITING;	/* Tell threads block is writing */
+    lock_release (&cache_lock);
+
+    /* Perform I/O */
+    block_write (fs_device, entry->sector, (void*)entry->kaddr);
+
+    /* Fix up entry */
+    lock_acquire (&cache_lock);
+    entry->state = READY;	/* No longer writing */
+    entry->accessed &= ~DIRTY;	/* No longer dirty */
+    cond_broadcast (&entry->c, &cache_lock); /* Tell threads writing is done */
   }
-
-  entry->accessed |= CLEAN;
-
-  lock_release (&entry->l);
 }
 
 /**
  * Invokes a read-ahead thread for the given cache entry if needed.
  */
 static void
-buffercache_read_ahead_if_necessary (const block_sector_t sector)
+buffercache_read_ahead_if_necessary (const block_sector_t sector UNUSED)
 {
   /* TODO implement pre-fetch */
   return;
 }
 
 /**
- * Returns the cache entry number for the given sector if it is cached,
- * else -1. Acquires the cache lock.
- *
- * Returns the entry locked, or NULL if no entry could be evicted.
+ * Returns the cache entry for the given sector if it is cached,
+ * else NULL. Acquires the cache lock.
  */
 static struct cache_entry *
 buffercache_find_entry (const block_sector_t sector)
@@ -205,9 +220,20 @@ buffercache_find_entry (const block_sector_t sector)
   {
     if (cache[i].sector == sector)
     {
-      lock_acquire (&cache[i].l);
-      lock_release (&cache_lock);
-      return &cache[i];
+      /* If it's being read or written, wait */
+      while (cache[i].state != READY)
+	cond_wait (&cache[i].c, &cache_lock);
+
+      /* Double-check in case it was evicted */
+      if (cache[i].sector != sector)
+      {
+	i = 0;		/* Restart search */
+	continue;
+      } else {
+	cache[i].accessors++;	/* Prevent eviction */
+	lock_release (&cache_lock);
+	return &cache[i];
+      }
     }
   }
 
@@ -226,8 +252,6 @@ static struct cache_entry *
 buffercache_evict (void)
 {
   struct cache_entry *e;
-
-  ASSERT (lock_held_by_current_thread (&cache_lock));
 
   e = clock_algorithm ();
   if (e == NULL) return NULL;
@@ -252,36 +276,34 @@ clock_algorithm (void)
 {
   int clock_start;
   struct cache_entry *e;
-  bool acquired;
 
-  ASSERT (lock_held_by_current_thread (&cache_lock));
+  lock_acquire (&cache_lock);
 
   clock_start = clock_next ();
+  while (cache[clock_start].state != READY)
+    clock_start = clock_next ();
+
   e = &cache[clock_start];
 
   do
   {
-    /* If lock is already acquired, ignore this entry */
-    acquired = lock_try_acquire (&e->l);
-    if (!acquired) continue;
-
-    if (e->state == WRITING)
+    /* Ignore if some I/O is happening to this block, ignore */
+    if (e->state == READY)
     {
-      /* Some I/O is happening to this block, ignore */
-      lock_release (&e->l);
-      e = &cache[clock_next ()];
-    } else if (e->accessed & ACCESSED) {
-      /* Access bit is set, unset it and continue */
-      e->accessed &= ~ACCESSED;
-      lock_release (&e->l);
-      e = &cache[clock_next ()];
-    } else {
-      /* Access bit is not set, return this entry (locked) */
-      return e;
+      if (e->accessed & ACCESSED) {
+	/* Access bit is set, unset it and continue */
+	e->accessed &= ~ACCESSED;
+      } else {
+	/* Access bit is not set, return this entry */
+	break;
+      }
     }
-
+    e = &cache[clock_next ()];
   } while (clock_hand != clock_start);
 
+  /* Claim this entry for ourselves */
+  e->state = WRITE_REQUESTED;
+  lock_release (&cache_lock);
   return e;
 }
 
