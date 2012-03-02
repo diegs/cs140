@@ -32,6 +32,7 @@ enum cache_accessed
 struct cache_entry
 {
   uint32_t kaddr;		/* Address of cache block */
+  block_sector_t sector;	/* Sector of block */
   enum cache_state state;	/* Current state of block */
   enum cache_accessed accessed;	/* Accessed bits for block */
   struct lock l;		/* To lock the block */
@@ -43,6 +44,6 @@ int buffercache_read (const block_sector_t sector, const int sector_ofs,
 		      const off_t size, void *buf);
 int buffercache_write (const block_sector_t sector, const int sector_ofs,
 		       const off_t size, const void *buf);
-bool buffercache_flush (void);
+void buffercache_flush (void);
 
 #endif

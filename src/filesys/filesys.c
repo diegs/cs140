@@ -25,7 +25,7 @@ filesys_init (bool format)
   inode_init ();
   free_map_init ();
   if (!buffercache_init (BUFFERCACHE_SIZE))
-    PANIC ("Could not initialize buffer cache, cowardly panicking!");
+    PANIC ("Could not create buffer cache, can't initialize file system.");
 
   if (format) 
     do_format ();
