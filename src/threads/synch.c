@@ -243,7 +243,7 @@ lock_try_acquire (struct lock *lock)
 
   ASSERT (lock != NULL);
   ASSERT (!lock_held_by_current_thread (lock));
-
+  enum intr_level old_level = intr_disable ();
   success = sema_try_down (&lock->semaphore);
   if (success)
   {
@@ -253,7 +253,7 @@ lock_try_acquire (struct lock *lock)
     /* Priority Donation: add to list of locks we hold */
     list_push_back (&t->priority_holding, &lock->priority_holder);
   }
-
+  intr_set_level (old_level);
   return success;
 }
 
