@@ -13,15 +13,20 @@ static int cache_size;		  /* Size of the cache */
 static int clock_hand;		  /* For clock algorithm */
 
 static bool buffercache_allocate_block (struct cache_entry *entry);
-static int buffercache_find_entry (const block_sector_t sector);
-static int buffercache_evict (void);
-static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
+static struct cache_entry *buffercache_find_entry (const block_sector_t sector);
+static struct cache_entry *buffercache_replace (const block_sector_t sector);
+static void buffercache_read_ahead_if_necessary (const block_sector_t
+sector);
+static void
+buffercache_load_entry (struct cache_entry *entry, const block_sector_t sector);
+
 static void buffercache_flush_entry (struct cache_entry *entry);
-static int clock_algorithm (void);
-static int clock_next (void);
+static struct cache_entry *clock_algorithm (void);
+static inline int clock_next (void);
 
 /**
- * Initializes the buffer cache system
+ * Initializes the buffer cache system. Returns true on success, false on
+ * error.
  */
 bool
 buffercache_init (const size_t size)
@@ -29,6 +34,7 @@ buffercache_init (const size_t size)
   int i;
   bool result;
 
+  /* Set the cache size */
   cache_size = size;
 
   /* Initialize list of pages */
@@ -37,7 +43,7 @@ buffercache_init (const size_t size)
   lock_init (&cache_lock);
 
   /* Allocate the cache pages */
-  for (i=0; i<cache_size; i++)
+  for (i = 0; i < cache_size; i++)
   {
     result = buffercache_allocate_block (&cache[i]);
     if (!result) return false;
@@ -50,102 +56,101 @@ buffercache_init (const size_t size)
 }
 
 /**
- * Reads a sector from sector into buf. Returns the number of bytes
- * read, or -1 on failure.
+ * Reads a sector from sector into buf. Does not do bounds checking on
+ * sector_ofs and size.
+ *
+ * Returns the number of bytes read, or -1 on failure.
  */
 int
 buffercache_read (const block_sector_t sector, const int sector_ofs,
 		  const off_t size, void *buf)
 {
-  int entry_num;
   struct cache_entry *entry;
 
-  /* Finds an entry and returns it locked */
-  entry_num = buffercache_find_entry (sector);
-  if (entry_num == -1)
-    entry_num = buffercache_evict ();
+  /* Finds an entry and returns it with accessors incremented */
+  entry = buffercache_find_entry (sector);
+  if (entry == NULL)
+    entry = buffercache_replace (sector);
 
-  if (entry_num != -1) 
+  if (entry != NULL)
   {
     /* Read from the cache entry */
-    entry = &cache[entry_num];
+    memcpy ((void*)buf, (void*)entry->kaddr + sector_ofs, size);
 
+    /* We are done with this block */
+    lock_acquire (&cache_lock);
     entry->accessed |= ACCESSED;
-
-	/* Copy it into our cache */    
-    memcpy ((void *)buf, (void *)entry->kaddr, BLOCK_SECTOR_SIZE);
-    lock_release (&entry->l);
-    buffercache_read_ahead_if_necessary (sector);
+    entry->accessors--;
+    if (entry->accessors == 0)
+      cond_broadcast (&entry->c, &cache_lock);
+    lock_release (&cache_lock);
   } else {
     /* Failsafe: bypass the cache */
-	/* TODO: bounce buffer */
-    block_read (fs_device, sector, buf);
+    /* TODO: use bounce buffer */
   }
+
+  buffercache_read_ahead_if_necessary (sector);
 
   return size;
 }
 
 /**
- * Writes a sector from buf into sector. Returns the number of bytes
- * written, or -1 on failure.
+ * Writes a sector from buf into sector. Does not do bounds checking on
+ * sector_ofs and size.
+ * 
+ * Returns the number of bytes written, or -1 on failure.
  */
 int
 buffercache_write (const block_sector_t sector, const int sector_ofs,
 		   const off_t size, const void *buf)
 {
-  int entry_num;
   struct cache_entry *entry;
 
   /* Finds an entry and returns it locked */
-  entry_num = buffercache_find_entry (sector);
-  if (entry_num == -1)
-    entry_num = buffercache_evict ();
+  entry = buffercache_find_entry (sector);
+  if (entry == NULL)
+    entry = buffercache_replace (sector);
 
-  if (entry_num != -1) 
+  if (entry != NULL)
   {
-    /* Read from the cache entry */
-    entry = &cache[entry_num];
-
-	/* Write to the cache */
+    /* Write to cache entry */
     memcpy ((void *)entry->kaddr + sector_ofs, (void *)buf, size);
-    entry->accessed |= DIRTY;
-    lock_release (&entry->l);
 
-	buffercache_read_ahead_if_necessary (sector);
+    /* We are done with this block */
+    lock_acquire (&cache_lock);
+    entry->accessed |= ACCESSED | DIRTY;
+    entry->accessors--;
+    if (entry->accessors == 0)
+      cond_broadcast (&entry->c, &cache_lock);
+    lock_release (&cache_lock);
   } else {
     /* Failsafe: bypass the cache */
-    block_write (fs_device, sector, buf);
+    /* TODO: use bounce buffer */
   }
 
-  return BLOCK_SECTOR_SIZE;
+  buffercache_read_ahead_if_necessary (sector);
+
+  return size;
 }
 
 /**
- * Flushes all dirty buffers in the cache to disk
+ * Flushes all dirty buffers in the cache to disk.
  */
-bool
+void
 buffercache_flush (void)
 {
   int i;
 
-  lock_acquire (&cache_lock);
-  for (i=0; i<cache_size; i++)
+  for (i = 0; i < cache_size; i++)
   {
-    if (cache[i].accessed & DIRTY)
-    {
-      lock_acquire (&cache[i].l);
-      buffercache_flush_entry (&cache[i]);
-      lock_release (&cache[i].l);
-    }
+    lock_acquire (&cache_lock);
+    buffercache_flush_entry (&cache[i]);
+    lock_release (&cache_lock);
   }
-
-  lock_release (&cache_lock);
-
-  return true;
 }
 
 /**
- * Initializes an entry in the buffer cache table
+ * Initializes an entry in the buffer cache table.
  */
 static bool
 buffercache_allocate_block (struct cache_entry *entry)
@@ -153,94 +158,195 @@ buffercache_allocate_block (struct cache_entry *entry)
   entry->kaddr = (uint32_t)palloc_get_page (0);
   if ((void *)entry->kaddr == NULL) return false;
 
+  entry->accessors = 0;
+  entry->sector = -1;
   entry->state = READY;
   entry->accessed = CLEAN;
-
-  lock_init (&entry->l);
   cond_init (&entry->c);
 
   return true;
 }
 
 /**
- * Flushes the specified cache entry to disk. Assumes the entry lock is
- * already held.
+ * Flushes the specified cache entry to disk (if necessary).
+ *
+ * Requires the cache_lock to be held.
  */
 static void
 buffercache_flush_entry (struct cache_entry *entry)
 {
-  if (entry->accessed & DIRTY)
+  ASSERT (lock_held_by_current_thread (&cache_lock));
+  
+  /* Only flush a dirty entry that is fully read/written */
+  if (entry->accessed & DIRTY && entry->state == READY)
   {
-	//write it
-  }
+    /* Wait for current accessors to finish */
+    entry->state = WRITE_REQUESTED;
+    while (entry->accessors > 0)
+      cond_wait (&entry->c, &cache_lock);
+    
+    /* Write to disk */
+    entry->state = WRITING;	/* Tell threads block is writing */
+    lock_release (&cache_lock);
 
-  /* May not want this here */
-  entry->accessed |= CLEAN;	
+    /* Perform I/O */
+    block_write (fs_device, entry->sector, (void*)entry->kaddr);
+
+    /* Fix up entry */
+    lock_acquire (&cache_lock);
+    entry->state = READY;	/* No longer writing */
+    entry->accessed &= ~DIRTY;	/* No longer dirty */
+    cond_broadcast (&entry->c, &cache_lock); /* Tell threads writing is done */
+  }
 }
 
 /**
- * Invokes a read-ahead thread for the given cache entry if needed
+ * Invokes a read-ahead thread for the given cache entry if needed.
  */
 static void
-buffercache_read_ahead_if_necessary (const block_sector_t sector)
+buffercache_read_ahead_if_necessary (const block_sector_t sector UNUSED)
 {
-  /* TODO Invoke pre-fetch */
+  /* TODO implement pre-fetch */
   return;
 }
 
-static int
+/**
+ * Returns the cache entry for the given sector if it is cached,
+ * else NULL. Acquires the cache lock.
+ */
+static struct cache_entry *
 buffercache_find_entry (const block_sector_t sector)
 {
   int i;
+
+  lock_acquire (&cache_lock);
+
   for (i = 0; i < cache_size; i++)
   {
-    if (cache[i].accessed & CLEAN)
-      return i;
+    if (cache[i].sector == sector)
+    {
+      /* If it's being read or written, wait */
+      while (cache[i].state != READY)
+	cond_wait (&cache[i].c, &cache_lock);
+
+      /* Double-check in case it was replaced */
+      if (cache[i].sector != sector)
+      {
+	i = 0;			/* Restart search */
+	continue;
+      } else {
+	cache[i].accessors++;	/* Prevent replacement */
+	lock_release (&cache_lock);
+	return &cache[i];
+      }
+    }
   }
-  return -1;
+
+  lock_release (&cache_lock);
+
+  return NULL;
 }
 
 /**
- * Use the clock algorithm to find an entry to evict and flush it to disk
+ * Use the clock algorithm to find an entry to replace (if necessary) and
+ * flush it to disk (also if necessary) and load in a new sector.
  */
-static int buffercache_evict (void)
+static struct cache_entry *
+buffercache_replace (const block_sector_t sector)
 {
-  int evicted = clock_algorithm (); 
-  if (evicted == -1) return -1;
-  buffercache_flush_entry(&cache[evicted]);
-  return evicted;
+  struct cache_entry *e;
+
+  e = clock_algorithm ();	/* Marks as WRITE_REQUESTED */
+  if (e == NULL) return NULL;
+
+  lock_acquire (&cache_lock);
+
+  buffercache_flush_entry (e);	      /* Write current entry */
+  buffercache_load_entry (e, sector); /* Read new entry into buffer */
+  e->accessors++;		      /* Prevent replacement */
+
+  lock_release (&cache_lock);
+
+  return e;
 }
 
+/**
+ * Loads a disk sector into a buffer
+ */
+static void
+buffercache_load_entry (struct cache_entry *entry, const block_sector_t sector)
+{
+  ASSERT (lock_held_by_current_thread (&cache_lock));
+  ASSERT (entry->accessors == 0);
+
+  /* Fix cache entry */
+  entry->state = READING;
+  entry->sector = sector;
+  entry->accessed = CLEAN;
+  lock_release (&cache_lock);
+
+  /* Perform I/O */
+  block_read (fs_device, entry->sector, (void*)entry->kaddr);
+
+  lock_acquire (&cache_lock);
+
+  /* Ready to be used */
+  entry->state = READY;		
+}
 
 /**
- * Runs the clock algorithm to find the next entry to evict.  The cache
- * lock should be held when calling this.  Returns -1 if it couldn't find
- * an entry to free
+ * Runs the clock algorithm to find the next entry to replace. The cache
+ * lock must be held when calling this.
+ *
+ * The algorithm proceeds as follows: for each advancement of the clock,
+ * if the entry is locked it is ignored. If the accessed bit is set it is
+ * reset. If the accessed bit is not set then this entry is returned. If
+ * we wrap around then the clock hand is returned.
+ *
+ * Returns a locked entry that is ready to be flushed to disk and replaced.
  */
-static int
+static struct cache_entry *
 clock_algorithm (void)
 {
-  ASSERT(lock_held_by_current_thread (&cache_lock));
+  int clock_start;
+  struct cache_entry *e;
 
-  int clock_start = clock_next ();
-  struct cache_entry * e = &cache[clock_start];
-	
-  while (e->state == WRITING)
-  {	
+  lock_acquire (&cache_lock);
+
+  clock_start = clock_next ();
+  while (cache[clock_start].state != READY)
+    clock_start = clock_next ();
+
+  e = &cache[clock_start];
+
+  do
+  {
+    /* Ignore if some I/O is happening to this block, ignore */
+    if (e->state == READY)
+    {
+      if (e->accessed & ACCESSED) {
+	/* Access bit is set, unset it and continue */
+	e->accessed &= ~ACCESSED;
+      } else {
+	/* Access bit is not set, return this entry */
+	break;
+      }
+    }
     e = &cache[clock_next ()];
-    /* Check that we haven't looped all the way around */
-    if (clock_hand == clock_start) return -1;
-  }
-  return clock_hand;
+  } while (clock_hand != clock_start);
+
+  /* Claim this entry for ourselves */
+  e->state = WRITE_REQUESTED;
+  lock_release (&cache_lock);
+  return e;
 }
 
 /**
  * Helper function for the clock algorithm which treats the entries as a
- * circularly linked list
+ * circularly linked list.
  */
-static int 
+static inline int
 clock_next (void)
 {
-  clock_hand = (clock_hand + 1) % cache_size;
-  return clock_hand;
+  return (clock_hand = (clock_hand + 1) % cache_size);
 }

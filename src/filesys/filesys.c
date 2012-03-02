@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
+#include "filesys/buffercache.h"
 #include "filesys/file.h"
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
@@ -23,6 +24,8 @@ filesys_init (bool format)
 
   inode_init ();
   free_map_init ();
+  if (!buffercache_init (BUFFERCACHE_SIZE))
+    PANIC ("Could not create buffer cache, can't initialize file system.");
 
   if (format) 
     do_format ();
