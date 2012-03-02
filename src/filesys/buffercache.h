@@ -1,9 +1,9 @@
 #ifndef FILESYS_BUFFERCACHE_H
 #define FILESYS_BUFFERCACHE_H
 
-#include "threads/synch.h"
 #include "devices/block.h"
 #include "filesys/off_t.h"
+#include "threads/synch.h"
 
 #define BUFFERCACHE_SIZE 64
 
@@ -39,9 +39,11 @@ struct cache_entry
   struct condition c;		/* To notify waiting threads */
 };
 
-bool buffercache_init (size_t size);
-int buffercache_read (block_sector_t sector, void *buf, int sector_ofs, off_t size);
-int buffercache_write (block_sector_t sector, const void *buf, int sector_ofs, off_t size);
+bool buffercache_init (const size_t size);
+int buffercache_read (const block_sector_t sector, const int sector_ofs,
+		      const off_t size, void *buf);
+int buffercache_write (const block_sector_t sector, const int sector_ofs,
+		       const off_t size, const void *buf);
 bool buffercache_flush (void);
 
 #endif

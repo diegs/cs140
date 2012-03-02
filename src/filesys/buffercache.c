@@ -1,11 +1,11 @@
 #include <debug.h>
+#include <string.h>
+
+#include "devices/block.h"
 #include "filesys/buffercache.h"
 #include "filesys/filesys.h"
-#include "devices/block.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
-#include "lib/string.h"
-
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
@@ -13,18 +13,18 @@ static int cache_size;		  /* Size of the cache */
 static int clock_hand;		  /* For clock algorithm */
 
 static bool buffercache_allocate_block (struct cache_entry *entry);
-static struct cache_entry * buffercache_find_entry (int sector);
-static struct cache_entry * buffercache_evict(void);
-static void buffercache_read_ahead_if_necessary(block_sector_t sector_num);
+static int buffercache_find_entry (const block_sector_t sector);
+static int buffercache_evict (void);
+static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
 static void buffercache_flush_entry (struct cache_entry *entry);
-static int clock_algorithm(void);
-static int clock_next(void);
+static int clock_algorithm (void);
+static int clock_next (void);
 
 /**
  * Initializes the buffer cache system
  */
 bool
-buffercache_init (size_t size)
+buffercache_init (const size_t size)
 {
   int i;
   bool result;
@@ -54,7 +54,8 @@ buffercache_init (size_t size)
  * read, or -1 on failure.
  */
 int
-buffercache_read (block_sector_t sector, void *buf, int sector_ofs, off_t size)
+buffercache_read (const block_sector_t sector, const int sector_ofs,
+		  const off_t size, void *buf)
 {
   struct cache_entry *entry;
 
@@ -89,8 +90,8 @@ buffercache_read (block_sector_t sector, void *buf, int sector_ofs, off_t size)
  * written, or -1 on failure.
  */
 int
-buffercache_write (block_sector_t sector, const void *buf, int sector_ofs,
-off_t size)
+buffercache_write (const block_sector_t sector, const int sector_ofs,
+		   const off_t size, const void *buf)
 {
 
   struct cache_entry *entry;
@@ -192,10 +193,10 @@ buffercache_allocate_block (struct cache_entry *entry)
  * Invokes a read-ahead thread for the given cache entry if needed
  */
 static void
-buffercache_read_ahead_if_necessary (block_sector_t sector_num)
+buffercache_read_ahead_if_necessary (const block_sector_t sector)
 {
-  return;
   /* TODO Invoke pre-fetch */
+  return;
 }
 
 /* Looks for an entry  */
@@ -245,11 +246,13 @@ int buffercache_find_open_entry()
   return -1;
 }
 
-/* Runs the clock algorithm to find the next entry to evict.  The cache
-   lock should be held when calling this.  Returns -1 if it couldn't find
-   an entry to free */
+/**
+ * Runs the clock algorithm to find the next entry to evict.  The cache
+ * lock should be held when calling this.  Returns -1 if it couldn't find
+ * an entry to free
+ */
 static int
-clock_algorithm(void)
+clock_algorithm (void)
 {
   ASSERT(lock_held_by_current_thread (&cache_lock));
 
@@ -258,20 +261,20 @@ clock_algorithm(void)
 	
   while (e->state == WRITING)
   {	
-	e = &cache[clock_next ()];
-	/* Check that we haven't looped all the way around */
-	if (clock_hand == clock_start) return -1;
+    e = &cache[clock_next ()];
+    /* Check that we haven't looped all the way around */
+    if (clock_hand == clock_start) return -1;
   }
   return clock_hand;
 }
 
-/* Helper function for the clock algorithm which treats the entries as a
-   circularly linked list */
+/**
+ * Helper function for the clock algorithm which treats the entries as a
+ * circularly linked list
+ */
 static int 
-clock_next(void)
+clock_next (void)
 {
-  clock_hand = clock_hand + 1;
-  if (clock_hand == cache_size)
-	clock_hand = 0;
+  clock_hand = (clock_hand + 1) % cache_size;
   return clock_hand;
 }
