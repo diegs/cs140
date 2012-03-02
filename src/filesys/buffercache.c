@@ -59,6 +59,9 @@ int
 buffercache_read (const block_sector_t sector, const int sector_ofs,
 		  const off_t size, void *buf)
 {
+
+  block_read (fs_device, sector, buf );
+  return size;
   struct cache_entry *entry;
 
   /* Searches for an existing entry and returns it locked */
@@ -69,7 +72,7 @@ buffercache_read (const block_sector_t sector, const int sector_ofs,
   {
 	/* Try to free a cache entry */
 	entry = buffercache_get_clean_entry();
-
+	
 	/* If that failed too, read it without caching */
 	if (entry == NULL)
 	{
@@ -77,9 +80,10 @@ buffercache_read (const block_sector_t sector, const int sector_ofs,
 	  block_read (fs_device, sector, buf);
 	  return size;
 	}
+	entry->sector = sector;
 
 	/* Read the file block into our cache entry */
-	block_read (fs_device, sector, entry->kaddr);
+	block_read (fs_device, sector, (void *)entry->kaddr);
 	
 	entry->accessed |= ACCESSED;
   }
@@ -97,7 +101,10 @@ buffercache_read (const block_sector_t sector, const int sector_ofs,
 int
 buffercache_write (const block_sector_t sector, const int sector_ofs,
 		   const off_t size, const void *buf)
-{
+{ 
+  block_write (fs_device, sector, buf);
+  return size;
+ 
   struct cache_entry *entry;
 
   /* Searches for an existing entry and returns it locked */
@@ -115,8 +122,10 @@ buffercache_write (const block_sector_t sector, const int sector_ofs,
 	  block_write (fs_device, sector, buf);
 	  return size;
 	}
+	entry->sector = sector;
+
 	/* Read the file block into our cache entry */
-	block_read (fs_device, sector, entry->kaddr);
+	block_read (fs_device, sector, (void *)entry->kaddr);
 	entry->accessed |= ACCESSED;
   }
 	
@@ -162,7 +171,7 @@ buffercache_flush_entry (struct cache_entry *entry)
   if (entry->accessed & DIRTY)
   {
 	//write it
-    block_write (fs_device, entry->sector, entry->kaddr);	
+    block_write (fs_device, entry->sector, (void *)entry->kaddr);	
   }
 	
   /* Reset entry to blank state */
@@ -183,7 +192,7 @@ buffercache_allocate_block (struct cache_entry *entry)
 
   entry->state = READY;
   entry->accessed = CLEAN;
-  entry->sector = 0;
+  entry->sector = -1;
   lock_init (&entry->l);
   cond_init (&entry->c);
 
