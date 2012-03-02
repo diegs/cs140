@@ -2,6 +2,8 @@
 #define FILESYS_BUFFERCACHE_H
 
 #include "threads/synch.h"
+#include "devices/block.h"
+#include "filesys/off_t.h"
 
 #define BUFFERCACHE_SIZE 64
 
@@ -30,7 +32,6 @@ enum cache_accessed
 struct cache_entry
 {
   uint32_t kaddr;		/* Address of cache block */
-  int next_sector;		/* Sector number of next sector */
   enum cache_state state;	/* Current state of block */
   enum cache_accessed accessed;	/* Accessed bits for block */
   struct lock l;		/* To lock the block */
@@ -38,8 +39,8 @@ struct cache_entry
 };
 
 bool buffercache_init (size_t size);
-int buffercache_read (int sector, void *buf);
-int buffercache_write (int sector, const void *buf);
+int buffercache_read (block_sector_t sector, void *buf, int sector_ofs, off_t size);
+int buffercache_write (block_sector_t sector, const void *buf, int sector_ofs, off_t size);
 bool buffercache_flush (void);
 
 #endif

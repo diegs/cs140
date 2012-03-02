@@ -15,7 +15,7 @@ static int clock_hand;		  /* For clock algorithm */
 static bool buffercache_allocate_block (struct cache_entry *entry);
 static int buffercache_find_entry (int sector);
 static int buffercache_evict(void);
-static void buffercache_read_ahead_if_necessary(struct cache_entry *entry);
+static void buffercache_read_ahead_if_necessary(block_sector_t sector_num);
 static void buffercache_flush_entry (struct cache_entry *entry);
 static int clock_algorithm(void);
 static int clock_next(void);
@@ -54,7 +54,7 @@ buffercache_init (size_t size)
  * read, or -1 on failure.
  */
 int
-buffercache_read (int sector, void *buf)
+buffercache_read (block_sector_t sector, void *buf, int sector_ofs, off_t size)
 {
   int entry_num;
   struct cache_entry *entry;
@@ -68,17 +68,20 @@ buffercache_read (int sector, void *buf)
   {
     /* Read from the cache entry */
     entry = &cache[entry_num];
-    buffercache_read_ahead_if_necessary (entry);
+
     entry->accessed |= ACCESSED;
-    
+
+	/* Copy it into our cache */    
     memcpy ((void *)buf, (void *)entry->kaddr, BLOCK_SECTOR_SIZE);
     lock_release (&entry->l);
+    buffercache_read_ahead_if_necessary (sector);
   } else {
     /* Failsafe: bypass the cache */
+	/* TODO: bounce buffer */
     block_read (fs_device, sector, buf);
   }
 
-  return BLOCK_SECTOR_SIZE;
+  return size;
 }
 
 /**
@@ -86,7 +89,8 @@ buffercache_read (int sector, void *buf)
  * written, or -1 on failure.
  */
 int
-buffercache_write (int sector, const void *buf)
+buffercache_write (block_sector_t sector, const void *buf, int sector_ofs,
+off_t size)
 {
   int entry_num;
   struct cache_entry *entry;
@@ -100,10 +104,13 @@ buffercache_write (int sector, const void *buf)
   {
     /* Read from the cache entry */
     entry = &cache[entry_num];
-    memcpy ((void *)entry->kaddr, (void *)buf, BLOCK_SECTOR_SIZE);
+
+	/* Write to the cache */
+    memcpy ((void *)entry->kaddr + sector_ofs, (void *)buf, size);
     entry->accessed |= DIRTY;
-    /* TODO: invoke read-ahead if necessary */
     lock_release (&entry->l);
+
+	buffercache_read_ahead_if_necessary (sector);
   } else {
     /* Failsafe: bypass the cache */
     block_write (fs_device, sector, buf);
@@ -166,6 +173,7 @@ buffercache_flush_entry (struct cache_entry *entry)
 	//write it
   }
 
+  /* May not want this here */
   entry->accessed |= CLEAN;	
 }
 
@@ -173,18 +181,11 @@ buffercache_flush_entry (struct cache_entry *entry)
  * Invokes a read-ahead thread for the given cache entry if needed
  */
 static void
-buffercache_read_ahead_if_necessary (struct cache_entry *entry)
+buffercache_read_ahead_if_necessary (block_sector_t sector_num)
 {
   int entry_num;
 
-  /* No buddy */
-  if (entry->next_sector == -1) return;
-
-  /* Check if buddy is in cache already */
-
-  entry_num = buffercache_find_entry (entry->next_sector);
-  if (entry_num != -1) return;	/* Already pre-fetched */
-
+  return;
   /* TODO Invoke pre-fetch */
 }
 
