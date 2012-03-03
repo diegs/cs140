@@ -6,13 +6,14 @@
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "threads/vaddr.h"
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
 static int cache_size;		  /* Size of the cache */
 static int clock_hand;		  /* For clock algorithm */
 
-static bool buffercache_allocate_block (struct cache_entry *entry);
+static bool buffercache_allocate_block (struct cache_entry *entry, void *kaddr);
 static struct cache_entry *buffercache_find_entry (const block_sector_t sector);
 static struct cache_entry *buffercache_replace (const block_sector_t sector);
 static void buffercache_read_ahead_if_necessary (const block_sector_t
@@ -32,6 +33,7 @@ bool
 buffercache_init (const size_t size)
 {
   int i;
+  void *kaddr;
   bool result;
 
   /* Set the cache size */
@@ -45,7 +47,16 @@ buffercache_init (const size_t size)
   /* Allocate the cache pages */
   for (i = 0; i < cache_size; i++)
   {
-    result = buffercache_allocate_block (&cache[i]);
+    if (i % (PGSIZE/BLOCK_SECTOR_SIZE) == 0)
+    {
+      /* Grab a new page */
+      kaddr = palloc_get_page (0);
+      if (kaddr == NULL) return false;
+    } else {
+      kaddr += BLOCK_SECTOR_SIZE;
+    }
+
+    result = buffercache_allocate_block (&cache[i], kaddr);
     if (!result) return false;
   }
 
@@ -156,11 +167,9 @@ buffercache_flush (void)
  * Initializes an entry in the buffer cache table.
  */
 static bool
-buffercache_allocate_block (struct cache_entry *entry)
+buffercache_allocate_block (struct cache_entry *entry, void *kaddr)
 {
-  entry->kaddr = (uint32_t)palloc_get_page (0);
-  if ((void *)entry->kaddr == NULL) return false;
-
+  entry->kaddr = kaddr;
   entry->accessors = 0;
   entry->sector = -1;
   entry->state = READY;
