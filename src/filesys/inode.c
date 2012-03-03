@@ -90,14 +90,14 @@ inode_create (block_sector_t sector, off_t length)
       disk_inode->magic = INODE_MAGIC;
       if (free_map_allocate (sectors, &disk_inode->start)) 
         {
-          buffercache_write (sector, 0, BLOCK_SECTOR_SIZE, disk_inode);
+          buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE, disk_inode);
           if (sectors > 0) 
             {
               static char zeros[BLOCK_SECTOR_SIZE];
               size_t i;
               
               for (i = 0; i < sectors; i++) 
-		buffercache_write (disk_inode->start + i, 0,
+		buffercache_write (disk_inode->start + i, METADATA, 0,
 				   BLOCK_SECTOR_SIZE, zeros);
             }
           success = true; 
@@ -139,7 +139,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  buffercache_read (inode->sector, 0, BLOCK_SECTOR_SIZE, &inode->data);
+  buffercache_read (inode->sector, METADATA, 0, BLOCK_SECTOR_SIZE, &inode->data);
   return inode;
 }
 
@@ -222,7 +222,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
         break;
 
       /* Read chunk from this sector */
-      buffercache_read (sector_idx, sector_ofs, chunk_size, buffer + bytes_read);
+      buffercache_read (sector_idx, REGULAR, sector_ofs, chunk_size,
+			buffer + bytes_read);
       
       /* Advance. */
       size -= chunk_size;
@@ -265,7 +266,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
         break;
 
       /* Write chunk to this sector. */
-      buffercache_write (sector_idx, sector_ofs, chunk_size,
+      buffercache_write (sector_idx, REGULAR, sector_ofs, chunk_size,
 			 buffer + bytes_written);
 
       /* Advance. */
