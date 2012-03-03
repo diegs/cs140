@@ -21,8 +21,8 @@ static void
 buffercache_load_entry (struct cache_entry *entry, const block_sector_t sector);
 
 static void buffercache_flush_entry (struct cache_entry *entry);
-static struct cache_entry *clock_algorithm (void);
-static inline int clock_next (void);
+static struct cache_entry *buffercache_clock_algorithm (void);
+static inline int buffercache_clock_next (void);
 
 /**
  * Initializes the buffer cache system. Returns true on success, false on
@@ -67,6 +67,8 @@ buffercache_read (const block_sector_t sector, const int sector_ofs,
 {
   struct cache_entry *entry;
 
+  //  printf ("read to %d, %d, %d\n", sector, sector_ofs, size);
+
   /* Finds an entry and returns it with accessors incremented */
   entry = buffercache_find_entry (sector);
   if (entry == NULL)
@@ -105,6 +107,7 @@ buffercache_write (const block_sector_t sector, const int sector_ofs,
 		   const off_t size, const void *buf)
 {
   struct cache_entry *entry;
+  //  printf ("write to %d, %d, %d\n", sector, sector_ofs, size);
 
   /* Finds an entry and returns it locked */
   entry = buffercache_find_entry (sector);
@@ -178,7 +181,7 @@ buffercache_flush_entry (struct cache_entry *entry)
   ASSERT (lock_held_by_current_thread (&cache_lock));
   
   /* Only flush a dirty entry that is fully read/written */
-  if (entry->accessed & DIRTY && entry->state == READY)
+  if (entry->accessed & DIRTY && (entry->state == READY || entry->state == CLOCK))
   {
     /* Wait for current accessors to finish */
     entry->state = WRITE_REQUESTED;
@@ -256,7 +259,7 @@ buffercache_replace (const block_sector_t sector)
 {
   struct cache_entry *e;
 
-  e = clock_algorithm ();	/* Marks as WRITE_REQUESTED */
+  e = buffercache_clock_algorithm ();	/* Marks as WRITE_REQUESTED */
   if (e == NULL) return NULL;
 
   lock_acquire (&cache_lock);
@@ -306,16 +309,16 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t sector)
  * Returns a locked entry that is ready to be flushed to disk and replaced.
  */
 static struct cache_entry *
-clock_algorithm (void)
+buffercache_clock_algorithm (void)
 {
   int clock_start;
   struct cache_entry *e;
 
   lock_acquire (&cache_lock);
 
-  clock_start = clock_next ();
+  clock_start = buffercache_clock_next ();
   while (cache[clock_start].state != READY)
-    clock_start = clock_next ();
+    clock_start = buffercache_clock_next ();
 
   e = &cache[clock_start];
 
@@ -332,11 +335,11 @@ clock_algorithm (void)
 	break;
       }
     }
-    e = &cache[clock_next ()];
+    e = &cache[buffercache_clock_next ()];
   } while (clock_hand != clock_start);
 
   /* Claim this entry for ourselves */
-  e->state = WRITE_REQUESTED;
+  e->state = CLOCK;
   lock_release (&cache_lock);
   return e;
 }
@@ -346,7 +349,7 @@ clock_algorithm (void)
  * circularly linked list.
  */
 static inline int
-clock_next (void)
+buffercache_clock_next (void)
 {
   return (clock_hand = (clock_hand + 1) % cache_size);
 }

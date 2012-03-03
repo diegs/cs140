@@ -15,6 +15,7 @@ enum cache_state
   READING,
   WRITE_REQUESTED,
   WRITING,
+  CLOCK,
   READY
 };
 
