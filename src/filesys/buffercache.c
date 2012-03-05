@@ -10,18 +10,23 @@
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
-static int cache_size;		  /* Size of the cache */
-static int clock_hand;		  /* For clock algorithm */
+static int cache_size;            /* Size of the cache */
+static int clock_hand;            /* For clock algorithm */
 
 static void buffercache_allocate_block (struct cache_entry *entry, void *kaddr);
 static struct cache_entry *buffercache_find_entry (const block_sector_t sector);
 static struct cache_entry *buffercache_replace (const block_sector_t
-						sector, enum sector_type type);
-static void buffercache_read_ahead_if_necessary (const block_sector_t
-						 sector);
+                                                sector, enum sector_type type);
+static int buffercache_read_direct (const block_sector_t sector,
+                                    const int sector_ofs, const off_t size,
+                                    void *buf);
+static int buffercache_write_direct (const block_sector_t sector,
+                                     const int sector_ofs, const off_t size,
+                                     const void *buf);
+static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
 static void buffercache_load_entry (struct cache_entry *entry,
-				    const block_sector_t sector,
-				    enum sector_type type);
+                                    const block_sector_t sector,
+                                    enum sector_type type);
 static void buffercache_flush_entry (struct cache_entry *entry);
 static struct cache_entry *buffercache_clock_algorithm (void);
 static inline int buffercache_clock_next (void);
@@ -66,57 +71,6 @@ buffercache_init (const size_t size)
 }
 
 /**
- * Writes directly to disk, bypassing the buffer cache. Used for failsafe
- * reasons.
- */
-static int
-buffercache_write_direct (const block_sector_t sector, const int sector_ofs,
-			 const off_t size, const void *buf)
-{
-  static void *bounce;
-
-  /* Allocate bounce buffer */
-  bounce = malloc (BLOCK_SECTOR_SIZE);
-  if (bounce == NULL) return -1;
-
-  /* Read from disk */
-  block_read (fs_device, sector, bounce);
-
-  /* Copy data into bounce buffer */
-  memcpy (bounce + sector_ofs, buf, size);
-
-  /* Write back to disk */
-  block_write (fs_device, sector, bounce);
-
-  free (bounce);
-  return size;
-}
-
-/**
- * Reads directly from disk, bypassing the buffer cache. Used for failsafe
- * reasons.
- */
-static int
-buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
-			 const off_t size, void *buf)
-{
-  static void *bounce;
-
-  /* Allocate bounce buffer */
-  bounce = malloc (BLOCK_SECTOR_SIZE);
-  if (bounce == NULL) return -1;
-
-  /* Read from disk */
-  block_read (fs_device, sector, bounce);
-
-  /* Copy into buffer */
-  memcpy (buf, bounce + sector_ofs, size);
-
-  free (bounce);
-  return size;
-}
-
-/**
  * Reads a sector from sector into buf. Does not do bounds checking on
  * sector_ofs and size.
  *
@@ -124,7 +78,7 @@ buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
  */
 int
 buffercache_read (const block_sector_t sector, enum sector_type type,
-		  const int sector_ofs, const off_t size, void *buf)
+                  const int sector_ofs, const off_t size, void *buf)
 {
   struct cache_entry *entry;
 
@@ -141,6 +95,8 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
     /* Adjust cache entry */
     lock_acquire (&cache_lock);
     entry->accessed |= ACCESSED;
+    if (entry->type == METADATA)
+      entry->accessed |= META;
     entry->accessors--;
     if (entry->accessors == 0)
       cond_broadcast (&entry->c, &cache_lock);
@@ -158,12 +114,12 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
 /**
  * Writes a sector from buf into sector. Does not do bounds checking on
  * sector_ofs and size.
- * 
+ *
  * Returns the number of bytes written, or -1 on failure.
  */
 int
 buffercache_write (const block_sector_t sector, enum sector_type type,
-		   const int sector_ofs, const off_t size, const void *buf)
+                   const int sector_ofs, const off_t size, const void *buf)
 {
   struct cache_entry *entry;
 
@@ -180,6 +136,8 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     /* Adjust cache entry */
     lock_acquire (&cache_lock);
     entry->accessed |= ACCESSED | DIRTY;
+    if (entry->type == METADATA)
+      entry->accessed |= META;
     entry->accessors--;
     if (entry->accessors == 0)
       cond_broadcast (&entry->c, &cache_lock);
@@ -226,6 +184,57 @@ buffercache_allocate_block (struct cache_entry *entry, void *kaddr)
 }
 
 /**
+ * Writes directly to disk, bypassing the buffer cache. Used under failsafe
+ * conditions.
+ */
+static int
+buffercache_write_direct (const block_sector_t sector, const int sector_ofs,
+                          const off_t size, const void *buf)
+{
+  static void *bounce;
+
+  /* Allocate bounce buffer */
+  bounce = malloc (BLOCK_SECTOR_SIZE);
+  if (bounce == NULL) return -1;
+
+  /* Read from disk */
+  block_read (fs_device, sector, bounce);
+
+  /* Copy data into bounce buffer */
+  memcpy (bounce + sector_ofs, buf, size);
+
+  /* Write back to disk */
+  block_write (fs_device, sector, bounce);
+
+  free (bounce);
+  return size;
+}
+
+/**
+ * Reads directly from disk, bypassing the buffer cache. Used under failsafe
+ * conditions.
+ */
+static int
+buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
+                         const off_t size, void *buf)
+{
+  static void *bounce;
+
+  /* Allocate bounce buffer */
+  bounce = malloc (BLOCK_SECTOR_SIZE);
+  if (bounce == NULL) return -1;
+
+  /* Read from disk */
+  block_read (fs_device, sector, bounce);
+
+  /* Copy into buffer */
+  memcpy (buf, bounce + sector_ofs, size);
+
+  free (bounce);
+  return size;
+}
+
+/**
  * Flushes the specified cache entry to disk (if necessary).
  *
  * Requires the cache_lock to be held.
@@ -234,7 +243,7 @@ static void
 buffercache_flush_entry (struct cache_entry *entry)
 {
   ASSERT (lock_held_by_current_thread (&cache_lock));
-  
+
   /* Only flush a dirty entry that is fully read/written */
   if (entry->accessed & DIRTY && (entry->state == READY || entry->state == CLOCK))
   {
@@ -242,7 +251,7 @@ buffercache_flush_entry (struct cache_entry *entry)
     entry->state = WRITE_REQUESTED;
     while (entry->accessors > 0)
       cond_wait (&entry->c, &cache_lock);
-    
+
     /* Write to disk */
     entry->state = WRITING;	/* Tell threads block is writing */
     lock_release (&cache_lock);
@@ -285,17 +294,17 @@ buffercache_find_entry (const block_sector_t sector)
     {
       /* If it's being read or written, wait */
       while (cache[i].state != READY)
-	cond_wait (&cache[i].c, &cache_lock);
+        cond_wait (&cache[i].c, &cache_lock);
 
       /* Double-check in case it was replaced */
       if (cache[i].sector != sector)
       {
-	i = 0;			/* Restart search */
-	continue;
+        i = 0;                  /* Restart search */
+        continue;
       } else {
-	cache[i].accessors++;	/* Prevent replacement */
-	lock_release (&cache_lock);
-	return &cache[i];
+        cache[i].accessors++;   /* Prevent replacement */
+        lock_release (&cache_lock);
+        return &cache[i];
       }
     }
   }
@@ -319,9 +328,9 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
 
   lock_acquire (&cache_lock);
 
-  buffercache_flush_entry (e);	      /* Write current entry */
+  buffercache_flush_entry (e);              /* Write current entry */
   buffercache_load_entry (e, sector, type); /* Read new entry into buffer */
-  e->accessors++;		      /* Prevent replacement */
+  e->accessors++;                           /* Prevent replacement */
 
   lock_release (&cache_lock);
 
@@ -329,11 +338,12 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
 }
 
 /**
- * Loads a disk sector into a buffer
+ * Loads a disk sector into a buffer. Expects the cache lock to be acquired
+ * when called, releases it during I/O, and re-acquires it before returning.
  */
 static void
 buffercache_load_entry (struct cache_entry *entry, const block_sector_t
-			sector, enum sector_type type)
+                        sector, enum sector_type type)
 {
   ASSERT (lock_held_by_current_thread (&cache_lock));
   ASSERT (entry->accessors == 0);
@@ -348,10 +358,11 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
   /* Perform I/O */
   block_read (fs_device, entry->sector, entry->kaddr);
 
+  /* Re-acquire cache lock */
   lock_acquire (&cache_lock);
 
   /* Ready to be used */
-  entry->state = READY;		
+  entry->state = READY;
 }
 
 /**
@@ -362,6 +373,9 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
  * if the entry is locked it is ignored. If the accessed bit is set it is
  * reset. If the accessed bit is not set then this entry is returned. If
  * we wrap around then the clock hand is returned.
+ *
+ * An additional "chance" (i.e. this becomes a "3rd-chance" algorithm) is given
+ * for metadata blocks, since those are more valuable to keep in the cache.
  *
  * Returns a locked entry that is ready to be flushed to disk and replaced.
  */
@@ -384,13 +398,15 @@ buffercache_clock_algorithm (void)
     /* Ignore if some I/O is happening to this block, ignore */
     if (e->state == READY)
     {
-      /* TODO handle metadata specially */
       if (e->accessed & ACCESSED) {
-	/* Access bit is set, unset it and continue */
-	e->accessed &= ~ACCESSED;
+        /* Access bit is set, unset it and continue */
+        e->accessed &= ~ACCESSED;
+      } else if (e->accessed & META) {
+        /* Give metadata blocks another chance */
+        e->accessed &= ~META;
       } else {
-	/* Access bit is not set, return this entry */
-	break;
+        /* Access and meta bits not set, return this entry */
+        break;
       }
     }
     e = &cache[buffercache_clock_next ()];
