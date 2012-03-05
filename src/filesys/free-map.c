@@ -40,7 +40,7 @@ free_map_init (void)
 
   /* Internally store the range of the free map on disk */
   free_map_begin = FREE_MAP_SECTOR_BEGIN;
-  free_map_end = free_map_begin += num_sectors;
+  free_map_end = free_map_begin + num_sectors;
 
   block_sector_t i;
   for (i = free_map_begin; i < free_map_end; i++)
