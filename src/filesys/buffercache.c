@@ -136,7 +136,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
   if (entry != NULL)
   {
     /* Read from cache entry */
-    memcpy ((void*)buf, (void*)entry->kaddr + sector_ofs, size);
+    memcpy (buf, entry->kaddr + sector_ofs, size);
 
     /* Adjust cache entry */
     lock_acquire (&cache_lock);
@@ -175,7 +175,7 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
   if (entry != NULL)
   {
     /* Write to cache entry */
-    memcpy ((void *)entry->kaddr + sector_ofs, (void *)buf, size);
+    memcpy (entry->kaddr + sector_ofs, buf, size);
 
     /* Adjust cache entry */
     lock_acquire (&cache_lock);
@@ -248,7 +248,7 @@ buffercache_flush_entry (struct cache_entry *entry)
     lock_release (&cache_lock);
 
     /* Perform I/O */
-    block_write (fs_device, entry->sector, (void*)entry->kaddr);
+    block_write (fs_device, entry->sector, entry->kaddr);
 
     /* Fix up entry */
     lock_acquire (&cache_lock);
@@ -346,7 +346,7 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
   lock_release (&cache_lock);
 
   /* Perform I/O */
-  block_read (fs_device, entry->sector, (void*)entry->kaddr);
+  block_read (fs_device, entry->sector, entry->kaddr);
 
   lock_acquire (&cache_lock);
 
