@@ -147,7 +147,7 @@ inode_create (block_sector_t sector, off_t length)
     size_t sectors = bytes_to_sectors (length);
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
-	block_sector_t sector;
+    block_sector_t sector;
     if (free_map_allocate (1, &sector)) 
     {
       buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE, disk_inode);
