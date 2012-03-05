@@ -147,18 +147,10 @@ inode_create (block_sector_t sector, off_t length)
     size_t sectors = bytes_to_sectors (length);
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
-    if (free_map_allocate (1, &disk_inode->start)) 
+	block_sector_t sector;
+    if (free_map_allocate (1, &sector)) 
     {
       buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE, disk_inode);
-      if (sectors > 0) 
-      {
-        static char zeros[BLOCK_SECTOR_SIZE];
-        size_t i;
-
-        for (i = 0; i < sectors; i++) 
-          buffercache_write (disk_inode->start + i, METADATA, 0,
-              BLOCK_SECTOR_SIZE, zeros);
-      }
       success = true; 
     } 
     free (disk_inode);
@@ -180,7 +172,7 @@ inode_open (block_sector_t sector)
        e = list_next (e)) 
     {
       inode = list_entry (e, struct inode, elem);
-      if (inode->sector == sector) 
+      if (inode->disk_block == sector) 
         {
           inode_reopen (inode);
           return inode; 
@@ -194,11 +186,10 @@ inode_open (block_sector_t sector)
 
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
-  inode->sector = sector;
+  inode->disk_block = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  buffercache_read (inode->sector, METADATA, 0, BLOCK_SECTOR_SIZE, &inode->data);
   return inode;
 }
 
@@ -215,7 +206,7 @@ inode_reopen (struct inode *inode)
 block_sector_t
 inode_get_inumber (const struct inode *inode)
 {
-  return inode->sector;
+  return inode->disk_block;
 }
 
 /* Closes INODE and writes it to disk.
@@ -237,9 +228,8 @@ inode_close (struct inode *inode)
       /* Deallocate blocks if removed. */
       if (inode->removed) 
         {
-          free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length)); 
+          free_map_release (inode->disk_block, 1);
+		  /* TODO: close all blocks */
         }
 
       free (inode); 
@@ -267,7 +257,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   while (size > 0) 
     {
       /* Disk sector to read, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector (inode, offset, false);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -311,7 +301,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   while (size > 0) 
     {
       /* Sector to write, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector (inode, offset, true);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -361,5 +351,5 @@ inode_allow_write (struct inode *inode)
 off_t
 inode_length (const struct inode *inode)
 {
-  return inode->data.length;
+  return inode->length;
 }
