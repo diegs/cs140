@@ -47,7 +47,6 @@ bytes_to_sectors (off_t size)
 struct inode {
   block_sector_t disk_block;	/* Sector of this inode on disk*/
   struct list_elem elem;		/* Element in inode list. */
-  
   off_t length;
 
   int open_cnt;					/* Number of openers. */
@@ -144,15 +143,10 @@ inode_create (block_sector_t sector, off_t length)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
   {
-    size_t sectors = bytes_to_sectors (length);
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
-    block_sector_t sector;
-    if (free_map_allocate (1, &sector)) 
-    {
-      buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE, disk_inode);
-      success = true; 
-    } 
+    buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE, disk_inode);
+    success = true; 
     free (disk_inode);
   }
   return success;
@@ -187,6 +181,8 @@ inode_open (block_sector_t sector)
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
   inode->disk_block = sector;
+  buffercache_read (sector, METADATA, offsetof (struct inode_disk, length),
+					sizeof (off_t), &inode->length);
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
