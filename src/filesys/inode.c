@@ -22,8 +22,8 @@
 
 #define INODE_INVALID_BLOCK_SECTOR -1
 
-static size_t level_sizes[] = { 1, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_SIZE };
-static size_t level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
+static int level_sizes[] = { 1, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_SIZE };
+static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 
 /* On-disk inode.
@@ -45,7 +45,6 @@ bytes_to_sectors (off_t size)
 
 /* In-memory inode. */
 struct inode {
-  enum inode_type type;
   block_sector_t disk_block;	/* Sector of this inode on disk*/
   struct list_elem elem;		/* Element in inode list. */
   
@@ -63,12 +62,12 @@ struct inode {
 static block_sector_t
 byte_to_sector (struct inode *root, off_t pos, bool create) 
 {
-  ASSERT (inode != NULL);
-  ASSERT (root->type == INODE_ROOT);
+  ASSERT (root != NULL);
 
   block_sector_t cur_sector = root->disk_block;
   off_t cur_pos = pos;
 
+  int i;
   for (i = num_levels - 1; i >= 0; i--) 
   {
     if (pos >= level_offsets[i]) 
@@ -96,15 +95,15 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
 
 
 	  /* Allocate a new sector if necessary*/
-	  if (create && next_sector == -1)
+	  /* TODO: check that we can never allocate block 0 */
+	  if (create && next_sector == 0)
 	  {
 		block_sector_t new_sector;
 		bool allocated = free_map_allocate (1, &new_sector);
 		if (!allocated) return -1;
 		/* Update the current sector info */
-		int bytes_written = buffercache_write (cur_sector, METADATA,
-					offset, sizeof (block_sector_t), &next_sector);
-		if (bytes_written != sizeof(block_sector_t) return -1;
+		int bytes_written = buffercache_write (cur_sector, METADATA, offset, sizeof (block_sector_t), &next_sector);
+		if (bytes_written != sizeof(block_sector_t)) return -1;
 		next_sector = new_sector;
 	  }
       cur_sector = next_sector;
