@@ -67,44 +67,53 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
   off_t cur_pos = pos;
 
   int i;
+  bool root_block = true;
   for (i = num_levels - 1; i >= 0; i--) 
   {
-    if (pos >= level_offsets[i]) 
+    /* Figure out the index from which we would like to read 
+       the next sector index */
+    int index = -1;
+    block_sector_t next_sector;
+    if (root_block && cur_pos >= level_offsets[i] && i > 0) 
     {
-      off_t divisor = level_sizes[i];
-      cur_pos = cur_pos - level_offsets[i];
-
-      /* Get index into current block for next sector */
-      block_sector_t next_sector;
-      int index = cur_pos/divisor;
-
-      ASSERT (index >= 0 && index < INODE_ROOT_DB);
-      
       /* At the root level, we need to select the doubly indirect
          block and the singly indirect block manually */
-      if (cur_sector == root->disk_block && i > 0)
-        index = INODE_NUM_BLOCKS + i;
+      index = INODE_NUM_BLOCKS + i;
+      cur_pos = cur_pos - level_offsets[i];
+      root_block = false;
+    } else if ((!root_block && cur_pos < level_sizes[i+1]) || i == 0) {
+      off_t divisor = level_sizes[i];
 
-      off_t offset = offsetof(struct inode_disk, sectors) + index * sizeof (block_sector_t);
+      /* Get index into current block for next sector */
+      index = cur_pos/divisor;
+      cur_pos = cur_pos - level_sizes[i]*index;
+
+      ASSERT (index >= 0 && index < INODE_ROOT_DB);
+    }
+
+    if (index != -1) 
+    {
+      off_t offset = offsetof(struct inode_disk, sectors) + index *
+        sizeof (block_sector_t);
 
       /* Read next sector */
       int bytes_read = buffercache_read (cur_sector, METADATA, offset,
           sizeof (block_sector_t), &next_sector);
       if (bytes_read != sizeof (block_sector_t)) return -1;
 
-
-	  /* Allocate a new sector if necessary*/
-	  /* TODO: check that we can never allocate block 0 */
-	  if (create && next_sector == 0)
-	  {
-		block_sector_t new_sector;
-		bool allocated = free_map_allocate (1, &new_sector);
-		if (!allocated) return -1;
-		/* Update the current sector info */
-		int bytes_written = buffercache_write (cur_sector, METADATA, offset, sizeof (block_sector_t), &new_sector);
-		if (bytes_written != sizeof(block_sector_t)) return -1;
-		next_sector = new_sector;
-	  }
+      /* Allocate a new sector if necessary*/
+      /* TODO: check that we can never allocate block 0 */
+      if (create && next_sector == 0)
+      {
+        block_sector_t new_sector;
+        bool allocated = free_map_allocate (1, &new_sector);
+        if (!allocated) return -1;
+        /* Update the current sector info */
+        int bytes_written = buffercache_write (cur_sector, METADATA,
+            offset, sizeof (block_sector_t), &new_sector);
+        if (bytes_written != sizeof(block_sector_t)) return -1;
+        next_sector = new_sector;
+      }
       cur_sector = next_sector;
     }
   }
