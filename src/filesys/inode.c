@@ -145,8 +145,9 @@ inode_create (block_sector_t sector, off_t length)
   {
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
-    buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE, disk_inode);
-    success = true; 
+    int wrote = buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE,
+  disk_inode);
+    success = (wrote == BLOCK_SECTOR_SIZE);
     free (disk_inode);
   }
   return success;
@@ -181,8 +182,13 @@ inode_open (block_sector_t sector)
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
   inode->disk_block = sector;
-  buffercache_read (sector, METADATA, offsetof (struct inode_disk, length),
-					sizeof (off_t), &inode->length);
+  int read = buffercache_read (sector, METADATA, offsetof (struct
+  inode_disk, length), sizeof (off_t), &inode->length);
+  if (read != sizeof (off_t))
+  {
+	free(inode);
+	return NULL;
+  }
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
@@ -267,13 +273,13 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
         break;
 
       /* Read chunk from this sector */
-      buffercache_read (sector_idx, REGULAR, sector_ofs, chunk_size,
-			buffer + bytes_read);
-      
+      int read = buffercache_read (sector_idx, REGULAR, sector_ofs,
+      chunk_size, buffer + bytes_read);
       /* Advance. */
-      size -= chunk_size;
-      offset += chunk_size;
-      bytes_read += chunk_size;
+      size -= read;
+      offset += read;
+      bytes_read += read;
+      if (read != chunk_size) break;
     }
 
   return bytes_read;
@@ -311,13 +317,14 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
         break;
 
       /* Write chunk to this sector. */
-      buffercache_write (sector_idx, REGULAR, sector_ofs, chunk_size,
-			 buffer + bytes_written);
+      int wrote = buffercache_write (sector_idx, REGULAR, sector_ofs,
+      chunk_size, buffer + bytes_written);
 
       /* Advance. */
-      size -= chunk_size;
-      offset += chunk_size;
-      bytes_written += chunk_size;
+      size -= wrote;
+      offset += wrote;
+      bytes_written += wrote;
+	  if (wrote != chunk_size) break;
     }
 
   return bytes_written;
