@@ -22,7 +22,7 @@
 
 #define INODE_INVALID_BLOCK_SECTOR -1
 
-static int level_sizes[] = { 1, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_SIZE };
+static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_SIZE };
 static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 
@@ -101,7 +101,7 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
 		bool allocated = free_map_allocate (1, &new_sector);
 		if (!allocated) return -1;
 		/* Update the current sector info */
-		int bytes_written = buffercache_write (cur_sector, METADATA, offset, sizeof (block_sector_t), &next_sector);
+		int bytes_written = buffercache_write (cur_sector, METADATA, offset, sizeof (block_sector_t), &new_sector);
 		if (bytes_written != sizeof(block_sector_t)) return -1;
 		next_sector = new_sector;
 	  }
