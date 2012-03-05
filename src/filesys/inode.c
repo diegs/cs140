@@ -87,7 +87,7 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
       if (cur_sector == root->disk_block && i > 0)
         index = INODE_NUM_BLOCKS + i;
 
-      off_t offset = index * sizeof (block_sector_t);
+      off_t offset = offsetof(struct inode_disk, sectors) + index * sizeof (block_sector_t);
 
       /* Read next sector */
       int bytes_read = buffercache_read (cur_sector, METADATA, offset,
