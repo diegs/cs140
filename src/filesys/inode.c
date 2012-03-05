@@ -90,21 +90,22 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
       /* Read next sector */
       int bytes_read = buffercache_read (cur_sector, METADATA, offset,
           sizeof (block_sector_t), &next_sector);
-      if (bytes_read != sizeof (block_sector_t)) return -1;
+      if (bytes_read != sizeof (block_sector_t)) return INODE_INVALID_BLOCK_SECTOR;
 
 
 	  /* Allocate a new sector if necessary*/
 	  /* TODO: check that we can never allocate block 0 */
-	  if (create && next_sector == 0)
+	  if (create && next_sector == INODE_INVALID_BLOCK_SECTOR)
 	  {
 		block_sector_t new_sector;
 		bool allocated = free_map_allocate (1, &new_sector);
-		if (!allocated) return -1;
+		if (!allocated) return INODE_INVALID_BLOCK_SECTOR;
 		/* Update the current sector info */
 		int bytes_written = buffercache_write (cur_sector, METADATA, offset, sizeof (block_sector_t), &new_sector);
-		if (bytes_written != sizeof(block_sector_t)) return -1;
+		if (bytes_written != sizeof(block_sector_t)) return INODE_INVALID_BLOCK_SECTOR;
 		next_sector = new_sector;
 	  }
+	  printf("searching sector %u, next sector is %u\n", cur_sector, next_sector);
       cur_sector = next_sector;
     }
   }
@@ -143,6 +144,7 @@ inode_create (block_sector_t sector, off_t length)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
   {
+	memset(disk_inode, INODE_INVALID_BLOCK_SECTOR, INODE_NUM_BLOCKS * sizeof(block_sector_t));
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
     int wrote = buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE,
@@ -260,6 +262,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     {
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset, false);
+	  if (sector_idx == INODE_INVALID_BLOCK_SECTOR) break;
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -304,6 +307,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset, true);
+	  if (sector_idx == INODE_INVALID_BLOCK_SECTOR) break;
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
