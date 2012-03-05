@@ -13,8 +13,8 @@
 
 /* The number of sector references in an inode */
 #define INODE_NUM_BLOCKS 126
-#define INODE_ROOT_DB 124
-#define INODE_DIRECT_SIZE INODE_ROOT_DB*BLOCK_SECTOR_SIZE
+#define INODE_CONSISTENT_BLOCKS 124
+#define INODE_DIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
 #define INODE_INDIRECT_SIZE INODE_NUM_BLOCKS*BLOCK_SECTOR_SIZE
 #define INODE_DUBINDER_SIZE INODE_INDIRECT_SIZE*INODE_NUM_BLOCKS
 #define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
@@ -30,6 +30,10 @@ static int num_levels = sizeof (level_offsets) / sizeof (size_t);
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
 {
+  /* All of the inode blocks contains INODE_CONSISTENT_BLOCKS of 
+     blocks for the next level of indirection. The root block uses
+     INODE_CONSISTENT_BLOCKS + 1 for the singly indirect block and
+     INODE_CONSISTENT_BLOCKS + 2 for the doubly indirect block */
   block_sector_t sectors[INODE_NUM_BLOCKS];
   off_t length;                       /* File size in bytes. */
   unsigned magic;                     /* Magic number. */
@@ -53,6 +57,37 @@ struct inode {
   bool removed;					/* True if deleted, false otherwise. */
   int deny_write_cnt;			/* 0: writes ok, >0: deny writes. */
 };
+
+static block_sector_t 
+create_new_sector (block_sector_t cur_sector, off_t offset, 
+    enum sector_type type)
+{
+  block_sector_t new_sector;
+  bool allocated = free_map_allocate (1, &new_sector);
+  if (!allocated) return -1;
+
+  /* Update the current sector info */
+  int bytes_written = buffercache_write (cur_sector, METADATA,
+      offset, sizeof (block_sector_t), &new_sector);
+  if (bytes_written != sizeof(block_sector_t)) return -1;
+
+  /* Correctly initialize the new sector -- it should either
+     be all zeros if it is newly created or filled with 
+     INODE_INVALID_BLOCK_SECTOR otherwise */
+  int fill = (type == METADATA) ? INODE_INVALID_BLOCK_SECTOR : 0;
+  int j;
+  
+  int *kernel_block = (int*)malloc (BLOCK_SECTOR_SIZE);
+  for (j = 0; j < BLOCK_SECTOR_SIZE/sizeof(int); j++)
+    kernel_block[j] = fill;
+
+  buffercache_write (new_sector, type, 0, BLOCK_SECTOR_SIZE,
+      kernel_block);
+
+  free (kernel_block);
+
+  return new_sector;
+}
 
 /* Returns the block device sector that contains byte offset POS
    within INODE.
@@ -78,7 +113,7 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
     {
       /* At the root level, we need to select the doubly indirect
          block and the singly indirect block manually */
-      index = INODE_NUM_BLOCKS + i;
+      index = INODE_CONSISTENT_BLOCKS + i;
       cur_pos = cur_pos - level_offsets[i];
       root_block = false;
     } else if ((!root_block && cur_pos < level_sizes[i+1]) || i == 0) {
@@ -88,9 +123,11 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
       index = cur_pos/divisor;
       cur_pos = cur_pos - level_sizes[i]*index;
 
-      ASSERT (index >= 0 && index < INODE_ROOT_DB);
+      ASSERT (index >= 0 && index < INODE_CONSISTENT_BLOCKS);
     }
 
+    /* Perform the traversal if we need to perform one at this level
+       of indirection */
     if (index != -1) 
     {
       off_t offset = offsetof(struct inode_disk, sectors) + index *
@@ -99,20 +136,18 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
       /* Read next sector */
       int bytes_read = buffercache_read (cur_sector, METADATA, offset,
           sizeof (block_sector_t), &next_sector);
-      if (bytes_read != sizeof (block_sector_t)) return INODE_INVALID_BLOCK_SECTOR;
+      if (bytes_read != sizeof (block_sector_t)) 
+        return INODE_INVALID_BLOCK_SECTOR;
 
       /* Allocate a new sector if necessary*/
-      /* TODO: check that we can never allocate block 0 */
-      if (create && next_sector == 0)
-      {
-        block_sector_t new_sector;
-        bool allocated = free_map_allocate (1, &new_sector);
-        if (!allocated) return -1;
-        /* Update the current sector info */
-        int bytes_written = buffercache_write (cur_sector, METADATA,
-            offset, sizeof (block_sector_t), &new_sector);
-        if (bytes_written != sizeof(block_sector_t)) return -1;
-        next_sector = new_sector;
+      if (next_sector == INODE_INVALID_BLOCK_SECTOR) {
+        if (create)
+        {
+          enum sector_type type = i > 0 ? METADATA : REGULAR;
+          next_sector = create_new_sector (cur_sector, offset, type);
+        } else {
+          return INODE_INVALID_BLOCK_SECTOR;
+        }
       }
       cur_sector = next_sector;
     }
@@ -270,7 +305,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     {
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset, false);
-	  if (sector_idx == INODE_INVALID_BLOCK_SECTOR) break;
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -282,6 +316,15 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
         break;
+
+      /* If we did not get a sector index, but we are still within
+         the length of the file, we can zero out a block size of 
+         data in the buffer */
+      if (sector_idx == INODE_INVALID_BLOCK_SECTOR) 
+      {
+        // TODO: Actually implement the zeroing. 
+        break;
+      }
 
       /* Read chunk from this sector */
       int read = buffercache_read (sector_idx, REGULAR, sector_ofs,
