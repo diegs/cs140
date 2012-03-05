@@ -22,9 +22,7 @@
 
 #define INODE_INVALID_BLOCK_SECTOR -1
 
-static size_t level_sizes[] = { INODE_DUBINDER_SIZE,
-  INODE_INDIRECT_SIZE, INODE_DIRECT_SIZE, 1};
-static size_t level_sizes[] = { 1, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_OFFSET };
+static size_t level_sizes[] = { 1, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_SIZE };
 static size_t level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 
@@ -48,14 +46,14 @@ bytes_to_sectors (off_t size)
 /* In-memory inode. */
 struct inode {
   enum inode_type type;
-  block_sector_t disk_block;          /* Sector of this inode on disk*/
-  struct list_elem elem;              /* Element in inode list. */
+  block_sector_t disk_block;	/* Sector of this inode on disk*/
+  struct list_elem elem;		/* Element in inode list. */
   
   off_t length;
 
-  int open_cnt;                       /* Number of openers. */
-  bool removed;                       /* True if deleted, false otherwise. */
-  int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+  int open_cnt;					/* Number of openers. */
+  bool removed;					/* True if deleted, false otherwise. */
+  int deny_write_cnt;			/* 0: writes ok, >0: deny writes. */
 };
 
 /* Returns the block device sector that contains byte offset POS
@@ -63,7 +61,7 @@ struct inode {
    Returns -1 if INODE does not contain data for a byte at offset
    POS. */
 static block_sector_t
-byte_to_sector (struct inode *root, off_t pos) 
+byte_to_sector (struct inode *root, off_t pos, bool create) 
 {
   ASSERT (inode != NULL);
   ASSERT (root->type == INODE_ROOT);
@@ -75,7 +73,7 @@ byte_to_sector (struct inode *root, off_t pos)
   {
     if (pos >= level_offsets[i]) 
     {
-      off_t divisor = level_sizes[i + 1];
+      off_t divisor = level_sizes[i];
       cur_pos = cur_pos - level_offsets[i];
 
       /* Get index into current block for next sector */
@@ -86,10 +84,8 @@ byte_to_sector (struct inode *root, off_t pos)
       
       /* At the root level, we need to select the doubly indirect
          block and the singly indirect block manually */
-      if (cur_sector == root->disk_block)
-      {
+      if (cur_sector == root->disk_block && i > 0)
         index = INODE_NUM_BLOCKS + i;
-      }
 
       off_t offset = index * sizeof (block_sector_t);
 
@@ -98,6 +94,19 @@ byte_to_sector (struct inode *root, off_t pos)
           sizeof (block_sector_t), &next_sector);
       if (bytes_read != sizeof (block_sector_t)) return -1;
 
+
+	  /* Allocate a new sector if necessary*/
+	  if (create && next_sector == -1)
+	  {
+		block_sector_t new_sector;
+		bool allocated = free_map_allocate (1, &new_sector);
+		if (!allocated) return -1;
+		/* Update the current sector info */
+		int bytes_written = buffercache_write (cur_sector, METADATA,
+					offset, sizeof (block_sector_t), &next_sector);
+		if (bytes_written != sizeof(block_sector_t) return -1;
+		next_sector = new_sector;
+	  }
       cur_sector = next_sector;
     }
   }
