@@ -66,6 +66,57 @@ buffercache_init (const size_t size)
 }
 
 /**
+ * Writes directly to disk, bypassing the buffer cache. Used for failsafe
+ * reasons.
+ */
+static int
+buffercache_write_direct (const block_sector_t sector, const int sector_ofs,
+			 const off_t size, const void *buf)
+{
+  static void *bounce;
+
+  /* Allocate bounce buffer */
+  bounce = malloc (BLOCK_SECTOR_SIZE);
+  if (bounce == NULL) return -1;
+
+  /* Read from disk */
+  block_read (fs_device, sector, bounce);
+
+  /* Copy data into bounce buffer */
+  memcpy (bounce + sector_ofs, buf, size);
+
+  /* Write back to disk */
+  block_write (fs_device, sector, bounce);
+
+  free (bounce);
+  return size;
+}
+
+/**
+ * Reads directly from disk, bypassing the buffer cache. Used for failsafe
+ * reasons.
+ */
+static int
+buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
+			 const off_t size, void *buf)
+{
+  static void *bounce;
+
+  /* Allocate bounce buffer */
+  bounce = malloc (BLOCK_SECTOR_SIZE);
+  if (bounce == NULL) return -1;
+
+  /* Read from disk */
+  block_read (fs_device, sector, bounce);
+
+  /* Copy into buffer */
+  memcpy (buf, bounce + sector_ofs, size);
+
+  free (bounce);
+  return size;
+}
+
+/**
  * Reads a sector from sector into buf. Does not do bounds checking on
  * sector_ofs and size.
  *
@@ -84,24 +135,24 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
 
   if (entry != NULL)
   {
-    /* Read from the cache entry */
+    /* Read from cache entry */
     memcpy ((void*)buf, (void*)entry->kaddr + sector_ofs, size);
 
-    /* We are done with this block */
+    /* Adjust cache entry */
     lock_acquire (&cache_lock);
     entry->accessed |= ACCESSED;
     entry->accessors--;
     if (entry->accessors == 0)
       cond_broadcast (&entry->c, &cache_lock);
     lock_release (&cache_lock);
+
+    /* Trigger read-ahead */
+    buffercache_read_ahead_if_necessary (sector);
+    return size;
   } else {
     /* Failsafe: bypass the cache */
-    /* TODO: use bounce buffer */
+    return buffercache_read_direct (sector, sector_ofs, size, buf);
   }
-
-  buffercache_read_ahead_if_necessary (sector);
-
-  return size;
 }
 
 /**
@@ -126,21 +177,21 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     /* Write to cache entry */
     memcpy ((void *)entry->kaddr + sector_ofs, (void *)buf, size);
 
-    /* We are done with this block */
+    /* Adjust cache entry */
     lock_acquire (&cache_lock);
     entry->accessed |= ACCESSED | DIRTY;
     entry->accessors--;
     if (entry->accessors == 0)
       cond_broadcast (&entry->c, &cache_lock);
     lock_release (&cache_lock);
+
+    /* Trigger read-ahead and return */
+    buffercache_read_ahead_if_necessary (sector);
+    return size;
   } else {
     /* Failsafe: bypass the cache */
-    /* TODO: use bounce buffer */
+    return buffercache_write_direct (sector, sector_ofs, size, buf);
   }
-
-  buffercache_read_ahead_if_necessary (sector);
-
-  return size;
 }
 
 /**
