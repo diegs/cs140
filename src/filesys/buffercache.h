@@ -53,9 +53,11 @@ struct cache_entry
 
 bool buffercache_init (const size_t size);
 int buffercache_read (const block_sector_t sector, enum sector_type type,
-                      const int sector_ofs, const off_t size, void *buf);
+                      const int sector_ofs, const off_t size, void *buf,
+                      const block_sector_t next_sector);
 int buffercache_write (const block_sector_t sector, enum sector_type type,
-                       const int sector_ofs, const off_t size, const void *buf);
+                       const int sector_ofs, const off_t size, const void *buf,
+                       const block_sector_t next_sector);
 void buffercache_flush (void);
 
 #endif

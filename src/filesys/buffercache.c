@@ -91,7 +91,8 @@ buffercache_init (const size_t size)
  */
 int
 buffercache_read (const block_sector_t sector, enum sector_type type,
-                  const int sector_ofs, const off_t size, void *buf)
+                  const int sector_ofs, const off_t size, void *buf,
+                  const block_sector_t next_sector)
 {
   struct cache_entry *entry;
 
@@ -118,7 +119,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead */
-    buffercache_read_ahead_if_necessary (sector);
+    buffercache_read_ahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -134,7 +135,8 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
  */
 int
 buffercache_write (const block_sector_t sector, enum sector_type type,
-                   const int sector_ofs, const off_t size, const void *buf)
+                   const int sector_ofs, const off_t size, const void *buf,
+                   const block_sector_t next_sector)
 {
   struct cache_entry *entry;
 
@@ -161,7 +163,7 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead and return */
-    buffercache_read_ahead_if_necessary (sector);
+    buffercache_read_ahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -305,6 +307,10 @@ buffercache_read_ahead_if_necessary (const block_sector_t sector)
 {
   char name[40];
 
+  /* No read-ahead necessary */
+  if ((int)sector == -1) return;
+
+  /* Spawn read-ahead thread */
   snprintf (name, 40, "buffercache_read_ahead_worker-%d", sector);
   thread_create (name, PRI_DEFAULT, buffercache_read_ahead_worker, (void*)sector);
 }
@@ -319,7 +325,7 @@ static void
 buffercache_read_ahead_worker (void *aux)
 {
   block_sector_t sector = (block_sector_t)aux;
-  buffercache_read (sector, REGULAR, 0, 1, &aux);
+  buffercache_read (sector, REGULAR, 0, 1, &aux, -1);
 }
 
 /**
