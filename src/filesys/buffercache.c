@@ -2,17 +2,22 @@
 #include <string.h>
 
 #include "devices/block.h"
+#include "devices/timer.h"
 #include "filesys/buffercache.h"
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "threads/thread.h"
 #include "threads/vaddr.h"
+
+#define BUFFERCACHE_FLUSH_FREQUENCY 30 * 1000 /* 30 seconds */
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
 static int cache_size;            /* Size of the cache */
 static int clock_hand;            /* For clock algorithm */
 
+static void buffercache_polling_thread (void *aux);
 static void buffercache_allocate_block (struct cache_entry *entry, void *kaddr);
 static struct cache_entry *buffercache_find_entry (const block_sector_t sector);
 static struct cache_entry *buffercache_replace (const block_sector_t
@@ -40,6 +45,7 @@ buffercache_init (const size_t size)
 {
   int i;
   void *kaddr;
+  tid_t t;
 
   /* Set the cache size */
   cache_size = size;
@@ -66,6 +72,11 @@ buffercache_init (const size_t size)
 
   /* Initialize the clock hand so first access will be slot 0 */
   clock_hand = cache_size - 1;
+
+  /* Create the buffercache flush thread */
+  t = thread_create ("buffercache_polling_thread", PRI_DEFAULT,
+                     buffercache_polling_thread, NULL);
+  if (t == TID_ERROR) return false;
 
   return true;
 }
@@ -157,14 +168,6 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
 }
 
 /**
- * Daemon thread that flushes all buffers to disk every 30 seconds.
- */
-void buffercache_daemon (void)
-{
-  /* TODO implement */
-}
-
-/**
  * Flushes all dirty buffers in the cache to disk.
  */
 void
@@ -177,6 +180,19 @@ buffercache_flush (void)
     lock_acquire (&cache_lock);
     buffercache_flush_entry (&cache[i]);
     lock_release (&cache_lock);
+  }
+}
+
+/**
+ * Daemon thread that flushes all buffers to disk every 30 seconds.
+ */
+static void
+buffercache_polling_thread (void *aux UNUSED)
+{
+  while (true)
+  {
+    timer_msleep (BUFFERCACHE_FLUSH_FREQUENCY);
+    buffercache_flush ();
   }
 }
 
