@@ -361,7 +361,8 @@ inode_close (struct inode *inode)
 		  /* TODO: close all blocks */
 //          inode_sector_map (inode, inode_sector_print);
         }
-
+	  buffercache_write (inode->disk_block, METADATA, offsetof (struct
+      inode_disk, length), sizeof(off_t), &inode->length, INODE_INVALID_BLOCK_SECTOR);
       free (inode); 
     }
 }
@@ -440,12 +441,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
-      int min_left = inode_left < sector_left ? inode_left : sector_left;
 
       /* Number of bytes to actually write into this sector. */
-      int chunk_size = size < min_left ? size : min_left;
+      int chunk_size = size < sector_left ? size : sector_left;
       if (chunk_size <= 0)
         break;
 
@@ -454,14 +453,13 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                                      chunk_size, buffer + bytes_written,
                                      byte_to_sector (inode, offset+chunk_size,
                                                      false));
-
       /* Advance. */
       size -= wrote;
       offset += wrote;
       bytes_written += wrote;
 	  if (wrote != chunk_size) break;
     }
-
+  if (offset + bytes_written > inode->length) inode->length = offset;
   return bytes_written;
 }
 

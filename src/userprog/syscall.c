@@ -415,7 +415,6 @@ sys_tell (struct intr_frame *f)
   lock_acquire (&fd_all_lock);
   uint32_t tell = file_tell (pfd->file);
   lock_release (&fd_all_lock);
-
   return tell;
 }
 
@@ -665,7 +664,7 @@ syscall_handler (struct intr_frame *f)
       sys_seek (f);
       break;
     case SYS_TELL:
-      sys_tell (f);
+      eax = sys_tell (f);
       break;
     case SYS_CLOSE:
       sys_close (f);
@@ -677,7 +676,6 @@ syscall_handler (struct intr_frame *f)
       sys_munmap (f);
       break;
   }
-
   thread_current ()->syscall_context = false;
   /* Set return value */
   f->eax = eax;
