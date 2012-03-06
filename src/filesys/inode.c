@@ -380,7 +380,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += wrote;
 	  if (wrote != chunk_size) break;
     }
-  if (offset + bytes_written > inode->length) inode->length - offset + bytes_written;
+  if (offset + bytes_written > inode->length) inode->length = offset + bytes_written;
   return bytes_written;
 }
 
