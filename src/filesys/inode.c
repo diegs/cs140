@@ -15,14 +15,14 @@
 #define INODE_NUM_BLOCKS 126
 #define INODE_CONSISTENT_BLOCKS 124
 #define INODE_DIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
-#define INODE_INDIRECT_SIZE INODE_NUM_BLOCKS*BLOCK_SECTOR_SIZE
-#define INODE_DUBINDER_SIZE INODE_INDIRECT_SIZE*INODE_NUM_BLOCKS
+#define INODE_INDIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
+#define INODE_DUBINDER_SIZE INODE_INDIRECT_SIZE*INODE_CONSISTENT_BLOCKS
 #define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
 #define INODE_DUBINDER_OFFSET INODE_INDIRECT_OFFSET + INODE_INDIRECT_SIZE
 
 #define INODE_INVALID_BLOCK_SECTOR (block_sector_t)-1
 
-static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_INDIRECT_SIZE, INODE_DUBINDER_SIZE };
+static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_DUBINDER_SIZE };
 static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 
@@ -113,10 +113,11 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
     {
       /* At the root level, we need to select the doubly indirect
          block and the singly indirect block manually */
-      index = INODE_CONSISTENT_BLOCKS + i;
+      index = INODE_CONSISTENT_BLOCKS + i - 1;
       cur_pos = cur_pos - level_offsets[i];
       root_block = false;
-    } else if ((!root_block && cur_pos < level_sizes[i+1]) || i == 0) {
+    } else if ((i < 2 && !root_block && cur_pos < level_sizes[i+1]) 
+                || i == 0) {
       off_t divisor = level_sizes[i];
 
       /* Get index into current block for next sector */
@@ -141,7 +142,12 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
 
       /* Allocate a new sector if necessary*/
       if (next_sector == INODE_INVALID_BLOCK_SECTOR) {
-        if (create)
+      /* If we did not get a sector index, but we are still within
+         the length of the file, we can zero out a block size of 
+         data in the buffer */
+        bool within_length = pos < root->length;
+
+        if (create || within_length)
         {
           enum sector_type type = i > 0 ? METADATA : REGULAR;
           next_sector = create_new_sector (cur_sector, offset, type);
@@ -187,11 +193,11 @@ inode_create (block_sector_t sector, off_t length)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
   {
-	memset(disk_inode, INODE_INVALID_BLOCK_SECTOR, INODE_NUM_BLOCKS * sizeof(block_sector_t));
+    memset(disk_inode, INODE_INVALID_BLOCK_SECTOR, INODE_NUM_BLOCKS * sizeof(block_sector_t));
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
     int wrote = buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE,
-  disk_inode);
+        disk_inode);
     success = (wrote == BLOCK_SECTOR_SIZE);
     free (disk_inode);
   }
@@ -231,8 +237,8 @@ inode_open (block_sector_t sector)
   inode_disk, length), sizeof (off_t), &inode->length);
   if (read != sizeof (off_t))
   {
-	free(inode);
-	return NULL;
+    free(inode);
+    return NULL;
   }
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
@@ -305,6 +311,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     {
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset, false);
+      if (sector_idx == INODE_INVALID_BLOCK_SECTOR) break;
+
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -316,15 +324,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
         break;
-
-      /* If we did not get a sector index, but we are still within
-         the length of the file, we can zero out a block size of 
-         data in the buffer */
-      if (sector_idx == INODE_INVALID_BLOCK_SECTOR) 
-      {
-        // TODO: Actually implement the zeroing. 
-        break;
-      }
 
       /* Read chunk from this sector */
       int read = buffercache_read (sector_idx, REGULAR, sector_ofs,
