@@ -100,6 +100,9 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  /* Mark this as a user process */
+  thread_current ()->user = true;
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -217,7 +220,8 @@ process_exit (void)
   uint32_t *pd;
 
   /* Print exit message */
-  printf ("%s: exit(%d)\n", cur->name, cur->exit_code);
+  if (cur->user)
+    printf ("%s: exit(%d)\n", cur->name, cur->exit_code);
 
   /* Close files that the process holds */
   struct list *fds = &cur->fd_list;

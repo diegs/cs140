@@ -314,6 +314,7 @@ thread_create (const char *name, int priority,
   t->mlfqs_priority = cur_thread->mlfqs_priority;
 
 #ifdef USERPROG
+  t->user = false;
   /* Allocate PCB */
   if (!process_create_pcb (t))
   {

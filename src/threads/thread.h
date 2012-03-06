@@ -104,6 +104,7 @@ struct thread
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
+  bool user;                    /* Indicates this is a user thread */
   uint32_t *pagedir;                   /* Page directory. */
   struct process_status *pcb;          /* Parent status info */
   struct list pcb_children;              /* List of children */

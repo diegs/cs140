@@ -1,4 +1,5 @@
 #include <debug.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "devices/block.h"
@@ -29,6 +30,7 @@ static int buffercache_write_direct (const block_sector_t sector,
                                      const int sector_ofs, const off_t size,
                                      const void *buf);
 static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
+static void buffercache_read_ahead_worker (void *aux);
 static void buffercache_load_entry (struct cache_entry *entry,
                                     const block_sector_t sector,
                                     enum sector_type type);
@@ -299,11 +301,25 @@ buffercache_flush_entry (struct cache_entry *entry)
  * Invokes a read-ahead thread for the given block.
  */
 static void
-buffercache_read_ahead_if_necessary (const block_sector_t sector UNUSED)
+buffercache_read_ahead_if_necessary (const block_sector_t sector)
 {
-  
-  /* TODO implement pre-fetch */
-  return;
+  char name[40];
+
+  snprintf (name, 40, "buffercache_read_ahead_worker-%d", sector);
+  thread_create (name, PRI_DEFAULT, buffercache_read_ahead_worker, (void*)sector);
+}
+
+/**
+ * Invokes read on the given sector to effect a read-ahead while keeping all
+ * synchronization mechanisms intact.
+ *
+ * TODO assumes that read-ahead only occurs for regular sectors
+ */
+static void
+buffercache_read_ahead_worker (void *aux)
+{
+  block_sector_t sector = (block_sector_t)aux;
+  buffercache_read (sector, REGULAR, 0, 1, &aux);
 }
 
 /**
