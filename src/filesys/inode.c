@@ -287,8 +287,8 @@ inode_close (struct inode *inode)
           free_map_release (inode->disk_block, 1);
 		  /* TODO: close all blocks */
         }
-	  buffercache_write (inode->disk_block, METADATA, offsetof
-						 (struct inode_disk, length), sizeof(off_t), &inode->length);
+	  buffercache_write (inode->disk_block, METADATA, offsetof (struct
+      inode_disk, length), sizeof(off_t), &inode->length, INODE_INVALID_BLOCK_SECTOR);
       free (inode); 
     }
 }
