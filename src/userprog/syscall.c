@@ -677,7 +677,6 @@ syscall_handler (struct intr_frame *f)
       sys_munmap (f);
       break;
   }
-  printf("eax is %u\n", eax);
   thread_current ()->syscall_context = false;
   /* Set return value */
   f->eax = eax;
