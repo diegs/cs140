@@ -81,6 +81,7 @@ list_begin (struct list *list)
 struct list_elem *
 list_next (struct list_elem *elem)
 {
+  ASSERT (elem != NULL);
   ASSERT (is_head (elem) || is_interior (elem));
   return elem->next;
 }

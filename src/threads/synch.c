@@ -68,7 +68,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
   {
-    list_push_back (&sema->waiters, &thread_current ()->elem);
+    list_push_back (&sema->waiters, &thread_current ()->lock_elem);
     thread_block ();
   }
   sema->value--;
@@ -120,7 +120,7 @@ sema_up (struct semaphore *sema)
   {
     struct list_elem *max_item = list_max (&sema->waiters, cmp_thread_priority, NULL);
     list_remove (max_item);
-    struct thread *t = list_entry (max_item, struct thread, elem);
+    struct thread *t = list_entry (max_item, struct thread, lock_elem);
     thread_unblock (t);
     if (t->effective_priority > thread_current ()->effective_priority)
       thread_yield ();

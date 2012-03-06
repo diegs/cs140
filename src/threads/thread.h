@@ -102,6 +102,9 @@ struct thread
   /* Shared between thread.c and synch.c. */
   struct list_elem elem;              /* List element. */
 
+  /* Lock elem */
+  struct list_elem lock_elem;
+
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   bool user;                    /* Indicates this is a user thread */

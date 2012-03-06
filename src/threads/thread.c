@@ -478,6 +478,7 @@ thread_exit (void)
 	{
 	  struct list_elem *e = list_pop_front (locks);
 	  struct lock * l = list_entry (e, struct lock, priority_holder);
+	  printf("releasing lock in t exit%X\n", l);
 	  lock_release(l);
 	}  
 
