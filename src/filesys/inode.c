@@ -20,6 +20,9 @@
 #define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
 #define INODE_DUBINDER_OFFSET INODE_INDIRECT_OFFSET + INODE_INDIRECT_SIZE
 
+#define INODE_ROOT_DIRECT_INDEX INODE_CONSISTENT_BLOCKS
+#define INODE_ROOT_DUBINDER_INDEX INODE_CONSISTENT_BLOCKS + 1
+
 static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_DUBINDER_SIZE };
 static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
@@ -56,10 +59,17 @@ struct inode {
   int deny_write_cnt;			/* 0: writes ok, >0: deny writes. */
 };
 
+static off_t index_to_offset (int index)
+{
+  return offsetof(struct inode_disk, sectors) 
+    + index*sizeof (block_sector_t);
+}
+
 static block_sector_t 
-create_new_sector (block_sector_t cur_sector, off_t offset, 
+create_new_sector (block_sector_t cur_sector, int index, 
     enum sector_type type)
 {
+  off_t offset = index_to_offset (index);
   block_sector_t new_sector;
   bool allocated = free_map_allocate (1, &new_sector);
   if (!allocated) return -1;
@@ -86,6 +96,21 @@ create_new_sector (block_sector_t cur_sector, off_t offset,
   free (kernel_block);
 
   return new_sector;
+}
+
+static block_sector_t
+get_sector_from_block (block_sector_t sector, int index)
+{
+  off_t offset = index_to_offset (index);
+  block_sector_t next_sector;
+  int bytes_read = buffercache_read (sector, METADATA, offset,
+      sizeof (block_sector_t), &next_sector,
+      INODE_INVALID_BLOCK_SECTOR); 
+
+  if (bytes_read != sizeof (block_sector_t)) 
+    return INODE_INVALID_BLOCK_SECTOR;
+
+  return next_sector;
 }
 
 /* Returns the block device sector that contains byte offset POS
@@ -130,16 +155,7 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
        of indirection */
     if (index != -1) 
     {
-      off_t offset = offsetof(struct inode_disk, sectors) + index *
-        sizeof (block_sector_t);
-
-      /* Read next sector */
-      /* TODO use read-ahead? */
-      int bytes_read = buffercache_read (cur_sector, METADATA, offset,
-                                         sizeof (block_sector_t), &next_sector,
-                                         INODE_INVALID_BLOCK_SECTOR);
-      if (bytes_read != sizeof (block_sector_t)) 
-        return INODE_INVALID_BLOCK_SECTOR;
+      next_sector = get_sector_from_block (cur_sector, index);
 
       /* Allocate a new sector if necessary*/
       if (next_sector == INODE_INVALID_BLOCK_SECTOR) {
@@ -151,7 +167,7 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
         if (create || within_length)
         {
           enum sector_type type = i > 0 ? METADATA : REGULAR;
-          next_sector = create_new_sector (cur_sector, offset, type);
+          next_sector = create_new_sector (cur_sector, index, type);
         } else {
           return INODE_INVALID_BLOCK_SECTOR;
         }
@@ -161,6 +177,63 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
   }
 
   return cur_sector;
+}
+
+typedef void (*inode_sector_map_fn) (block_sector_t sector, bool meta);
+
+static void
+inode_sector_map (struct inode *root, inode_sector_map_fn map_fn)
+{
+  ASSERT (root != NULL);
+
+  block_sector_t level_blocks[num_levels];
+  int level_indices[num_levels], i;
+
+  for (i = 0; i < num_levels; i++)
+    level_indices[i] = 0;
+
+  level_blocks[0] = root->disk_block;
+  level_blocks[1] = get_sector_from_block 
+    (level_blocks[0], INODE_ROOT_DIRECT_INDEX);
+  level_blocks[2] = get_sector_from_block 
+    (level_blocks[0], INODE_ROOT_DUBINDER_INDEX);
+
+  /* Every iteration of this loop retrieves one file level block.
+     If a level has been traversed it is also passed in to the
+     mapping function with the appropriate flag */
+  off_t bytes_traversed = 0;
+  while (bytes_traversed < root->length)
+  {
+    block_sector_t sector = get_sector_from_block 
+      (level_blocks[0], level_indices[0]);
+
+    map_fn (sector, false);
+
+    for (i = 0; i < num_levels; i--)
+    {
+      if (level_indices[i] == INODE_CONSISTENT_BLOCKS) 
+      {
+        level_indices[i] = 0;
+        if (i < num_levels - 1)
+        {
+          map_fn (level_blocks[i], true);
+          level_blocks[i] = get_sector_from_block 
+            (level_blocks[i + 1], level_indices[i + 1]); 
+        }
+      } else {
+        level_indices[i]++;
+        break;
+      }
+    }
+    
+    bytes_traversed += BLOCK_SECTOR_SIZE;
+  }
+}
+
+static void 
+inode_sector_print (block_sector_t sector, bool meta)
+{
+  printf ("Mapping over sector %d, is meta? %d\n", sector, meta);
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -286,6 +359,7 @@ inode_close (struct inode *inode)
         {
           free_map_release (inode->disk_block, 1);
 		  /* TODO: close all blocks */
+//          inode_sector_map (inode, inode_sector_print);
         }
 
       free (inode); 
