@@ -358,8 +358,8 @@ cmp_waiter_priority(const struct list_elem *a, const struct list_elem *b, void* 
 {
   struct semaphore *a_semaphore = &list_entry(a, struct semaphore_elem, elem)->semaphore;
   struct semaphore *b_semaphore = &list_entry(b, struct semaphore_elem, elem)->semaphore;
-  int a_priority = list_entry (list_front (&a_semaphore->waiters), struct thread, elem)->effective_priority;
-  int b_priority = list_entry (list_front (&b_semaphore->waiters), struct thread, elem)->effective_priority;
+  int a_priority = list_entry (list_front (&a_semaphore->waiters), struct thread, lock_elem)->effective_priority;
+  int b_priority = list_entry (list_front (&b_semaphore->waiters), struct thread, lock_elem)->effective_priority;
   return a_priority < b_priority;
 }
 
