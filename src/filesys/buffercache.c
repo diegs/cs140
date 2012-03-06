@@ -6,6 +6,7 @@
 #include "devices/timer.h"
 #include "filesys/buffercache.h"
 #include "filesys/filesys.h"
+#include "filesys/inode.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
@@ -309,7 +310,7 @@ buffercache_read_ahead_if_necessary (const block_sector_t sector)
   char name[40];
 
   /* No read-ahead necessary */
-  if ((int)sector == -1) return;
+  if (sector == INODE_INVALID_BLOCK_SECTOR) return;
 
   /* Spawn read-ahead thread */
   snprintf (name, 40, "buffercache_read_ahead_worker-%d", sector);
@@ -326,7 +327,7 @@ static void
 buffercache_read_ahead_worker (void *aux)
 {
   block_sector_t sector = (block_sector_t)aux;
-  buffercache_read (sector, REGULAR, 0, 1, &aux, -1);
+  buffercache_read (sector, REGULAR, 0, 1, &aux, INODE_INVALID_BLOCK_SECTOR);
 }
 
 /**

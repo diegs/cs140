@@ -5,6 +5,8 @@
 #include "filesys/off_t.h"
 #include "devices/block.h"
 
+#define INODE_INVALID_BLOCK_SECTOR (block_sector_t)-1
+
 struct bitmap;
 
 void inode_init (void);

@@ -20,8 +20,6 @@
 #define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
 #define INODE_DUBINDER_OFFSET INODE_INDIRECT_OFFSET + INODE_INDIRECT_SIZE
 
-#define INODE_INVALID_BLOCK_SECTOR (block_sector_t)-1
-
 static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_DUBINDER_SIZE };
 static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
@@ -69,21 +67,21 @@ create_new_sector (block_sector_t cur_sector, off_t offset,
   /* Update the current sector info */
   int bytes_written = buffercache_write (cur_sector, METADATA, offset,
                                          sizeof (block_sector_t), &new_sector,
-                                         -1);
+                                         INODE_INVALID_BLOCK_SECTOR);
   if (bytes_written != sizeof(block_sector_t)) return -1;
 
   /* Correctly initialize the new sector -- it should either
      be all zeros if it is newly created or filled with 
      INODE_INVALID_BLOCK_SECTOR otherwise */
   int fill = (type == METADATA) ? INODE_INVALID_BLOCK_SECTOR : 0;
-  int j;
+  unsigned j;
   
   int *kernel_block = (int*)malloc (BLOCK_SECTOR_SIZE);
   for (j = 0; j < BLOCK_SECTOR_SIZE/sizeof(int); j++)
     kernel_block[j] = fill;
 
   buffercache_write (new_sector, type, 0, BLOCK_SECTOR_SIZE,
-                     kernel_block, -1);
+                     kernel_block, INODE_INVALID_BLOCK_SECTOR);
 
   free (kernel_block);
 
@@ -136,9 +134,10 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
         sizeof (block_sector_t);
 
       /* Read next sector */
+      /* TODO use read-ahead? */
       int bytes_read = buffercache_read (cur_sector, METADATA, offset,
                                          sizeof (block_sector_t), &next_sector,
-                                         -1);
+                                         INODE_INVALID_BLOCK_SECTOR);
       if (bytes_read != sizeof (block_sector_t)) 
         return INODE_INVALID_BLOCK_SECTOR;
 
@@ -199,7 +198,7 @@ inode_create (block_sector_t sector, off_t length)
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
     int wrote = buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE,
-                                   disk_inode, -1);
+                                   disk_inode, INODE_INVALID_BLOCK_SECTOR);
     success = (wrote == BLOCK_SECTOR_SIZE);
     free (disk_inode);
   }
@@ -237,7 +236,8 @@ inode_open (block_sector_t sector)
   inode->disk_block = sector;
   int read = buffercache_read (sector, METADATA,
                                offsetof (struct inode_disk, length),
-                               sizeof (off_t), &inode->length, -1);
+                               sizeof (off_t), &inode->length,
+                               INODE_INVALID_BLOCK_SECTOR);
   if (read != sizeof (off_t))
   {
     free(inode);
@@ -330,7 +330,9 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
       /* Read chunk from this sector */
       int read = buffercache_read (sector_idx, REGULAR, sector_ofs,
-                                   chunk_size, buffer + bytes_read, -1);
+                                   chunk_size, buffer + bytes_read,
+                                   byte_to_sector (inode, offset+chunk_size,
+                                                   false));
       /* Advance. */
       size -= read;
       offset += read;
@@ -375,7 +377,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       /* Write chunk to this sector. */
       int wrote = buffercache_write (sector_idx, REGULAR, sector_ofs,
-                                     chunk_size, buffer + bytes_written, -1);
+                                     chunk_size, buffer + bytes_written,
+                                     byte_to_sector (inode, offset+chunk_size,
+                                                     false));
 
       /* Advance. */
       size -= wrote;
