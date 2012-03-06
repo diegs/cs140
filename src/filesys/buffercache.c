@@ -83,9 +83,11 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
   struct cache_entry *entry;
 
   /* Finds an entry and returns it with accessors incremented */
+  lock_acquire (&cache_lock);
   entry = buffercache_find_entry (sector);
   if (entry == NULL)
     entry = buffercache_replace (sector, type);
+  lock_release (&cache_lock);
 
   if (entry != NULL)
   {
@@ -123,10 +125,12 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
 {
   struct cache_entry *entry;
 
-  /* Finds an entry and returns it locked */
+  /* Finds an entry and returns it with accessors incremented */
+  lock_acquire (&cache_lock);
   entry = buffercache_find_entry (sector);
   if (entry == NULL)
     entry = buffercache_replace (sector, type);
+  lock_release (&cache_lock);
 
   if (entry != NULL)
   {
@@ -150,6 +154,14 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     /* Failsafe: bypass the cache */
     return buffercache_write_direct (sector, sector_ofs, size, buf);
   }
+}
+
+/**
+ * Daemon thread that flushes all buffers to disk every 30 seconds.
+ */
+void buffercache_daemon (void)
+{
+  /* TODO implement */
 }
 
 /**
@@ -268,25 +280,26 @@ buffercache_flush_entry (struct cache_entry *entry)
 }
 
 /**
- * Invokes a read-ahead thread for the given cache entry if needed.
+ * Invokes a read-ahead thread for the given block.
  */
 static void
 buffercache_read_ahead_if_necessary (const block_sector_t sector UNUSED)
 {
+  
   /* TODO implement pre-fetch */
   return;
 }
 
 /**
  * Returns the cache entry for the given sector if it is cached,
- * else NULL. Acquires the cache lock.
+ * else NULL.
  */
 static struct cache_entry *
 buffercache_find_entry (const block_sector_t sector)
 {
   int i;
 
-  lock_acquire (&cache_lock);
+  ASSERT (lock_held_by_current_thread (&cache_lock));
 
   for (i = 0; i < cache_size; i++)
   {
@@ -303,13 +316,10 @@ buffercache_find_entry (const block_sector_t sector)
         continue;
       } else {
         cache[i].accessors++;   /* Prevent replacement */
-        lock_release (&cache_lock);
         return &cache[i];
       }
     }
   }
-
-  lock_release (&cache_lock);
 
   return NULL;
 }
@@ -323,16 +333,14 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
 {
   struct cache_entry *e;
 
+  ASSERT (lock_held_by_current_thread (&cache_lock));
+
   e = buffercache_clock_algorithm ();	/* Marks as WRITE_REQUESTED */
   if (e == NULL) return NULL;
-
-  lock_acquire (&cache_lock);
 
   buffercache_flush_entry (e);              /* Write current entry */
   buffercache_load_entry (e, sector, type); /* Read new entry into buffer */
   e->accessors++;                           /* Prevent replacement */
-
-  lock_release (&cache_lock);
 
   return e;
 }
@@ -385,7 +393,7 @@ buffercache_clock_algorithm (void)
   int clock_start;
   struct cache_entry *e;
 
-  lock_acquire (&cache_lock);
+  ASSERT (lock_held_by_current_thread (&cache_lock));
 
   clock_start = buffercache_clock_next ();
   while (cache[clock_start].state != READY)
@@ -414,7 +422,6 @@ buffercache_clock_algorithm (void)
 
   /* Claim this entry for ourselves */
   e->state = CLOCK;
-  lock_release (&cache_lock);
   return e;
 }
 

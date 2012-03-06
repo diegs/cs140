@@ -34,7 +34,7 @@ enum cache_accessed
   CLEAN = 0x00,                 /* Untouched */
   ACCESSED = 0x01,              /* Accessed bit */
   DIRTY = 0x02,                 /* Dirty bit */
-  META = 0x03,                  /* Metadata bit */
+  META = 0x04,                  /* Metadata bit */
 };
 
 /**
