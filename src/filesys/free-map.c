@@ -5,8 +5,27 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 
-static struct file *free_map_file;   /* Free map file. */
-static struct bitmap *free_map;      /* Free map, one bit per sector. */
+static struct bitmap *free_map;    /* Free map, one bit per sector. */
+static block_sector_t free_map_begin;
+static block_sector_t free_map_end;
+static block_sector_t root_dir_sector;
+
+static bool 
+free_map_write (void)
+{
+  return bitmap_write (free_map, free_map_begin);
+}
+
+static bool
+free_map_read (void)
+{
+  return bitmap_read (free_map, free_map_begin);
+}
+
+block_sector_t free_map_root_sector ()
+{
+  return root_dir_sector;
+}
 
 /* Initializes the free map. */
 void
@@ -15,8 +34,21 @@ free_map_init (void)
   free_map = bitmap_create (block_size (fs_device));
   if (free_map == NULL)
     PANIC ("bitmap creation failed--file system device is too large");
-  bitmap_mark (free_map, FREE_MAP_SECTOR);
-  bitmap_mark (free_map, ROOT_DIR_SECTOR);
+
+  /* Set all of the bits that belong to the free map */
+  size_t num_sectors = bitmap_sector_size (free_map);
+
+  /* Internally store the range of the free map on disk */
+  free_map_begin = FREE_MAP_SECTOR_BEGIN;
+  free_map_end = free_map_begin + num_sectors;
+
+  block_sector_t i;
+  for (i = free_map_begin; i < free_map_end; i++)
+    bitmap_mark (free_map, i);
+
+  /* Set the bit that belongs to the root inode */
+  root_dir_sector = free_map_end;
+  bitmap_mark (free_map, root_dir_sector);
 }
 
 /* Allocates CNT consecutive sectors from the free map and stores
@@ -29,12 +61,11 @@ free_map_allocate (size_t cnt, block_sector_t *sectorp)
 {
   block_sector_t sector = bitmap_scan_and_flip (free_map, 0, cnt, false);
   if (sector != BITMAP_ERROR
-      && free_map_file != NULL
-      && !bitmap_write (free_map, free_map_file))
-    {
-      bitmap_set_multiple (free_map, sector, cnt, false); 
-      sector = BITMAP_ERROR;
-    }
+      && !free_map_write ())
+  {
+    bitmap_set_multiple (free_map, sector, cnt, false); 
+    sector = BITMAP_ERROR;
+  }
   if (sector != BITMAP_ERROR)
     *sectorp = sector;
   return sector != BITMAP_ERROR;
@@ -46,17 +77,14 @@ free_map_release (block_sector_t sector, size_t cnt)
 {
   ASSERT (bitmap_all (free_map, sector, cnt));
   bitmap_set_multiple (free_map, sector, cnt, false);
-  bitmap_write (free_map, free_map_file);
+  free_map_write ();
 }
 
 /* Opens the free map file and reads it from disk. */
 void
 free_map_open (void) 
 {
-  free_map_file = file_open (inode_open (FREE_MAP_SECTOR));
-  if (free_map_file == NULL)
-    PANIC ("can't open free map");
-  if (!bitmap_read (free_map, free_map_file))
+  if (!free_map_read ())
     PANIC ("can't read free map");
 }
 
@@ -64,7 +92,7 @@ free_map_open (void)
 void
 free_map_close (void) 
 {
-  file_close (free_map_file);
+  free_map_write ();
 }
 
 /* Creates a new free map file on disk and writes the free map to
@@ -72,14 +100,7 @@ free_map_close (void)
 void
 free_map_create (void) 
 {
-  /* Create inode. */
-  if (!inode_create (FREE_MAP_SECTOR, bitmap_file_size (free_map)))
-    PANIC ("free map creation failed");
-
   /* Write bitmap to file. */
-  free_map_file = file_open (inode_open (FREE_MAP_SECTOR));
-  if (free_map_file == NULL)
-    PANIC ("can't open free map");
-  if (!bitmap_write (free_map, free_map_file))
+  if (!free_map_write ())
     PANIC ("can't write free map");
 }

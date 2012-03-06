@@ -95,7 +95,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
                   const block_sector_t next_sector)
 {
   struct cache_entry *entry;
-
+  ASSERT(size <= BLOCK_SECTOR_SIZE);
   /* Finds an entry and returns it with accessors incremented */
   lock_acquire (&cache_lock);
   entry = buffercache_find_entry (sector);
@@ -147,6 +147,7 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     entry = buffercache_replace (sector, type);
   lock_release (&cache_lock);
 
+  ASSERT(size <= BLOCK_SECTOR_SIZE);
   if (entry != NULL)
   {
     /* Write to cache entry */
