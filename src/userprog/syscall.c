@@ -415,7 +415,6 @@ sys_tell (struct intr_frame *f)
   lock_acquire (&fd_all_lock);
   uint32_t tell = file_tell (pfd->file);
   lock_release (&fd_all_lock);
-  printf("returning %u\n", tell);
   return tell;
 }
 
