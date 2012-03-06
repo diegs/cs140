@@ -92,7 +92,7 @@ install_page (struct s_page_entry *spe)
 static struct s_page_entry *
 create_s_page_entry (uint8_t *uaddr, bool writable)
 {
-  struct s_page_entry *spe = malloc (sizeof (struct s_page_entry));
+  struct s_page_entry *spe = calloc (1, sizeof (struct s_page_entry));
   if (spe == NULL)
     return NULL;
 
