@@ -16,6 +16,7 @@
 
 static struct cache_entry *cache; /* Cache entry table */
 static struct lock cache_lock;	  /* Lock for entry table */
+static struct condition entries_ready;
 static int cache_size;            /* Size of the cache */
 static int clock_hand;            /* For clock algorithm */
 
@@ -57,6 +58,7 @@ buffercache_init (const size_t size)
   cache = malloc (cache_size * sizeof (struct cache_entry));
   if (cache == NULL) return false;
   lock_init (&cache_lock);
+  cond_init (&entries_ready);
 
   /* Allocate the cache pages */
   for (i = 0; i < cache_size; i++)
@@ -95,7 +97,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
                   const int sector_ofs, const off_t size, void *buf,
                   const block_sector_t next_sector)
 {
-  struct cache_entry *entry;
+  struct cache_entry *entry = NULL;
   ASSERT(size <= BLOCK_SECTOR_SIZE);
   /* Finds an entry and returns it with accessors incremented */
   lock_acquire (&cache_lock);
@@ -107,6 +109,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
   if (entry != NULL)
   {
     /* Read from cache entry */
+    ASSERT (sector_ofs + size <= BLOCK_SECTOR_SIZE);
     memcpy (buf, entry->kaddr + sector_ofs, size);
 
     /* Adjust cache entry */
@@ -120,7 +123,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead */
-    buffercache_read_ahead_if_necessary (next_sector);
+    //buffercache_read_ahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -165,7 +168,7 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead and return */
-    buffercache_read_ahead_if_necessary (next_sector);
+    //buffercache_read_ahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -210,7 +213,7 @@ buffercache_allocate_block (struct cache_entry *entry, void *kaddr)
 {
   entry->kaddr = kaddr;
   entry->accessors = 0;
-  entry->sector = -1;
+  entry->sector = INODE_INVALID_BLOCK_SECTOR;
   entry->state = READY;
   entry->accessed = CLEAN;
   entry->type = REGULAR;
@@ -291,6 +294,7 @@ buffercache_flush_entry (struct cache_entry *entry)
     lock_release (&cache_lock);
 
     /* Perform I/O */
+    ASSERT (entry->sector != INODE_INVALID_BLOCK_SECTOR);
     block_write (fs_device, entry->sector, entry->kaddr);
 
     /* Fix up entry */
@@ -298,6 +302,7 @@ buffercache_flush_entry (struct cache_entry *entry)
     entry->state = READY;	/* No longer writing */
     entry->accessed &= ~DIRTY;	/* No longer dirty */
     cond_broadcast (&entry->c, &cache_lock); /* Tell threads writing is done */
+    cond_signal (&entries_ready, &cache_lock);
   }
 }
 
@@ -394,6 +399,10 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
                         sector, enum sector_type type)
 {
   ASSERT (lock_held_by_current_thread (&cache_lock));
+
+  while (entry->accessors > 0)
+    cond_wait (&entry->c, &cache_lock);
+
   ASSERT (entry->accessors == 0);
 
   /* Fix cache entry */
@@ -404,6 +413,7 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
   lock_release (&cache_lock);
 
   /* Perform I/O */
+  ASSERT (entry->sector != INODE_INVALID_BLOCK_SECTOR);
   block_read (fs_device, entry->sector, entry->kaddr);
 
   /* Re-acquire cache lock */
@@ -411,6 +421,8 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
 
   /* Ready to be used */
   entry->state = READY;
+  cond_broadcast (&entry->c, &cache_lock);
+  cond_signal (&entries_ready, &cache_lock);
 }
 
 /**
@@ -430,14 +442,26 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
 static struct cache_entry *
 buffercache_clock_algorithm (void)
 {
-  int clock_start;
+  int clock_start = 0;
   struct cache_entry *e;
 
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
+  int nexts = 0;
   clock_start = buffercache_clock_next ();
-  while (cache[clock_start].state != READY)
+  while (cache[clock_start].state != READY) 
+  {
     clock_start = buffercache_clock_next ();
+
+    /* If we have gone a whole time around, we need to 
+       wait until something becomes available */
+    nexts++;
+    if (nexts == cache_size)
+    {
+      cond_wait (&entries_ready, &cache_lock);
+      nexts = 0;
+    }
+  }
 
   e = &cache[clock_start];
 

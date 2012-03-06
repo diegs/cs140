@@ -18,7 +18,7 @@ enum sector_type
  */
 enum cache_state
 {
-  READING,
+  READING = 0,
   WRITE_REQUESTED,
   WRITING,
   CLOCK,
