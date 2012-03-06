@@ -99,7 +99,7 @@ struct thread
   uint8_t *stack;                     /* Saved stack pointer. */
   struct list_elem allelem;           /* List element for all threads list. */
 
-  /* Shared between thread.c and synch.c. */
+  /* Used for placement in ready/waiting lists */
   struct list_elem elem;              /* List element. */
 
   /* Lock elem */
