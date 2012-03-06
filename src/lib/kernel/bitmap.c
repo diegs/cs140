@@ -3,9 +3,11 @@
 #include <limits.h>
 #include <round.h>
 #include <stdio.h>
+#include <string.h>
 #include "threads/malloc.h"
 #ifdef FILESYS
-#include "filesys/file.h"
+#include "filesys/filesys.h"
+#include "devices/block.h"
 #endif
 
 /* Element type.
@@ -329,35 +331,77 @@ bitmap_scan_and_flip (struct bitmap *b, size_t start, size_t cnt, bool value)
 /* File input and output. */
 
 #ifdef FILESYS
-/* Returns the number of bytes needed to store B in a file. */
-size_t
-bitmap_file_size (const struct bitmap *b) 
+/* Returns the number of sectors needed to store B in a file. */
+int
+bitmap_sector_size (const struct bitmap *b) 
 {
-  return byte_cnt (b->bit_cnt);
+  return byte_cnt (b->bit_cnt)/BLOCK_SECTOR_SIZE + 1;
 }
 
-/* Reads B from FILE.  Returns true if successful, false
+
+static void
+bitmap_block_ops (struct bitmap *b, block_sector_t sector_begin, 
+    bool write)
+{
+  bool read = !write;
+  int num_sectors = bitmap_sector_size (b);
+  int i, num_bytes = byte_cnt (b->bit_cnt); 
+ 
+  /* This buffer is only used in case the last block of the bitmap
+     is not sector aligned */
+  char *edge_buffer = (char*)calloc (1, BLOCK_SECTOR_SIZE);
+
+  int bytes_remain = num_bytes;
+  for (i = 0; i < num_sectors; i++) 
+  {
+    void *bitmap_pos = (char*)b->bits + i*BLOCK_SECTOR_SIZE;
+    void *buffer = bitmap_pos; 
+
+    /* Use edge buffer if nececssary -- should only happen once */
+    bool use_edge = bytes_remain < BLOCK_SECTOR_SIZE;
+    if (use_edge)
+      buffer = edge_buffer;
+
+    /* Perform edge case write pre-op */
+    if (use_edge && write)
+      memcpy (edge_buffer, buffer, bytes_remain);
+
+    /* Perform file operation */
+    block_sector_t sector = sector_begin + i;
+    if (write) block_write (fs_device, sector, buffer);
+    if (read) block_read (fs_device, sector, buffer);
+
+    /* Perform edge case read post-op */
+    if (use_edge && read)
+      memcpy (bitmap_pos, buffer, bytes_remain);
+    
+    bytes_remain -= BLOCK_SECTOR_SIZE;
+  }
+
+  free (edge_buffer);
+}
+
+/* Reads B starting at sector.  Returns true if successful, false
    otherwise. */
 bool
-bitmap_read (struct bitmap *b, struct file *file) 
+bitmap_read (struct bitmap *b, block_sector_t sector_begin) 
 {
   bool success = true;
   if (b->bit_cnt > 0) 
-    {
-      off_t size = byte_cnt (b->bit_cnt);
-      success = file_read_at (file, b->bits, size, 0) == size;
-      b->bits[elem_cnt (b->bit_cnt) - 1] &= last_mask (b);
-    }
+  {
+    bitmap_block_ops (b, sector_begin, false);
+    b->bits[elem_cnt (b->bit_cnt) - 1] &= last_mask (b);
+  }
   return success;
 }
 
-/* Writes B to FILE.  Return true if successful, false
+/* Writes B to starting at sector.  Return true if successful, false
    otherwise. */
 bool
-bitmap_write (const struct bitmap *b, struct file *file)
+bitmap_write (struct bitmap *b, block_sector_t sector_begin)
 {
-  off_t size = byte_cnt (b->bit_cnt);
-  return file_write_at (file, b->bits, size, 0) == size;
+  bitmap_block_ops (b, sector_begin, true);
+  return true;
 }
 #endif /* FILESYS */
 
