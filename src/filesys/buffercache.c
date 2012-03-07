@@ -14,11 +14,12 @@
 
 #define BUFFERCACHE_FLUSH_FREQUENCY 30 * 1000 /* 30 seconds */
 
-static struct cache_entry *cache; /* Cache entry table */
-static struct lock cache_lock;	  /* Lock for entry table */
-static struct condition entries_ready;
-static int cache_size;            /* Size of the cache */
-static int clock_hand;            /* For clock algorithm */
+static struct cache_entry *cache;      /* Cache entry table */
+static struct lock cache_lock;         /* Lock for entry table */
+static struct condition entries_ready; /* Signal for clock algorithm if no
+                                        * blocks available */
+static int cache_size;                 /* Size of the cache */
+static int clock_hand;                 /* For clock algorithm */
 
 static void buffercache_polling_thread (void *aux);
 static void buffercache_allocate_block (struct cache_entry *entry, void *kaddr);
@@ -123,7 +124,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead */
-    //buffercache_read_ahead_if_necessary (next_sector);
+    buffercache_read_ahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -168,7 +169,7 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead and return */
-    //buffercache_read_ahead_if_necessary (next_sector);
+    buffercache_read_ahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -319,20 +320,26 @@ buffercache_read_ahead_if_necessary (const block_sector_t sector)
 
   /* Spawn read-ahead thread */
   snprintf (name, 40, "buffercache_read_ahead_worker-%d", sector);
-  thread_create (name, PRI_DEFAULT, buffercache_read_ahead_worker, (void*)sector);
+  thread_create (name, PRI_DEFAULT, buffercache_read_ahead_worker,
+                 (void*)sector);
 }
 
 /**
  * Invokes read on the given sector to effect a read-ahead while keeping all
  * synchronization mechanisms intact.
  *
- * TODO assumes that read-ahead only occurs for regular sectors
+ * Note: assumes that read-ahead only occurs for regular sectors.
  */
 static void
 buffercache_read_ahead_worker (void *aux)
 {
-  block_sector_t sector = (block_sector_t)aux;
-  buffercache_read (sector, REGULAR, 0, 1, &aux, INODE_INVALID_BLOCK_SECTOR);
+  void *buf[1];
+  block_sector_t sector;
+
+  /*
+  sector = (block_sector_t)aux;
+  buffercache_read (sector, REGULAR, 0, 1, buf, INODE_INVALID_BLOCK_SECTOR);
+  */
 }
 
 /**
@@ -442,45 +449,47 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
 static struct cache_entry *
 buffercache_clock_algorithm (void)
 {
-  int clock_start = 0;
+  int clock_start, count;
   struct cache_entry *e;
 
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
-  int nexts = 0;
+  /* Set clock_start to the first READY entry, if needed  */
   clock_start = buffercache_clock_next ();
-  while (cache[clock_start].state != READY) 
+  count = 0;
+  while (cache[clock_start].state != READY)
   {
     clock_start = buffercache_clock_next ();
 
-    /* If we have gone a whole time around, we need to 
+    /* If we have gone a whole time around, we need to
        wait until something becomes available */
-    nexts++;
-    if (nexts == cache_size)
+    count++;
+    if (count == cache_size)
     {
       cond_wait (&entries_ready, &cache_lock);
-      nexts = 0;
+      count = 0;
     }
   }
 
+  /* Run the clock algorithm */
   e = &cache[clock_start];
-
   do
   {
-    /* Ignore if some I/O is happening to this block, ignore */
+    /* Only consider if no I/O is happening to this block */
     if (e->state == READY)
     {
       if (e->accessed & ACCESSED) {
         /* Access bit is set, unset it and continue */
         e->accessed &= ~ACCESSED;
       } else if (e->accessed & META) {
-        /* Give metadata blocks another chance */
+        /* Double-chance for metadata blocks */
         e->accessed &= ~META;
       } else {
         /* Access and meta bits not set, return this entry */
         break;
       }
     }
+    /* Look at the next entry */
     e = &cache[buffercache_clock_next ()];
   } while (clock_hand != clock_start);
 
