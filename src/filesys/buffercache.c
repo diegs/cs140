@@ -14,14 +14,27 @@
 
 #define BUFFERCACHE_FLUSH_FREQUENCY 30 * 1000 /* 30 seconds */
 
+/**
+ * List entry for a sector readahead action
+ */
+struct readahead_entry
+{
+  block_sector_t sector;        /* Sector to read ahead */
+  struct list_elem elem;        /* List element */
+};
+
 static struct cache_entry *cache;      /* Cache entry table */
 static struct lock cache_lock;         /* Lock for entry table */
 static struct condition entries_ready; /* Signal for clock algorithm if no
                                         * blocks available */
 static int cache_size;                 /* Size of the cache */
 static int clock_hand;                 /* For clock algorithm */
+static struct list readahead_list;     /* List of readahead blocks */
+static struct lock readahead_lock;     /* Protects readahead_list */
+static struct condition readahead_data; /* Notifies for readahead_list */
 
-static void buffercache_polling_thread (void *aux);
+static void buffercache_flush_thread (void *aux);
+static void buffercache_readahead_thread (void *aux);
 static void buffercache_allocate_block (struct cache_entry *entry, void *kaddr);
 static struct cache_entry *buffercache_find_entry (const block_sector_t sector);
 static struct cache_entry *buffercache_replace (const block_sector_t
@@ -32,8 +45,7 @@ static int buffercache_read_direct (const block_sector_t sector,
 static int buffercache_write_direct (const block_sector_t sector,
                                      const int sector_ofs, const off_t size,
                                      const void *buf);
-static void buffercache_read_ahead_if_necessary (const block_sector_t sector);
-static void buffercache_read_ahead_worker (void *aux);
+static void buffercache_readahead_if_necessary (const block_sector_t sector);
 static void buffercache_load_entry (struct cache_entry *entry,
                                     const block_sector_t sector,
                                     enum sector_type type);
@@ -50,7 +62,7 @@ buffercache_init (const size_t size)
 {
   int i;
   void *kaddr;
-  tid_t t;
+  tid_t t_writer, t_reader;
 
   /* Set the cache size */
   cache_size = size;
@@ -80,9 +92,17 @@ buffercache_init (const size_t size)
   clock_hand = cache_size - 1;
 
   /* Create the buffercache flush thread */
-  t = thread_create ("buffercache_polling_thread", PRI_DEFAULT,
-                     buffercache_polling_thread, NULL);
-  if (t == TID_ERROR) return false;
+  t_writer = thread_create ("buffercache_flush", PRI_DEFAULT,
+                            buffercache_flush_thread, NULL);
+  if (t_writer == TID_ERROR) return false;
+
+  /* Create the buffercache readahead thread */
+  list_init (&readahead_list);
+  lock_init (&readahead_lock);
+  cond_init (&readahead_data);
+  t_reader = thread_create ("buffercache_readahead", PRI_DEFAULT,
+                            buffercache_readahead_thread, NULL);
+  if (t_reader == TID_ERROR) return false;
 
   return true;
 }
@@ -124,7 +144,7 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead */
-    buffercache_read_ahead_if_necessary (next_sector);
+    buffercache_readahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -169,7 +189,7 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
     lock_release (&cache_lock);
 
     /* Trigger read-ahead and return */
-    buffercache_read_ahead_if_necessary (next_sector);
+    buffercache_readahead_if_necessary (next_sector);
     return size;
   } else {
     /* Failsafe: bypass the cache */
@@ -197,12 +217,49 @@ buffercache_flush (void)
  * Daemon thread that flushes all buffers to disk every 30 seconds.
  */
 static void
-buffercache_polling_thread (void *aux UNUSED)
+buffercache_flush_thread (void *aux UNUSED)
 {
   while (true)
   {
     timer_msleep (BUFFERCACHE_FLUSH_FREQUENCY);
     buffercache_flush ();
+  }
+}
+
+/**
+ * Daemon thread that does asynchronous readaheads of disk blocks.
+ */
+static void
+buffercache_readahead_thread (void *aux UNUSED)
+{
+  struct list working_list;
+  struct readahead_entry *e;
+  void *buf[1];
+
+  list_init (&working_list);
+
+  while (true)
+  {
+    /* Wait for data in readahead list */
+    lock_acquire (&readahead_lock);
+    while (list_empty (&readahead_list))
+      cond_wait (&readahead_data, &readahead_lock);
+
+    /* Move entries to private list so other threads don't block */
+    while (!list_empty (&readahead_list))
+      list_push_front (&working_list, list_pop_back (&readahead_list));
+
+    lock_release (&readahead_lock);
+
+    /* Process readahead list */
+    while (!list_empty (&working_list))
+    {
+      e = list_entry (list_pop_front (&working_list), struct readahead_entry,
+                      elem);
+      buffercache_read (e->sector, REGULAR, 0, 1, buf,
+                        INODE_INVALID_BLOCK_SECTOR);
+      free (e);
+    }
   }
 }
 
@@ -311,35 +368,23 @@ buffercache_flush_entry (struct cache_entry *entry)
  * Invokes a read-ahead thread for the given block.
  */
 static void
-buffercache_read_ahead_if_necessary (const block_sector_t sector)
+buffercache_readahead_if_necessary (const block_sector_t sector)
 {
-  char name[40];
+  struct readahead_entry *e;
 
   /* No read-ahead necessary */
   if (sector == INODE_INVALID_BLOCK_SECTOR) return;
 
-  /* Spawn read-ahead thread */
-  snprintf (name, 40, "buffercache_read_ahead_worker-%d", sector);
-  thread_create (name, PRI_DEFAULT, buffercache_read_ahead_worker,
-                 (void*)sector);
-}
-
-/**
- * Invokes read on the given sector to effect a read-ahead while keeping all
- * synchronization mechanisms intact.
- *
- * Note: assumes that read-ahead only occurs for regular sectors.
- */
-static void
-buffercache_read_ahead_worker (void *aux)
-{
-  void *buf[1];
-  block_sector_t sector;
-
-  /*
-  sector = (block_sector_t)aux;
-  buffercache_read (sector, REGULAR, 0, 1, buf, INODE_INVALID_BLOCK_SECTOR);
-  */
+  /* Add to read-ahead queue */
+  lock_acquire (&readahead_lock);
+  e = malloc (sizeof (struct readahead_entry));
+  if (e != NULL)
+  {
+    e->sector = sector;
+    list_push_back (&readahead_list, &e->elem);
+    cond_broadcast (&readahead_data, &readahead_lock);
+  }
+  lock_release (&readahead_lock);
 }
 
 /**
