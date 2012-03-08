@@ -119,7 +119,9 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
                   const block_sector_t next_sector)
 {
   struct cache_entry *entry = NULL;
+
   ASSERT(size <= BLOCK_SECTOR_SIZE);
+
   /* Finds an entry and returns it with accessors incremented */
   lock_acquire (&cache_lock);
   entry = buffercache_find_entry (sector);
@@ -337,11 +339,15 @@ buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
 static void
 buffercache_flush_entry (struct cache_entry *entry, const bool await)
 {
+  enum cache_state old_state;
+
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
   /* Only flush a dirty entry that is fully read/written */
   if (entry->accessed & DIRTY && (entry->state == READY || entry->state == CLOCK))
   {
+    /* Save old state */
+    old_state = entry->state;
     /* Wait for current accessors to finish */
     entry->state = WRITE_REQUESTED;
     while (entry->accessors > 0)
@@ -357,12 +363,12 @@ buffercache_flush_entry (struct cache_entry *entry, const bool await)
 
     /* Fix up entry */
     lock_acquire (&cache_lock);
-    entry->state = READY;	/* No longer writing */
-    entry->accessed &= ~DIRTY;	/* No longer dirty */
+    entry->state = old_state;                /* Restore state */
+    entry->accessed &= ~DIRTY;               /* No longer dirty */
     cond_broadcast (&entry->c, &cache_lock); /* Tell threads writing is done */
     cond_signal (&entries_ready, &cache_lock);
-  } else if (await && (entry->state == WRITE_REQUESTED || entry->state ==
-    WRITING)) {
+  } else if (await && entry->accessed & DIRTY &&
+             (entry->state == WRITE_REQUESTED || entry->state == WRITING)) {
     while (entry->state == WRITE_REQUESTED || entry->state == WRITING)
       cond_wait (&entry->c, &cache_lock);
   }
@@ -375,7 +381,7 @@ static void
 buffercache_readahead_if_necessary (const block_sector_t sector)
 {
   struct readahead_entry *e;
-
+  
   /* No read-ahead necessary */
   if (sector == INODE_INVALID_BLOCK_SECTOR) return;
 
@@ -413,7 +419,7 @@ buffercache_find_entry (const block_sector_t sector)
       /* Double-check in case it was replaced */
       if (cache[i].sector != sector)
       {
-        i = 0;                  /* Restart search */
+        i = -1;                  /* Restart search */
         continue;
       } else {
         cache[i].accessors++;   /* Prevent replacement */
