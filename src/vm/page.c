@@ -92,7 +92,7 @@ install_page (struct s_page_entry *spe)
 static struct s_page_entry *
 create_s_page_entry (uint8_t *uaddr, bool writable)
 {
-  struct s_page_entry *spe = calloc (1, sizeof (struct s_page_entry));
+  struct s_page_entry *spe = malloc (sizeof (struct s_page_entry));
   if (spe == NULL)
     return NULL;
 
@@ -105,7 +105,7 @@ create_s_page_entry (uint8_t *uaddr, bool writable)
   spe->writable = writable;
   spe->frame = NULL;
   lock_init (&spe->l);
-	
+
   /* Install into hash table */
   lock_acquire (&t->s_page_lock);
   hash_insert (&t->s_page_table, &spe->elem);
@@ -193,7 +193,7 @@ vm_free_page (struct s_page_entry *spe)
       page_file (spe);
     break;
   case MEMORY_BASED:
-    if (spe->info.memory.swapped)
+    if (spe->info.memory.swapped && spe->info.memory.used)
       swap_free (spe->info.memory.swap_begin);
     break;
   default:
