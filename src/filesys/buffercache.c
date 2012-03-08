@@ -49,7 +49,7 @@ static void buffercache_readahead_if_necessary (const block_sector_t sector);
 static void buffercache_load_entry (struct cache_entry *entry,
                                     const block_sector_t sector,
                                     enum sector_type type);
-static void buffercache_flush_entry (struct cache_entry *entry);
+static void buffercache_flush_entry (struct cache_entry *entry, const bool await);
 static struct cache_entry *buffercache_clock_algorithm (void);
 static inline int buffercache_clock_next (void);
 
@@ -201,14 +201,14 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
  * Flushes all dirty buffers in the cache to disk.
  */
 void
-buffercache_flush (void)
+buffercache_flush (const bool await)
 {
   int i;
 
   for (i = 0; i < cache_size; i++)
   {
     lock_acquire (&cache_lock);
-    buffercache_flush_entry (&cache[i]);
+    buffercache_flush_entry (&cache[i], await);
     lock_release (&cache_lock);
   }
 }
@@ -222,7 +222,7 @@ buffercache_flush_thread (void *aux UNUSED)
   while (true)
   {
     timer_msleep (BUFFERCACHE_FLUSH_FREQUENCY);
-    buffercache_flush ();
+    buffercache_flush (false);
   }
 }
 
@@ -335,7 +335,7 @@ buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
  * Requires the cache_lock to be held.
  */
 static void
-buffercache_flush_entry (struct cache_entry *entry)
+buffercache_flush_entry (struct cache_entry *entry, const bool await)
 {
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
@@ -361,6 +361,10 @@ buffercache_flush_entry (struct cache_entry *entry)
     entry->accessed &= ~DIRTY;	/* No longer dirty */
     cond_broadcast (&entry->c, &cache_lock); /* Tell threads writing is done */
     cond_signal (&entries_ready, &cache_lock);
+  } else if (await && (entry->state == WRITE_REQUESTED || entry->state ==
+    WRITING)) {
+    while (entry->state == WRITE_REQUESTED || entry->state == WRITING)
+      cond_wait (&entry->c, &cache_lock);
   }
 }
 
@@ -435,7 +439,7 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
   e = buffercache_clock_algorithm ();	/* Marks as WRITE_REQUESTED */
   if (e == NULL) return NULL;
 
-  buffercache_flush_entry (e);              /* Write current entry */
+  buffercache_flush_entry (e, true);        /* Write current entry */
   buffercache_load_entry (e, sector, type); /* Read new entry into buffer */
   e->accessors++;                           /* Prevent replacement */
 

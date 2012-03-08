@@ -58,6 +58,6 @@ int buffercache_read (const block_sector_t sector, enum sector_type type,
 int buffercache_write (const block_sector_t sector, enum sector_type type,
                        const int sector_ofs, const off_t size, const void *buf,
                        const block_sector_t next_sector);
-void buffercache_flush (void);
+void buffercache_flush (const bool await);
 
 #endif
