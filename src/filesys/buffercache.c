@@ -49,7 +49,9 @@ static void buffercache_readahead_if_necessary (const block_sector_t sector);
 static void buffercache_load_entry (struct cache_entry *entry,
                                     const block_sector_t sector,
                                     enum sector_type type);
-static void buffercache_flush_entry (struct cache_entry *entry, const bool await);
+static void buffercache_flush_entry (struct cache_entry *entry,
+                                     block_sector_t new_sector,
+                                     const bool await);
 static struct cache_entry *buffercache_clock_algorithm (void);
 static inline int buffercache_clock_next (void);
 
@@ -127,19 +129,25 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
   entry = buffercache_find_entry (sector);
   if (entry == NULL)
     entry = buffercache_replace (sector, type);
+
+  ASSERT (sector_ofs + size <= BLOCK_SECTOR_SIZE);
+  ASSERT (entry->state == READY);
+  ASSERT (entry->sector == sector);
+  ASSERT (entry->accessors > 0);
+
+  entry->accessed |= ACCESSED;
+  if (entry->type == METADATA)
+    entry->accessed |= META;
+
   lock_release (&cache_lock);
 
   if (entry != NULL)
   {
     /* Read from cache entry */
-    ASSERT (sector_ofs + size <= BLOCK_SECTOR_SIZE);
     memcpy (buf, entry->kaddr + sector_ofs, size);
 
     /* Adjust cache entry */
     lock_acquire (&cache_lock);
-    entry->accessed |= ACCESSED;
-    if (entry->type == METADATA)
-      entry->accessed |= META;
     entry->accessors--;
     if (entry->accessors == 0)
       cond_broadcast (&entry->c, &cache_lock);
@@ -172,9 +180,18 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
   entry = buffercache_find_entry (sector);
   if (entry == NULL)
     entry = buffercache_replace (sector, type);
+
+  ASSERT (size <= BLOCK_SECTOR_SIZE);
+  ASSERT (entry->state == READY);
+  ASSERT (entry->sector == sector);
+  ASSERT (entry->accessors > 0);
+
+  entry->accessed |= ACCESSED | DIRTY;
+  if (entry->type == METADATA)
+    entry->accessed |= META;
+
   lock_release (&cache_lock);
 
-  ASSERT(size <= BLOCK_SECTOR_SIZE);
   if (entry != NULL)
   {
     /* Write to cache entry */
@@ -182,9 +199,6 @@ buffercache_write (const block_sector_t sector, enum sector_type type,
 
     /* Adjust cache entry */
     lock_acquire (&cache_lock);
-    entry->accessed |= ACCESSED | DIRTY;
-    if (entry->type == METADATA)
-      entry->accessed |= META;
     entry->accessors--;
     if (entry->accessors == 0)
       cond_broadcast (&entry->c, &cache_lock);
@@ -210,7 +224,7 @@ buffercache_flush (const bool await)
   for (i = 0; i < cache_size; i++)
   {
     lock_acquire (&cache_lock);
-    buffercache_flush_entry (&cache[i], await);
+    buffercache_flush_entry (&cache[i], INODE_INVALID_BLOCK_SECTOR, await);
     lock_release (&cache_lock);
   }
 }
@@ -337,8 +351,10 @@ buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
  * Requires the cache_lock to be held.
  */
 static void
-buffercache_flush_entry (struct cache_entry *entry, const bool await)
+buffercache_flush_entry (struct cache_entry *entry, block_sector_t new_sector,
+                         const bool await)
 {
+  block_sector_t old_sector;
   enum cache_state old_state;
 
   ASSERT (lock_held_by_current_thread (&cache_lock));
@@ -348,18 +364,25 @@ buffercache_flush_entry (struct cache_entry *entry, const bool await)
   {
     /* Save old state */
     old_state = entry->state;
+    old_sector = entry->sector;
+
     /* Wait for current accessors to finish */
     entry->state = WRITE_REQUESTED;
+
+    /* Pre-reserve for new_sector */
+    if (new_sector != INODE_INVALID_BLOCK_SECTOR)
+      entry->sector = new_sector;
+
     while (entry->accessors > 0)
       cond_wait (&entry->c, &cache_lock);
 
     /* Write to disk */
-    entry->state = WRITING;	/* Tell threads block is writing */
+    entry->state = WRITING;     /* Tell threads block is writing */
     lock_release (&cache_lock);
 
     /* Perform I/O */
-    ASSERT (entry->sector != INODE_INVALID_BLOCK_SECTOR);
-    block_write (fs_device, entry->sector, entry->kaddr);
+    ASSERT (old_sector != INODE_INVALID_BLOCK_SECTOR);
+    block_write (fs_device, old_sector, entry->kaddr);
 
     /* Fix up entry */
     lock_acquire (&cache_lock);
@@ -381,7 +404,7 @@ static void
 buffercache_readahead_if_necessary (const block_sector_t sector)
 {
   struct readahead_entry *e;
-  
+
   /* No read-ahead necessary */
   if (sector == INODE_INVALID_BLOCK_SECTOR) return;
 
@@ -398,8 +421,7 @@ buffercache_readahead_if_necessary (const block_sector_t sector)
 }
 
 /**
- * Returns the cache entry for the given sector if it is cached,
- * else NULL.
+ * Returns the cache entry for the given sector if it is cached, else NULL.
  */
 static struct cache_entry *
 buffercache_find_entry (const block_sector_t sector)
@@ -419,7 +441,7 @@ buffercache_find_entry (const block_sector_t sector)
       /* Double-check in case it was replaced */
       if (cache[i].sector != sector)
       {
-        i = -1;                  /* Restart search */
+        i = -1;                 /* Restart search */
         continue;
       } else {
         cache[i].accessors++;   /* Prevent replacement */
@@ -442,10 +464,10 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
 
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
-  e = buffercache_clock_algorithm ();	/* Marks as WRITE_REQUESTED */
+  e = buffercache_clock_algorithm ();	      /* Marks state as CLOCK */
   if (e == NULL) return NULL;
 
-  buffercache_flush_entry (e, true);        /* Write current entry */
+  buffercache_flush_entry (e, sector, true);        /* Write current entry */
   buffercache_load_entry (e, sector, type); /* Read new entry into buffer */
   e->accessors++;                           /* Prevent replacement */
 
