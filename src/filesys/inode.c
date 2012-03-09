@@ -60,10 +60,10 @@ struct inode {
   block_sector_t disk_block;    /* Sector of this inode on disk*/
   struct list_elem elem;        /* Element in inode list. */
   off_t length;
+  bool directory;               /* true if this inode represents a directory */
   int open_cnt;                 /* Number of openers. */
   bool removed;                 /* True if deleted, false otherwise. */
   int deny_write_cnt;           /* 0: writes ok, >0: deny writes. */
-  bool directory;               /* true if this inode represents a directory */
   struct lock lock;
 };
 
@@ -255,7 +255,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, const bool directory)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -271,6 +271,7 @@ inode_create (block_sector_t sector, off_t length)
   {
     memset(disk_inode, INODE_INVALID_BLOCK_SECTOR, INODE_NUM_BLOCKS * sizeof(block_sector_t));
     disk_inode->length = length;
+    disk_inode->directory = directory;
     disk_inode->magic = INODE_MAGIC;
     int wrote = buffercache_write (sector, METADATA, 0, BLOCK_SECTOR_SIZE,
                                    disk_inode, INODE_INVALID_BLOCK_SECTOR);
@@ -309,11 +310,12 @@ inode_open (block_sector_t sector)
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
   inode->disk_block = sector;
+  /* Read length and directory flag from block */
   int read = buffercache_read (sector, METADATA,
                                offsetof (struct inode_disk, length),
-                               sizeof (off_t), &inode->length,
+                               sizeof (off_t) + sizeof (bool), &inode->length,
                                INODE_INVALID_BLOCK_SECTOR);
-  if (read != sizeof (off_t))
+  if (read != (sizeof (off_t) + sizeof (bool)))
   {
     free(inode);
     return NULL;
@@ -369,8 +371,10 @@ inode_close (struct inode *inode)
       /* TODO: close all blocks */
       //    inode_sector_map (inode, inode_sector_print);
     }
-    buffercache_write (inode->disk_block, METADATA, offsetof (struct
-          inode_disk, length), sizeof(off_t), &inode->length, INODE_INVALID_BLOCK_SECTOR);
+    buffercache_write (inode->disk_block, METADATA,
+                       offsetof (struct inode_disk, length), sizeof (off_t) +
+                       sizeof (bool), &inode->length,
+                       INODE_INVALID_BLOCK_SECTOR);
     free (inode); 
   }
 }
