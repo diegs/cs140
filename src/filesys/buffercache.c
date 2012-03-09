@@ -50,7 +50,6 @@ static void buffercache_load_entry (struct cache_entry *entry,
                                     const block_sector_t sector,
                                     enum sector_type type);
 static void buffercache_flush_entry (struct cache_entry *entry,
-                                     block_sector_t new_sector,
                                      const bool await);
 static struct cache_entry *buffercache_clock_algorithm (void);
 static inline int buffercache_clock_next (void);
@@ -121,8 +120,6 @@ buffercache_read (const block_sector_t sector, enum sector_type type,
                   const block_sector_t next_sector)
 {
   struct cache_entry *entry = NULL;
-
-  ASSERT(size <= BLOCK_SECTOR_SIZE);
 
   /* Finds an entry and returns it with accessors incremented */
   lock_acquire (&cache_lock);
@@ -224,7 +221,7 @@ buffercache_flush (const bool await)
   for (i = 0; i < cache_size; i++)
   {
     lock_acquire (&cache_lock);
-    buffercache_flush_entry (&cache[i], INODE_INVALID_BLOCK_SECTOR, await);
+    buffercache_flush_entry (&cache[i], await);
     lock_release (&cache_lock);
   }
 }
@@ -288,6 +285,7 @@ buffercache_allocate_block (struct cache_entry *entry, void *kaddr)
   entry->kaddr = kaddr;
   entry->accessors = 0;
   entry->sector = INODE_INVALID_BLOCK_SECTOR;
+  entry->next_sector = INODE_INVALID_BLOCK_SECTOR;
   entry->state = READY;
   entry->accessed = CLEAN;
   entry->type = REGULAR;
@@ -351,10 +349,8 @@ buffercache_read_direct (const block_sector_t sector, const int sector_ofs,
  * Requires the cache_lock to be held.
  */
 static void
-buffercache_flush_entry (struct cache_entry *entry, block_sector_t new_sector,
-                         const bool await)
+buffercache_flush_entry (struct cache_entry *entry, const bool await)
 {
-  block_sector_t old_sector;
   enum cache_state old_state;
 
   ASSERT (lock_held_by_current_thread (&cache_lock));
@@ -364,15 +360,9 @@ buffercache_flush_entry (struct cache_entry *entry, block_sector_t new_sector,
   {
     /* Save old state */
     old_state = entry->state;
-    old_sector = entry->sector;
 
     /* Wait for current accessors to finish */
     entry->state = WRITE_REQUESTED;
-
-    /* Pre-reserve for new_sector */
-    if (new_sector != INODE_INVALID_BLOCK_SECTOR)
-      entry->sector = new_sector;
-
     while (entry->accessors > 0)
       cond_wait (&entry->c, &cache_lock);
 
@@ -381,14 +371,14 @@ buffercache_flush_entry (struct cache_entry *entry, block_sector_t new_sector,
     lock_release (&cache_lock);
 
     /* Perform I/O */
-    ASSERT (old_sector != INODE_INVALID_BLOCK_SECTOR);
-    block_write (fs_device, old_sector, entry->kaddr);
+    ASSERT (entry->sector != INODE_INVALID_BLOCK_SECTOR);
+    block_write (fs_device, entry->sector, entry->kaddr);
 
     /* Fix up entry */
     lock_acquire (&cache_lock);
-    entry->state = old_state;                /* Restore state */
-    entry->accessed &= ~DIRTY;               /* No longer dirty */
-    cond_broadcast (&entry->c, &cache_lock); /* Tell threads writing is done */
+    entry->state = old_state;                   /* Restore state */
+    entry->accessed &= ~DIRTY;                  /* No longer dirty */
+    cond_broadcast (&entry->c, &cache_lock);    /* Tell threads writing is done */
     cond_signal (&entries_ready, &cache_lock);
   } else if (await && entry->accessed & DIRTY &&
              (entry->state == WRITE_REQUESTED || entry->state == WRITING)) {
@@ -432,7 +422,7 @@ buffercache_find_entry (const block_sector_t sector)
 
   for (i = 0; i < cache_size; i++)
   {
-    if (cache[i].sector == sector)
+    if (cache[i].sector == sector || cache[i].next_sector == sector)
     {
       /* If it's being read or written, wait */
       while (cache[i].state != READY)
@@ -464,10 +454,11 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
 
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
-  e = buffercache_clock_algorithm ();	      /* Marks state as CLOCK */
+  e = buffercache_clock_algorithm ();        /* Marks state as CLOCK */
   if (e == NULL) return NULL;
 
-  buffercache_flush_entry (e, sector, true); /* Write current entry */
+  e->next_sector = sector;                   /* Claim the cache entry */
+  buffercache_flush_entry (e, true);         /* Write current entry */
   buffercache_load_entry (e, sector, type);  /* Read new entry into buffer */
   e->accessors++;                            /* Prevent replacement */
 
@@ -485,15 +476,15 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
   ASSERT (lock_held_by_current_thread (&cache_lock));
   ASSERT (entry->state != READY);
 
-  /* Claim for ourselves */
-  entry->sector = sector;
-
+  /* Wait for others to finish */
   while (entry->accessors > 0)
     cond_wait (&entry->c, &cache_lock);
 
   ASSERT (entry->accessors == 0);
 
   /* Fix cache entry */
+  entry->sector = sector;
+  entry->next_sector = INODE_INVALID_BLOCK_SECTOR;
   entry->state = READING;
   entry->accessed = CLEAN;
   entry->type = type;

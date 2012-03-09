@@ -45,6 +45,7 @@ struct cache_entry
   void *kaddr;                  /* Address of cache block */
   int accessors;                /* Number of threads accessing buffer */
   block_sector_t sector;        /* Sector of block */
+  block_sector_t next_sector;   /* Sector block will contain next */
   enum cache_state state;       /* Current state of block */
   enum cache_accessed accessed;	/* Accessed bits for block */
   enum sector_type type;        /* The type of sector */
