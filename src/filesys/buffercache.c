@@ -483,6 +483,10 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
                         sector, enum sector_type type)
 {
   ASSERT (lock_held_by_current_thread (&cache_lock));
+  ASSERT (entry->state != READY);
+
+  /* Claim for ourselves */
+  entry->sector = sector;
 
   while (entry->accessors > 0)
     cond_wait (&entry->c, &cache_lock);
@@ -491,7 +495,6 @@ buffercache_load_entry (struct cache_entry *entry, const block_sector_t
 
   /* Fix cache entry */
   entry->state = READING;
-  entry->sector = sector;
   entry->accessed = CLEAN;
   entry->type = type;
   lock_release (&cache_lock);
