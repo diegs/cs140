@@ -41,6 +41,7 @@
 #include "devices/ide.h"
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
+#include "filesys/directory.h"
 #endif
 
 /* Page directory with kernel mappings only. */
@@ -138,6 +139,8 @@ main (void)
   swap_init ();
   frame_init ();
 #endif
+
+  thread_set_cwd (dir_open_root ());
 
   printf ("Boot complete.\n");
   

@@ -94,7 +94,7 @@ buffercache_init (const size_t size)
 
   /* Create the buffercache flush thread */
   t_writer = thread_create ("buffercache_flush", PRI_DEFAULT,
-                            buffercache_flush_thread, NULL);
+                            thread_get_cwd (), buffercache_flush_thread, NULL);
   if (t_writer == TID_ERROR) return false;
 
   /* Create the buffercache readahead thread */
@@ -102,7 +102,7 @@ buffercache_init (const size_t size)
   lock_init (&readahead_lock);
   cond_init (&readahead_data);
   t_reader = thread_create ("buffercache_readahead", PRI_DEFAULT,
-                            buffercache_readahead_thread, NULL);
+                            thread_get_cwd (), buffercache_readahead_thread, NULL);
   if (t_reader == TID_ERROR) return false;
 
   return true;

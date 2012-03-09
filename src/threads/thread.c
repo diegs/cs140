@@ -148,7 +148,7 @@ thread_start (void)
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
-  thread_create ("idle", PRI_MIN, idle, &idle_started);
+  thread_create ("idle", PRI_MIN, NULL, idle, &idle_started);
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -286,7 +286,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux) 
+			   struct dir * directory, thread_func *function, void *aux) 
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -332,8 +332,9 @@ thread_create (const char *name, int priority,
   t->next_mmap = 0;
 #endif
 
+  /* Set the directory */
+  t->cwd = directory;
 
-  t->cwd = dir_open_root ();
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
      member cannot be observed. */
@@ -362,7 +363,6 @@ thread_create (const char *name, int priority,
   /* Run immediately if higher priority */
   if (t->effective_priority > thread_get_priority ())
     thread_yield ();
-
   return tid;
 }
 
@@ -575,7 +575,7 @@ thread_get_priority (void)
 struct dir *
 thread_get_cwd (void)
 {
-  return thread_current()->cwd;
+  return thread_current ()->cwd;
 }
 
 void
