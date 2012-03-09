@@ -209,31 +209,6 @@ get_frame_syscall (const struct intr_frame *f)
 }
 
 /**
- * Returns a copy of path, converted into an absolute path if necessary.
- */
-static char *
-path_make_absolute (const char *path)
-{
-  char *abs, *cwd;
-
-  /* Already an absolute path */
-  if (path[0] == '/')
-    return strdup (path);
-    
-  /* Prepend current working directory */
-  cwd = filesys_path (thread_get_cwd ());
-  if (cwd == NULL) return NULL;
-
-  abs = malloc (strlen (cwd) + strlen (path) + 1);
-  if (abs == NULL) return NULL;
-
-  strncpy (abs, cwd, strlen (cwd));
-  strncpy (abs + strlen (cwd), path, strlen (path));
-
-  return abs;
-}
-
-/**
  * Terminates Pintos by calling shutdown_power_off().
  *
  * Arguments:
@@ -484,7 +459,7 @@ sys_mkdir (struct intr_frame *f)
   const char *dir = frame_arg_ptr (f, 1);
   memory_verify_string (dir);
 
-  return filesys_mkdir (path_make_absolute (dir));
+  return filesys_mkdir (dir);
 }
 
 /**
