@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <list.h>
+#include "filesys/buffercache.h"
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
@@ -22,19 +23,48 @@ struct dir_entry
   bool in_use;                        /* In use or free? */
 };
 
+/* Walk through directory looking for a free entry. If no free entries,
+ * append one to the end. */
+static bool
+dir_add_entry (struct inode *i, struct dir_entry *entry)
+{
+  struct dir_entry e;
+  int pos = 0;
+  off_t bytes;
+
+  while (inode_read_at (i, &e, sizeof e, pos) == sizeof e) 
+  {
+    pos += sizeof e;
+    if (!e.in_use) break;
+  }
+
+  bytes = inode_write_at (i, entry, sizeof (struct dir_entry), pos);
+  return (bytes == sizeof (struct dir_entry));
+}
+
 /* Creates a directory with space for ENTRY_CNT entries in the
    given SECTOR.  Returns true if successful, false on failure. */
 bool
-dir_create (block_sector_t sector, size_t entry_cnt)
+dir_create (block_sector_t sector, block_sector_t parent)
 {
   bool status;
+  struct inode *i;
 
-  /* Create sector */
-  status = inode_create (sector, entry_cnt * sizeof (struct dir_entry), true);
+  /* Create sector with enough room for two entries */
+  status = inode_create (sector, 2 * sizeof (struct dir_entry), true);
   if (!status) return status;
 
   /* Add entries for '.' and '..' */
-  
+  i = inode_open (sector);
+  if (i == NULL) return false;
+
+  struct dir_entry dot = {.inode_sector = sector, .name = ".", .in_use = true};
+  struct dir_entry dotdot = {.inode_sector = parent, .name = "..", .in_use = true};
+
+  dir_add_entry (i, &dot);
+  dir_add_entry (i, &dotdot);
+
+  return true;
 }
 
 /* Opens and returns the directory for the given INODE, of which
