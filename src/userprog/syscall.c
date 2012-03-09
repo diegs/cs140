@@ -51,7 +51,7 @@ hash_hash_fd_hash (const struct hash_elem *e, void *aux UNUSED)
 
 static bool
 hash_less_fd_hash (const struct hash_elem *a, const struct hash_elem *b,
-		   void *aux UNUSED)
+                   void *aux UNUSED)
 {
   struct fd_hash *a_fd = hash_entry (a, struct fd_hash, elem);
   struct fd_hash *b_fd = hash_entry (b, struct fd_hash, elem);
@@ -154,7 +154,7 @@ memory_verify_write (void *ptr, size_t size)
   for (page = start_page; page <= end_page; page++)
   {
     uint8_t *page_first_byte = (uint8_t *)(page * PGSIZE);
-	if ((void *)page_first_byte < ptr) page_first_byte = ptr;
+    if ((void *)page_first_byte < ptr) page_first_byte = ptr;
     if (put_byte (page_first_byte, '\0') == -1)
     {
       process_kill ();
@@ -353,7 +353,7 @@ syscall_open (const char *filename)
 
   fd_found->count++;
   int fd = process_add_file (thread_current (), 
-			     file, fd_found->filename);
+                             file, fd_found->filename);
 
   return fd;
 }
@@ -427,8 +427,6 @@ syscall_close (int fd)
 
   /* Remove the file from the process */
   process_remove_file (thread_current (), fd);
-
-
 }
 
 static void
@@ -436,6 +434,79 @@ sys_close (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   syscall_close (fd);
+}
+
+/**
+ * Changes the current working directory of the process to dir, which may be
+ * relative or absolute. Returns true if successful, false on failure.
+ */
+static bool
+sys_chdir (struct intr_frame *f)
+{
+  const char *dir = frame_arg_ptr (f, 1);
+  memory_verify_string (dir);
+
+  /* TODO implement */
+  return false;
+}
+
+/**
+ * Creates the directory named dir, which may be relative or absolute. Returns
+ * true if successful, false on failure. Fails if dir already exists or if any
+ * directory name in dir, besides the last, does not already exist. That is,
+ * mkdir("/a/b/c") succeeds only if /a/b already exists and /a/b/c does not.
+ */
+static bool
+sys_mkdir (struct intr_frame *f)
+{
+  const char *dir = frame_arg_ptr (f, 1);
+  memory_verify_string (dir);
+
+  /* TODO implement */
+  return false;
+}
+
+/**
+ * Reads a directory entry from file descriptor fd, which must represent a
+ * directory. If successful, stores the null-terminated file name in name,
+ * which must have room for READDIR_MAX_LEN + 1 bytes, and returns true. If no
+ * entries are left in the directory, returns false.
+ */
+static bool
+sys_readdir (struct intr_frame *f)
+{
+  int fd = frame_arg_int (f, 1);
+  const char *name = frame_arg_ptr (f, 2);
+  memory_verify_string (name);
+
+  /* TODO implement */
+  return false;
+}
+
+/**
+ * Returns true if fd represents a directory, false if it represents an
+ * ordinary file.
+ */ 
+static bool
+sys_isdir (struct intr_frame *f)
+{
+  int fd = frame_arg_int (f, 1);
+
+  /* TODO implement */
+  return false;
+}
+
+/**
+ * Returns the inode number of the inode associated with fd, which may
+ * represent an ordinary file or a directory.
+ */
+static int
+sys_inumber (struct intr_frame *f)
+{
+  int fd = frame_arg_int (f, 1);
+
+  /* TODO implement */
+  return -1;
 }
 
 /* This function performs some file operation one page at a time so
@@ -457,16 +528,16 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
 
     char *cur_buff = buffer + size_accum;
 
-	if (write)
-	  memcpy(tmp_buf, cur_buff, cur_size);
-	int op_result;
-	if (read)
+    if (write)
+      memcpy(tmp_buf, cur_buff, cur_size);
+    int op_result;
+    if (read)
       op_result = file_read (file, tmp_buf, cur_size);
-	else
-	  op_result = file_write (file, tmp_buf, cur_size);
+    else
+      op_result = file_write (file, tmp_buf, cur_size);
 
-	if (read)
-	  memcpy(cur_buff, tmp_buf, cur_size);
+    if (read)
+      memcpy(cur_buff, tmp_buf, cur_size);
 
     size_accum += op_result;
     
@@ -608,51 +679,66 @@ syscall_handler (struct intr_frame *f)
 
   switch (syscall) 
   {
-    case SYS_HALT:
-      sys_halt (f);
-      break;
-    case SYS_EXIT:
-      sys_exit (f);
-      break;
-    case SYS_EXEC:
-      eax = sys_exec (f);
-      break;
-    case SYS_WAIT:
-      eax = sys_wait (f);
-      break;
-    case SYS_CREATE:
-      eax = sys_create (f);
-      break;
-    case SYS_REMOVE:
-      eax = sys_remove (f);
-      break;
-    case SYS_OPEN:
-      eax = sys_open (f);
-      break;
-    case SYS_FILESIZE:
-      eax = sys_filesize (f);
-      break;
-    case SYS_READ:
-      eax = sys_read (f);
-      break;
-    case SYS_WRITE:
-      eax = sys_write (f);
-      break;
-    case SYS_SEEK:
-      sys_seek (f);
-      break;
-    case SYS_TELL:
-      eax = sys_tell (f);
-      break;
-    case SYS_CLOSE:
-      sys_close (f);
-      break;
-    case SYS_MMAP:
-      eax = sys_mmap (f);
-      break;
-    case SYS_MUNMAP:
-      sys_munmap (f);
-      break;
+  case SYS_HALT:
+    sys_halt (f);
+    break;
+  case SYS_EXIT:
+    sys_exit (f);
+    break;
+  case SYS_EXEC:
+    eax = sys_exec (f);
+    break;
+  case SYS_WAIT:
+    eax = sys_wait (f);
+    break;
+  case SYS_CREATE:
+    eax = sys_create (f);
+    break;
+  case SYS_REMOVE:
+    eax = sys_remove (f);
+    break;
+  case SYS_OPEN:
+    eax = sys_open (f);
+    break;
+  case SYS_FILESIZE:
+    eax = sys_filesize (f);
+    break;
+  case SYS_READ:
+    eax = sys_read (f);
+    break;
+  case SYS_WRITE:
+    eax = sys_write (f);
+    break;
+  case SYS_SEEK:
+    sys_seek (f);
+    break;
+  case SYS_TELL:
+    eax = sys_tell (f);
+    break;
+  case SYS_CLOSE:
+    sys_close (f);
+    break;
+  case SYS_CHDIR:
+    eax = sys_chdir (f);
+    break;
+  case SYS_MKDIR:
+    eax = sys_mkdir (f);
+    break;
+  case SYS_READDIR:
+    eax = sys_readdir (f);
+    break;
+  case SYS_ISDIR:
+    eax = sys_isdir (f);
+    break;
+  case SYS_INUMBER:
+    eax = sys_inumber (f);
+    break;
+  case SYS_MMAP:
+    eax = sys_mmap (f);
+    break;
+  case SYS_MUNMAP:
+    sys_munmap (f);
+    break;
   }
   thread_current ()->syscall_context = false;
   /* Set return value */
