@@ -57,6 +57,8 @@ struct inode {
   int open_cnt;					/* Number of openers. */
   bool removed;					/* True if deleted, false otherwise. */
   int deny_write_cnt;			/* 0: writes ok, >0: deny writes. */
+
+  struct lock lock;
 };
 
 static off_t index_to_offset (int index)
@@ -122,6 +124,7 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
 {
   ASSERT (root != NULL);
 
+  lock_acquire (&root->lock);
   block_sector_t cur_sector = root->disk_block;
   off_t cur_pos = pos;
 
@@ -169,12 +172,15 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
           enum sector_type type = i > 0 ? METADATA : REGULAR;
           next_sector = create_new_sector (cur_sector, index, type);
         } else {
-          return INODE_INVALID_BLOCK_SECTOR;
+          cur_sector = INODE_INVALID_BLOCK_SECTOR;
+          break;
         }
       }
       cur_sector = next_sector;
     }
   }
+
+  lock_release (&root->lock);
 
   return cur_sector;
 }
@@ -319,6 +325,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  lock_init (&inode->lock);
   return inode;
 }
 
