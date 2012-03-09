@@ -40,7 +40,6 @@ fd_hash_destroy (struct fd_hash *h)
   free (h);
 }
 
-
 static unsigned
 hash_hash_fd_hash (const struct hash_elem *e, void *aux UNUSED) 
 {
@@ -178,7 +177,6 @@ memory_verify_string (const char *str)
   }
 }
 
-
 /* Convenience method for dereferencing a frame argument */
 static inline void* frame_arg (const struct intr_frame *f, const int i) 
 {
@@ -208,6 +206,31 @@ static uint32_t
 get_frame_syscall (const struct intr_frame *f) 
 {
   return frame_arg_int (f, 0);
+}
+
+/**
+ * Returns a copy of path, converted into an absolute path if necessary.
+ */
+static char *
+path_make_absolute (const char *path)
+{
+  char *abs, *cwd;
+
+  /* Already an absolute path */
+  if (path[0] == '/')
+    return strdup (path);
+    
+  /* Prepend current working directory */
+  cwd = filesys_path (thread_get_cwd ());
+  if (cwd == NULL) return NULL;
+
+  abs = malloc (strlen (cwd) + strlen (path) + 1);
+  if (abs == NULL) return NULL;
+
+  strncpy (abs, cwd, strlen (cwd));
+  strncpy (abs + strlen (cwd), path, strlen (path));
+
+  return abs;
 }
 
 /**
@@ -288,7 +311,6 @@ static struct fd_hash* get_fd_hash (const char* filename)
 
   return fd_found;
 }
-
 
 static bool
 sys_create (const struct intr_frame *f)
@@ -462,8 +484,7 @@ sys_mkdir (struct intr_frame *f)
   const char *dir = frame_arg_ptr (f, 1);
   memory_verify_string (dir);
 
-  /* TODO implement */
-  return false;
+  return filesys_mkdir (path_make_absolute (dir));
 }
 
 /**

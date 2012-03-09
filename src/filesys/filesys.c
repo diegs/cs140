@@ -62,6 +62,21 @@ filesys_create (const char *name, off_t initial_size)
   return success;
 }
 
+/* Creates a directory at path. Returns true if successful, false
+ * otherwise. Requires parent directories to exist */
+bool
+filesys_mkdir (const char *path)
+{
+  /* TODO implement */
+}
+
+/* Returns a string containing the path to the directory contained by dir */
+char *
+filesys_path (block_sector_t dir)
+{
+
+}
+
 /* Opens the file with the given NAME.
    Returns the new file if successful or a null pointer
    otherwise.
