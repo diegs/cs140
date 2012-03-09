@@ -1,4 +1,5 @@
 #include "filesys/inode.h"
+#include <stdio.h>
 #include <list.h>
 #include <debug.h>
 #include <round.h>
@@ -333,8 +334,10 @@ inode_open (block_sector_t sector)
 struct inode *
 inode_reopen (struct inode *inode)
 {
+  lock_acquire (&inode->lock);
   if (inode != NULL)
     inode->open_cnt++;
+  lock_release (&inode->lock);
   return inode;
 }
 
@@ -355,23 +358,26 @@ inode_close (struct inode *inode)
   if (inode == NULL)
     return;
 
+  lock_acquire (&inode->lock);
+  inode->open_cnt--;
+  lock_release (&inode->lock);
   /* Release resources if this was the last opener. */
-  if (--inode->open_cnt == 0)
+  if (inode->open_cnt == 0)
+  {
+    /* Remove from inode list and release lock. */
+    list_remove (&inode->elem);
+
+    /* Deallocate blocks if removed. */
+    if (inode->removed) 
     {
-      /* Remove from inode list and release lock. */
-      list_remove (&inode->elem);
- 
-      /* Deallocate blocks if removed. */
-      if (inode->removed) 
-        {
-          free_map_release (inode->disk_block, 1);
-		  /* TODO: close all blocks */
+      free_map_release (inode->disk_block, 1);
+      /* TODO: close all blocks */
       //    inode_sector_map (inode, inode_sector_print);
-        }
-	  buffercache_write (inode->disk_block, METADATA, offsetof (struct
-      inode_disk, length), sizeof(off_t), &inode->length, INODE_INVALID_BLOCK_SECTOR);
-      free (inode); 
     }
+    buffercache_write (inode->disk_block, METADATA, offsetof (struct
+          inode_disk, length), sizeof(off_t), &inode->length, INODE_INVALID_BLOCK_SECTOR);
+    free (inode); 
+  }
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who
@@ -475,8 +481,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 void
 inode_deny_write (struct inode *inode) 
 {
+  lock_acquire (&inode->lock);
   inode->deny_write_cnt++;
   ASSERT (inode->deny_write_cnt <= inode->open_cnt);
+  lock_release (&inode->lock);
 }
 
 /* Re-enables writes to INODE.
@@ -487,7 +495,9 @@ inode_allow_write (struct inode *inode)
 {
   ASSERT (inode->deny_write_cnt > 0);
   ASSERT (inode->deny_write_cnt <= inode->open_cnt);
+  lock_acquire (&inode->lock);
   inode->deny_write_cnt--;
+  lock_release (&inode->lock);
 }
 
 /* Returns the length, in bytes, of INODE's data. */
