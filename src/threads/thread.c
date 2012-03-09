@@ -569,6 +569,21 @@ thread_get_priority (void)
   return thread_current ()->effective_priority;
 }
 
+/* Returns the current working directory of this thread.  Initialized to /
+   */
+
+struct dir *
+thread_get_cwd (void)
+{
+  return thread_current()->cwd;
+}
+
+void
+thread_set_cwd (struct dir * directory)
+{
+  thread_current ()->cwd = directory;
+}
+
 /* Computes the maximum priority for a thread including all donated
    priorities. Does not change any thread state. Must be called with
    interrupts disabled. */

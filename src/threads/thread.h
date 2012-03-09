@@ -182,6 +182,9 @@ void thread_foreach (thread_action_func *, void *);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
+struct dir * thread_get_cwd (void);
+void thread_set_cwd (struct dir *directory);
+
 int thread_get_effective_priority (struct thread *t);
 void thread_set_effective_priority (struct thread *t, int new_priority);
 
