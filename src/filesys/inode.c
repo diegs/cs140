@@ -13,8 +13,8 @@
 #define INODE_MAGIC 0x494e4f44
 
 /* The number of sector references in an inode */
-#define INODE_NUM_BLOCKS 126
-#define INODE_CONSISTENT_BLOCKS 124
+#define INODE_NUM_BLOCKS 125
+#define INODE_CONSISTENT_BLOCKS 123
 #define INODE_DIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
 #define INODE_INDIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
 #define INODE_DUBINDER_SIZE INODE_INDIRECT_SIZE*INODE_CONSISTENT_BLOCKS
@@ -28,6 +28,10 @@ static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_DUBINDE
 static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
 static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 
+/* List of open inodes, so that opening a single inode twice
+   returns the same `struct inode'. */
+static struct list open_inodes;
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
@@ -37,8 +41,10 @@ struct inode_disk
      INODE_CONSISTENT_BLOCKS + 1 for the singly indirect block and
      INODE_CONSISTENT_BLOCKS + 2 for the doubly indirect block */
   block_sector_t sectors[INODE_NUM_BLOCKS];
-  off_t length;                       /* File size in bytes. */
-  unsigned magic;                     /* Magic number. */
+  off_t length;                 /* File size in bytes. */
+  bool directory;               /* true if this inode represents a directory */
+  uint8_t padding[3];           /* padding */
+  unsigned magic;               /* Magic number. */
 };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -51,14 +57,13 @@ bytes_to_sectors (off_t size)
 
 /* In-memory inode. */
 struct inode {
-  block_sector_t disk_block;	/* Sector of this inode on disk*/
-  struct list_elem elem;		/* Element in inode list. */
+  block_sector_t disk_block;    /* Sector of this inode on disk*/
+  struct list_elem elem;        /* Element in inode list. */
   off_t length;
-
-  int open_cnt;					/* Number of openers. */
-  bool removed;					/* True if deleted, false otherwise. */
-  int deny_write_cnt;			/* 0: writes ok, >0: deny writes. */
-
+  int open_cnt;                 /* Number of openers. */
+  bool removed;                 /* True if deleted, false otherwise. */
+  int deny_write_cnt;           /* 0: writes ok, >0: deny writes. */
+  bool directory;               /* true if this inode represents a directory */
   struct lock lock;
 };
 
@@ -236,16 +241,6 @@ inode_sector_map (struct inode *root, inode_sector_map_fn map_fn)
     bytes_traversed += BLOCK_SECTOR_SIZE;
   }
 }
-
-static void 
-inode_sector_print (block_sector_t sector, bool meta)
-{
-  printf ("Mapping over sector %d, is meta? %d\n", sector, meta);
-}
-
-/* List of open inodes, so that opening a single inode twice
-   returns the same `struct inode'. */
-static struct list open_inodes;
 
 /* Initializes the inode module. */
 void
