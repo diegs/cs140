@@ -54,15 +54,15 @@ swap_load (uint8_t *dest, block_sector_t swap_begin)
 {
   int i;
 
-  lock_acquire (&swap_lock);
-  bitmap_set_multiple (swap_table, swap_begin, BLOCKS_PER_PAGE, false);
-  lock_release (&swap_lock);
-
   for (i = 0; i < BLOCKS_PER_PAGE; i++)
   {
     block_read (get_swap (), i + swap_begin, dest +
                   i*BLOCK_SECTOR_SIZE);
   }
+
+  lock_acquire (&swap_lock);
+  bitmap_set_multiple (swap_table, swap_begin, BLOCKS_PER_PAGE, false);
+  lock_release (&swap_lock);
 
   return true;
 }

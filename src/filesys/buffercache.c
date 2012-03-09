@@ -467,9 +467,9 @@ buffercache_replace (const block_sector_t sector, enum sector_type type)
   e = buffercache_clock_algorithm ();	      /* Marks state as CLOCK */
   if (e == NULL) return NULL;
 
-  buffercache_flush_entry (e, sector, true);        /* Write current entry */
-  buffercache_load_entry (e, sector, type); /* Read new entry into buffer */
-  e->accessors++;                           /* Prevent replacement */
+  buffercache_flush_entry (e, sector, true); /* Write current entry */
+  buffercache_load_entry (e, sector, type);  /* Read new entry into buffer */
+  e->accessors++;                            /* Prevent replacement */
 
   return e;
 }
@@ -574,6 +574,7 @@ buffercache_clock_algorithm (void)
   } while (clock_hand != clock_start);
 
   /* Claim this entry for ourselves */
+  ASSERT (e->state == READY);
   e->state = CLOCK;
   return e;
 }

@@ -336,11 +336,11 @@ page_unfile (struct s_page_entry *spe)
 
 
   /* Read page into memory */
-  off_t old_pos = file_tell(info->f);
+  off_t old_pos = file_tell (info->f);
   file_seek (info->f, info->offset);
   int target_bytes = PGSIZE - info->zero_bytes;
   int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
-  file_seek(info->f, old_pos);
+  file_seek (info->f, old_pos);
 
   spe->frame = frame;
   if (bytes_read != target_bytes) 
