@@ -133,6 +133,8 @@ struct thread
   int next_mmap;
 #endif
 
+  struct dir * cwd;
+
   /* Priority data */
   int priority;                       /* 'Internal' Priority. */
   int effective_priority;             /* Effective Priority. */
