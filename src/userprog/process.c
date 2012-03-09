@@ -110,10 +110,8 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
 
   /* Open the file and prevent writes to it while loading */
-  lock_acquire(&fd_all_lock);
   struct file* file = filesys_open (pinfo->prog_name);
   if (file != NULL) file_deny_write (file);
-  lock_release(&fd_all_lock);
   pinfo->file = file;
 
   success = load (pinfo, &if_.eip, &if_.esp);
@@ -121,9 +119,7 @@ start_process (void *file_name_)
   /* If load failed, allow writes again and quit. */
   if (!success) 
   {
-	lock_acquire(&fd_all_lock);
     if (file != NULL) file_allow_write (file);
-	lock_release(&fd_all_lock);
     thread_current ()->exit_code = -1;
     thread_exit ();
   } else {
@@ -262,10 +258,8 @@ process_exit (void)
   /* Allow writes to the exec file again */
   if (cur->exec_file != NULL) 
   {
-    lock_acquire(&fd_all_lock);
     file_allow_write (cur->exec_file);
     file_close (cur->exec_file);
-    lock_release(&fd_all_lock);
   }
 
 #ifdef VM
@@ -443,7 +437,6 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
       goto done; 
     }
 
-  lock_acquire(&fd_all_lock);
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -454,7 +447,6 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024) 
     {
       printf ("load: %s: error loading executable\n", pinfo->prog_name);
-	  lock_release(&fd_all_lock);
       goto done; 
     }
   
@@ -466,14 +458,12 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
 
       if (file_ofs < 0 || file_ofs > file_length (file))
 	  {
-		lock_release(&fd_all_lock);
         goto done;
 	  }
       file_seek (file, file_ofs);
 
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
 	  {
-	    lock_release(&fd_all_lock);
         goto done;
 	  }
       file_ofs += sizeof phdr;
@@ -520,7 +510,6 @@ load (struct process_info *pinfo, void (**eip) (void), void **esp)
           break;
         }
     }
-  lock_release(&fd_all_lock);
 
   /* Set up stack. */
   if (!setup_stack (esp))

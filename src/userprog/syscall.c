@@ -298,9 +298,7 @@ sys_create (const struct intr_frame *f)
 
   memory_verify_string (filename);
 
-  lock_acquire (&fd_all_lock);
   bool ret = filesys_create (filename, initial_size);
-  lock_release (&fd_all_lock);
 
   return ret;
 }
@@ -311,7 +309,6 @@ sys_remove (const struct intr_frame *f)
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
 
-  lock_acquire (&fd_all_lock);
   struct fd_hash *fd_found = get_fd_hash (filename); 
 
   bool result = false;
@@ -323,18 +320,15 @@ sys_remove (const struct intr_frame *f)
   } else {
     result = filesys_remove (filename);
   }
-  lock_release (&fd_all_lock);
   return result;
 }
 
 int
 syscall_open (const char *filename) 
 {
-  lock_acquire (&fd_all_lock);
   struct file* file = filesys_open (filename); 
   if (file == NULL) 
   {
-    lock_release (&fd_all_lock);
     return -1;
   }
 
@@ -346,7 +340,6 @@ syscall_open (const char *filename)
     fd_found = fd_hash_init ();
     if (fd_found == NULL)
     {
-      lock_release(&fd_all_lock);
       return -1;
     }
     fd_found->filename = strdup (filename);
@@ -355,14 +348,12 @@ syscall_open (const char *filename)
   /* Makes sure it isn't marked for deletion */
   if (fd_found->delete)
   {
-    lock_release (&fd_all_lock);
     return -1;
   }
 
   fd_found->count++;
   int fd = process_add_file (thread_current (), 
 			     file, fd_found->filename);
-  lock_release (&fd_all_lock);
 
   return fd;
 }
@@ -384,9 +375,7 @@ sys_filesize (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return -1;
 
-  lock_acquire (&fd_all_lock);
   int len = file_length (pfd->file);
-  lock_release (&fd_all_lock);
   return len;
 }
 
@@ -399,9 +388,7 @@ sys_seek (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return;
  
-  lock_acquire (&fd_all_lock);
   file_seek (pfd->file, pos);
-  lock_release (&fd_all_lock);
 }
 
 static uint32_t
@@ -412,25 +399,20 @@ sys_tell (struct intr_frame *f)
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return -1;
  
-  lock_acquire (&fd_all_lock);
   uint32_t tell = file_tell (pfd->file);
-  lock_release (&fd_all_lock);
   return tell;
 }
 
 void
 syscall_close (int fd)
 {
-  lock_acquire (&fd_all_lock);
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) {
-    lock_release (&fd_all_lock);
     return;
   }
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
   if (fd_found == NULL)
   {
-    lock_release(&fd_all_lock);
     return;
   }
   file_close (pfd->file);
@@ -446,7 +428,6 @@ syscall_close (int fd)
   /* Remove the file from the process */
   process_remove_file (thread_current (), fd);
 
-  lock_release (&fd_all_lock);
 
 }
 
@@ -479,12 +460,10 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
 	if (write)
 	  memcpy(tmp_buf, cur_buff, cur_size);
 	int op_result;
-    lock_acquire (&fd_all_lock);
 	if (read)
       op_result = file_read (file, tmp_buf, cur_size);
 	else
 	  op_result = file_write (file, tmp_buf, cur_size);
-    lock_release (&fd_all_lock);
 
 	if (read)
 	  memcpy(cur_buff, tmp_buf, cur_size);
@@ -611,7 +590,6 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   
   hash_init (&fd_all, hash_hash_fd_hash, hash_less_fd_hash, NULL);
-  lock_init (&fd_all_lock);
 }
 
 /* Handles system calls using the internal interrupt mechanism. The

@@ -232,9 +232,7 @@ page_swap (struct s_page_entry *spe)
 
   if (write_needed)
   {
-    lock_acquire (&fd_all_lock);
     swap_write (spe->frame->kaddr, &spe->info.memory.swap_begin);
-    lock_release (&fd_all_lock);
     spe->info.memory.used = true;
   } 
 
@@ -258,10 +256,8 @@ page_unswap (struct s_page_entry *spe)
     spe->frame = frame_get (spe, 0);
     if (!spe->frame) return false;
 
-    lock_acquire (&fd_all_lock);
     bool success = swap_load (spe->frame->kaddr,
 			      spe->info.memory.swap_begin);
-    lock_release (&fd_all_lock);
     if (!success)
     {
       frame_unpin (spe->frame);
@@ -310,11 +306,9 @@ page_file (struct s_page_entry *spe)
   if(write_needed)
   {
     /* Write the file out to disk */
-    lock_acquire (&fd_all_lock);
     file_seek (info->f, info->offset);
     size_t bytes_write = PGSIZE - info->zero_bytes;
     size_t num_written = file_write (info->f, frame->kaddr, bytes_write);
-    lock_release (&fd_all_lock);
 
     result = bytes_write == num_written;
   } else {
@@ -340,7 +334,6 @@ page_unfile (struct s_page_entry *spe)
 
   ASSERT (info->f != NULL);
 
-  lock_acquire(&fd_all_lock);
 
   /* Read page into memory */
   off_t old_pos = file_tell(info->f);
@@ -348,7 +341,6 @@ page_unfile (struct s_page_entry *spe)
   int target_bytes = PGSIZE - info->zero_bytes;
   int bytes_read = file_read (info->f, frame->kaddr, target_bytes);
   file_seek(info->f, old_pos);
-  lock_release(&fd_all_lock);   
 
   spe->frame = frame;
   if (bytes_read != target_bytes) 
