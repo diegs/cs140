@@ -70,7 +70,7 @@ filesys_mkdir (const char *path)
 {
   block_sector_t sector;
   block_sector_t newdir_sector;
-  char *basename;
+  const char *basename;
   struct inode *i;
   bool status;
 

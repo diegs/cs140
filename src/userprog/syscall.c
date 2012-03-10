@@ -9,7 +9,9 @@
 #include "devices/shutdown.h"
 #include "userprog/process.h"
 #include "userprog/syscall.h"
+#include "filesys/directory.h"
 #include "filesys/filesys.h"
+#include "filesys/inode.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
@@ -440,11 +442,18 @@ sys_close (struct intr_frame *f)
 static bool
 sys_chdir (struct intr_frame *f)
 {
-  const char *dir = frame_arg_ptr (f, 1);
+  block_sector_t newdir;
+  char *dir = frame_arg_ptr (f, 1);
   memory_verify_string (dir);
 
-  /* TODO implement */
-  return false;
+  newdir = path_traverse (dir);
+  if (newdir == INODE_INVALID_BLOCK_SECTOR)
+  {
+    return false;
+  } else {
+    thread_set_cwd (newdir);
+    return true;
+  }
 }
 
 /**

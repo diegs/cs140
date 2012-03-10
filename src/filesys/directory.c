@@ -24,6 +24,9 @@ struct dir_entry
   bool in_use;                        /* In use or free? */
 };
 
+static bool lookup (const struct dir *dir, const char *name,
+                    struct dir_entry *ep, off_t *ofsp);
+
 /* Walk through directory looking for a free entry. If no free entries,
  * append one to the end. */
 bool
@@ -31,17 +34,23 @@ dir_add_entry (struct inode *i, const char *name, block_sector_t sector)
 {
   struct dir_entry entry;
   struct dir_entry e;
-  int pos = 0;
+  int pos;
   off_t bytes;
+
+  /* Make sure doesn't already exist */
+  struct dir d = {.inode = i, .pos = 0};
+  if (lookup (&d, name, NULL, NULL)) return false;
 
   strlcpy (entry.name, name, NAME_MAX);
   entry.inode_sector = sector;
   entry.in_use = true;
+  pos = 0;
 
+  /* Find a free entry */
   while (inode_read_at (i, &e, sizeof e, pos) == sizeof e) 
   {
-    pos += sizeof e;
     if (!e.in_use) break;
+    pos += sizeof e;
   }
 
   bytes = inode_write_at (i, &entry, sizeof (struct dir_entry), pos);
@@ -281,15 +290,14 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 block_sector_t
 path_get_dirname_sector (const char *path)
 {
-  char *dirpath, *end, *cur;
+  char *dirpath, *end;
   block_sector_t sector;
   int len;
 
   end = strrchr (path, '/');
-  sector = thread_get_cwd ();
 
   /* No slashes, just return cwd */ 
-  if (end == NULL) return sector;
+  if (end == NULL) return thread_get_cwd ();
 
   /* Make a copy to tokenize */
   len = end - path + 1;
@@ -297,22 +305,32 @@ path_get_dirname_sector (const char *path)
   if (dirpath == NULL) return INODE_INVALID_BLOCK_SECTOR;
 
   strlcpy (dirpath, path, len + 1);
-  cur = dirpath;
+  sector = path_traverse (dirpath);
+  free (dirpath);
+  return sector;
+}
 
-  /* Check if absolute path */
-  if (dirpath[0] == '/')
-  {
-    sector = free_map_root_sector ();
-    cur++;
-  } 
-
-  /* Traverse */
+/* Traverse */
+block_sector_t
+path_traverse (char *path)
+{
   char *token, *save_ptr;
   bool found;
   struct dir dir;
   struct dir_entry entry;
+  block_sector_t sector;
 
-  for (token = strtok_r (cur, "/", &save_ptr); token != NULL;
+  /* Check if absolute path */
+  if (path[0] == '/')
+  {
+    sector = free_map_root_sector ();
+    path++;
+  } else {
+    sector = thread_get_cwd ();
+  }
+
+
+  for (token = strtok_r (path, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
   {
     /* Open the inode for this directory */
@@ -338,22 +356,18 @@ path_get_dirname_sector (const char *path)
     }
   }
 
-  free (dirpath);
   return sector;
 }
 
 /* Returns the basename for the given path. Does not make a copy. */
-char *
+const char *
 path_get_basename (const char *path)
 {
-  char *basename;
   char *start;
 
   start = strrchr (path, '/');
   if (start == NULL)
-    start = basename;
+    return path;
   else
-    start++;
-
-  return start;
+    return start + 1;
 }

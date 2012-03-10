@@ -33,6 +33,7 @@ bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);
 
 /* Path traversal */
 block_sector_t path_get_dirname_sector (const char *path);
-char *path_get_basename (const char *path);
+const char *path_get_basename (const char *path);
+block_sector_t path_traverse (char *path);
 
 #endif /* filesys/directory.h */
