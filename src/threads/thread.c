@@ -19,6 +19,9 @@
 #ifdef VM
 #include "vm/page.h"
 #endif
+#ifdef FILESYS
+#include "filesys/free-map.h"
+#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -148,7 +151,7 @@ thread_start (void)
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
-  thread_create ("idle", PRI_MIN, NULL, idle, &idle_started);
+  thread_create ("idle", PRI_MIN, free_map_root_sector (), idle, &idle_started);
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -286,7 +289,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-			   struct dir * directory, thread_func *function, void *aux) 
+               block_sector_t cwd, thread_func *function, void *aux) 
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -332,8 +335,10 @@ thread_create (const char *name, int priority,
   t->next_mmap = 0;
 #endif
 
-  /* Set the directory */
-  t->cwd = directory;
+#ifdef FILESYS
+  /* Set the cwd */
+  t->cwd = cwd;
+#endif
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -572,16 +577,16 @@ thread_get_priority (void)
 /* Returns the current working directory of this thread.  Initialized to /
    */
 
-struct dir *
+block_sector_t
 thread_get_cwd (void)
 {
   return thread_current ()->cwd;
 }
 
 void
-thread_set_cwd (struct dir * directory)
+thread_set_cwd (block_sector_t sector)
 {
-  thread_current ()->cwd = directory;
+  thread_current ()->cwd = sector;
 }
 
 /* Computes the maximum priority for a thread including all donated
@@ -795,6 +800,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->nice = NICE_DEFAULT;
   t->recent_cpu = int2fp (0);
   t->mlfqs_priority = priority;
+  t->cwd = free_map_root_sector ();
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }

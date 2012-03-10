@@ -140,11 +140,6 @@ main (void)
   frame_init ();
 #endif
 
-#ifdef filesys
-  /* This needs to happen after paging is set up */
-  thread_set_cwd (dir_open_root ());
-#endif
-
   printf ("Boot complete.\n");
   
   /* Run actions specified on kernel command line. */

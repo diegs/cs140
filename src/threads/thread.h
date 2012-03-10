@@ -8,6 +8,9 @@
 #include "filesys/file.h"
 #include "threads/fixed-point.h"
 #include "threads/synch.h"
+#ifdef FILESYS
+#include "devices/block.h"
+#endif
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -133,7 +136,9 @@ struct thread
   int next_mmap;
 #endif
 
-  struct dir * cwd;
+#ifdef FILESYS
+  block_sector_t cwd;           /* Current working directory */
+#endif
 
   /* Priority data */
   int priority;                       /* 'Internal' Priority. */
@@ -163,8 +168,7 @@ void thread_tick (void);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
-tid_t thread_create (const char *name, int priority, struct dir *
-directory, thread_func *, void *);
+tid_t thread_create (const char *name, int, block_sector_t, thread_func *, void *);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
@@ -183,8 +187,8 @@ void thread_foreach (thread_action_func *, void *);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
-struct dir * thread_get_cwd (void);
-void thread_set_cwd (struct dir *directory);
+block_sector_t thread_get_cwd (void);
+void thread_set_cwd (block_sector_t sector);
 
 int thread_get_effective_priority (struct thread *t);
 void thread_set_effective_priority (struct thread *t, int new_priority);
