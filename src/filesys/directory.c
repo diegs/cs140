@@ -363,10 +363,17 @@ const char *
 path_get_basename (const char *path)
 {
   char *start;
+  const char *basename;
 
   start = strrchr (path, '/');
   if (start == NULL)
-    return path;
+    basename = path;
   else
-    return start + 1;
+    basename = start + 1;
+
+  if (basename == NULL || strlen (basename) == 0 ||
+      strlen (basename) > NAME_MAX)
+    return NULL;
+
+  return basename;
 }
