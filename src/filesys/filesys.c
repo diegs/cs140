@@ -98,7 +98,7 @@ struct file *
 filesys_open (const char *path)
 {
   char *dirname = dir_dirname (path);
-  char *basename = dir_basename (path);
+  const char *basename = dir_basename (path);
   struct dir *dir = dir_open_path (dirname);
   if (dirname != NULL) free (dirname);
   if (basename == NULL) return NULL;
@@ -125,7 +125,7 @@ bool
 filesys_remove (const char *path) 
 {
   char *dirname = dir_dirname (path);
-  char *basename = dir_basename (path);
+  const char *basename = dir_basename (path);
   struct dir *dir = dir_open_path (dirname);
   if (dirname != NULL) free (dirname);
 

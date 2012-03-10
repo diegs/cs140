@@ -1,5 +1,6 @@
 #include "filesys/file.h"
 #include <debug.h>
+#include "filesys/directory.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 
@@ -184,4 +185,14 @@ file_is_directory (struct file *file)
 {
   ASSERT (file != NULL);
   return file->is_directory;
+}
+
+/* Invokes readdir on the directory */
+bool
+file_readdir (struct file *file, char *name)
+{
+  struct dir *dir = dir_open (file->inode);
+  bool success = dir_readdir (dir, name);
+  dir_close (dir);
+  return success;
 }

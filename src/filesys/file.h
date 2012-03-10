@@ -32,5 +32,6 @@ int file_inumber (struct file *);
 
 /* Directory items. */
 bool file_is_directory (struct file *);
+bool file_readdir (struct file *, char *);
 
 #endif /* filesys/file.h */

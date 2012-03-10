@@ -481,11 +481,15 @@ static bool
 sys_readdir (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
-  const char *name = frame_arg_ptr (f, 2);
+  char *name = frame_arg_ptr (f, 2);
   memory_verify_string (name);
 
-  /* TODO implement */
-  return false;
+  struct process_fd *pfd = process_get_file (thread_current (), fd);
+  if (pfd == NULL) return false;
+  
+  if (!file_is_directory (pfd->file)) return false;
+
+  return file_readdir (pfd->file, name);
 }
 
 /**
