@@ -546,3 +546,10 @@ inode_length (const struct inode *inode)
 {
   return inode->length;
 }
+
+/* Returns true if this inode represents a directory */
+bool
+inode_is_directory (const struct inode *inode)
+{
+  return inode->directory;
+}
