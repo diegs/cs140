@@ -292,11 +292,11 @@ path_get_dirname_sector (const char *path)
   if (end == NULL) return sector;
 
   /* Make a copy to tokenize */
-  len = end - path;
+  len = end - path + 1;
   dirpath = malloc (len + 1);
   if (dirpath == NULL) return INODE_INVALID_BLOCK_SECTOR;
 
-  strlcpy (dirpath, path, len);
+  strlcpy (dirpath, path, len + 1);
   cur = dirpath;
 
   /* Check if absolute path */
@@ -350,7 +350,10 @@ path_get_basename (const char *path)
   char *start;
 
   start = strrchr (path, '/');
-  if (start == NULL) start = basename;
+  if (start == NULL)
+    start = basename;
+  else
+    start++;
 
   return start;
 }

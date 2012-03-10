@@ -49,6 +49,9 @@ free_map_init (void)
   /* Set the bit that belongs to the root inode */
   root_dir_sector = free_map_end;
   bitmap_mark (free_map, root_dir_sector);
+
+  /* Set the cwd for the main thread */
+  thread_set_cwd (root_dir_sector);
 }
 
 /* Allocates CNT consecutive sectors from the free map and stores
