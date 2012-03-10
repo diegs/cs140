@@ -19,7 +19,7 @@ fsutil_ls (char **argv UNUSED)
   char name[NAME_MAX + 1];
   
   printf ("Files in the root directory:\n");
-  dir = dir_open_root ();
+  dir = dir_open_path ("/");
   if (dir == NULL)
     PANIC ("root dir open failed");
   while (dir_readdir (dir, name))

@@ -95,16 +95,26 @@ filesys_mkdir (const char *path)
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
 struct file *
-filesys_open (const char *name)
+filesys_open (const char *path)
 {
-  struct dir *dir = dir_open_root ();
-  struct inode *inode = NULL;
+  char *dirname = dir_dirname (path);
+  char *basename = dir_basename (path);
+  struct dir *dir = dir_open_path (dirname);
+  if (dirname != NULL) free (dirname);
+  if (basename == NULL) return NULL;
 
-  if (dir != NULL)
-    dir_lookup (dir, name, &inode);
-  dir_close (dir);
+  if (basename != NULL)
+  {
+    struct inode *inode = NULL;
+    if (dir != NULL)
+      dir_lookup (dir, basename, &inode);
+    dir_close (dir);
 
-  return file_open (inode);
+    return file_open (inode);
+  } else {
+    if (dir != NULL) dir_close (dir);
+    return NULL;
+  }
 }
 
 /* Deletes the file named NAME.
@@ -112,12 +122,18 @@ filesys_open (const char *name)
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
 bool
-filesys_remove (const char *name) 
+filesys_remove (const char *path) 
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
-  dir_close (dir); 
+  char *dirname = dir_dirname (path);
+  char *basename = dir_basename (path);
+  struct dir *dir = dir_open_path (dirname);
+  if (dirname != NULL) free (dirname);
 
+  bool success = false;
+  if (basename != NULL) 
+    success = dir != NULL && dir_remove (dir, basename);
+
+  dir_close (dir); 
   return success;
 }
 
