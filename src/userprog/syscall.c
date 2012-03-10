@@ -497,8 +497,10 @@ sys_isdir (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
 
-  /* TODO implement */
-  return false;
+  struct process_fd *pfd = process_get_file (thread_current (), fd);
+  if (pfd == NULL) return false;
+
+  return file_is_directory (pfd->file);
 }
 
 /**
@@ -510,8 +512,10 @@ sys_inumber (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
 
-  /* TODO implement */
-  return -1;
+  struct process_fd *pfd = process_get_file (thread_current (), fd);
+  if (pfd == NULL) return -1;
+
+  return file_inumber (pfd->file);
 }
 
 /* This function performs some file operation one page at a time so
@@ -523,7 +527,7 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
   size_t size_accum = 0;
   bool read = !write;
 
-  char * tmp_buf = malloc(PGSIZE);
+  char *tmp_buf = malloc(PGSIZE);
   if (tmp_buf == NULL) return -1;
 
   while (size_accum < size) 

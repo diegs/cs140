@@ -5,11 +5,12 @@
 
 /* An open file. */
 struct file 
-  {
-    struct inode *inode;        /* File's inode. */
-    off_t pos;                  /* Current position. */
-    bool deny_write;            /* Has file_deny_write() been called? */
-  };
+{
+  struct inode *inode;        /* File's inode. */
+  off_t pos;                  /* Current position. */
+  bool deny_write;            /* Has file_deny_write() been called? */
+  bool is_directory;          /* Is this a directory */
+};
 
 /* Opens a file for the given INODE, of which it takes ownership,
    and returns the new file.  Returns a null pointer if an
@@ -19,18 +20,19 @@ file_open (struct inode *inode)
 {
   struct file *file = calloc (1, sizeof *file);
   if (inode != NULL && file != NULL)
-    {
-      file->inode = inode;
-      file->pos = 0;
-      file->deny_write = false;
-      return file;
-    }
+  {
+    file->inode = inode;
+    file->pos = 0;
+    file->is_directory = inode_is_directory (inode);
+    file->deny_write = false;
+    return file;
+  }
   else
-    {
-      inode_close (inode);
-      free (file);
-      return NULL; 
-    }
+  {
+    inode_close (inode);
+    free (file);
+    return NULL; 
+  }
 }
 
 /* Opens and returns a new file for the same inode as FILE.
@@ -46,11 +48,11 @@ void
 file_close (struct file *file) 
 {
   if (file != NULL)
-    {
-      file_allow_write (file);
-      inode_close (file->inode);
-      free (file); 
-    }
+  {
+    file_allow_write (file);
+    inode_close (file->inode);
+    free (file); 
+  }
 }
 
 /* Returns the inode encapsulated by FILE. */
@@ -94,6 +96,7 @@ file_read_at (struct file *file, void *buffer, off_t size, off_t file_ofs)
 off_t
 file_write (struct file *file, const void *buffer, off_t size) 
 {
+  if (file_is_directory (file)) return -1;
   off_t bytes_written = inode_write_at (file->inode, buffer, size, file->pos);
   file->pos += bytes_written;
   return bytes_written;
@@ -120,10 +123,10 @@ file_deny_write (struct file *file)
 {
   ASSERT (file != NULL);
   if (!file->deny_write) 
-    {
-      file->deny_write = true;
-      inode_deny_write (file->inode);
-    }
+  {
+    file->deny_write = true;
+    inode_deny_write (file->inode);
+  }
 }
 
 /* Re-enables write operations on FILE's underlying inode.
@@ -134,10 +137,10 @@ file_allow_write (struct file *file)
 {
   ASSERT (file != NULL);
   if (file->deny_write) 
-    {
-      file->deny_write = false;
-      inode_allow_write (file->inode);
-    }
+  {
+    file->deny_write = false;
+    inode_allow_write (file->inode);
+  }
 }
 
 /* Returns the size of FILE in bytes. */
@@ -165,4 +168,20 @@ file_tell (struct file *file)
 {
   ASSERT (file != NULL);
   return file->pos;
+}
+
+/* Returns inode for a file */
+int
+file_inumber (struct file *file) 
+{
+  ASSERT (file != NULL);
+  return inode_get_inumber (file->inode);
+}
+
+/* Returns true if this file is a directory */
+bool
+file_is_directory (struct file *file) 
+{
+  ASSERT (file != NULL);
+  return file->is_directory;
 }

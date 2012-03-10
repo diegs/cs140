@@ -47,6 +47,8 @@ struct inode_disk
   unsigned magic;               /* Magic number. */
 };
 
+void inode_sector_free_map_fn (block_sector_t sector, bool meta);
+
 /* Returns the number of sectors to allocate for an inode SIZE
    bytes long. */
 static inline size_t
@@ -222,8 +224,6 @@ static void
 inode_sector_map (struct inode *root, inode_sector_map_fn map_fn)
 {
   ASSERT (root != NULL);
-
-  int j;
 
   off_t bytes_traversed = 0;
 
