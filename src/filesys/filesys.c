@@ -97,6 +97,8 @@ filesys_mkdir (const char *path)
 struct file *
 filesys_open (const char *path)
 {
+  if (strlen (path) == 0) return NULL;
+
   char *dirname = dir_dirname (path);
   const char *basename = dir_basename (path);
   struct dir *dir = dir_open_path (dirname);

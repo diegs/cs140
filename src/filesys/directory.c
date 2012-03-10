@@ -12,8 +12,8 @@
 /* A directory. */
 struct dir 
 {
-  struct inode *inode;                /* Backing store. */
-  off_t pos;                          /* Current position. */
+  struct inode *inode;   /* Backing store. */
+  off_t pos;             /* Current position. */
 };
 
 /* A single directory entry. */
@@ -291,7 +291,7 @@ dir_dirname (const char *path)
   /* Remove trailing stuff */
   end = strrchr (path, '/');
 
-  /* No slashes, just return cwd */ 
+  /* No slashes, just return NULL */ 
   if (end == NULL) return NULL;
 
   /* Make a copy and return */
@@ -307,14 +307,16 @@ dir_dirname (const char *path)
 struct dir *
 dir_open_path (const char *path)
 {
-  block_sector_t sector = path_traverse (path);
+  block_sector_t sector = path_traverse (path, NULL);
   if (sector == INODE_INVALID_BLOCK_SECTOR) return NULL;
-  return dir_open (inode_open (sector));
+  struct dir *d = dir_open (inode_open (sector));
+  if (inode_is_removed (d->inode)) return NULL;
+  return d;
 }
 
-/* Traverse */
+/* Traverse -- if thread is non-NULL, update the path of the thread */
 block_sector_t
-path_traverse (char *path)
+path_traverse (char *path, struct thread *t)
 {
   char *token, *save_ptr;
   bool found;
@@ -329,6 +331,8 @@ path_traverse (char *path)
   {
     sector = free_map_root_sector ();
     path++;
+
+    if (t != NULL) thread_clear_dirs (t);
   } else {
     sector = thread_get_cwd ();
   }
@@ -345,12 +349,21 @@ path_traverse (char *path)
       inode_close (dir.inode);
       break;
     }
+    
+    /* Make the thread leave the directory if applicable */
+    if (t != NULL) 
+      thread_leave_dir (t, dir.inode);
 
     /* Look up in current directory */
     found = lookup (&dir, token, &entry, NULL);
     if (found)
     {
       sector = entry.inode_sector;
+
+      /* Make thread enter the directory if applicable */
+      if (t != NULL)
+        thread_enter_dir (t, dir.inode);
+
       inode_close (dir.inode);
     } else {
       sector = INODE_INVALID_BLOCK_SECTOR;

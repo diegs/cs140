@@ -553,3 +553,8 @@ inode_is_directory (const struct inode *inode)
 {
   return inode->directory;
 }
+
+bool inode_is_removed (const struct inode *i)
+{
+  return i->removed;
+}

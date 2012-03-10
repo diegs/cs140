@@ -138,6 +138,8 @@ struct thread
 
 #ifdef FILESYS
   block_sector_t cwd;           /* Current working directory */
+
+  struct list dir_list;  /* List of directories that compose the current working directory */
 #endif
 
   /* Priority data */
@@ -189,6 +191,9 @@ void thread_set_priority (int);
 
 block_sector_t thread_get_cwd (void);
 void thread_set_cwd (block_sector_t sector);
+void thread_clear_dirs (struct thread *t);
+void thread_leave_dir (struct thread *t, struct inode *n);
+void thread_enter_dir (struct thread *t, struct inode *n);
 
 int thread_get_effective_priority (struct thread *t);
 void thread_set_effective_priority (struct thread *t, int new_priority);

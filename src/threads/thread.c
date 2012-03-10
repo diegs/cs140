@@ -13,6 +13,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -21,6 +22,7 @@
 #endif
 #ifdef FILESYS
 #include "filesys/free-map.h"
+#include "filesys/inode.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -55,6 +57,13 @@ struct kernel_thread_frame
     thread_func *function;      /* Function to call. */
     void *aux;                  /* Auxiliary data for function. */
   };
+
+/* Wrapper for holding directories of the current thread */
+struct thread_dir 
+{
+  struct inode *i;
+  struct list_elem elem;
+};
 
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
@@ -338,6 +347,7 @@ thread_create (const char *name, int priority,
 #ifdef FILESYS
   /* Set the cwd */
   t->cwd = cwd;
+  list_init (&t->dir_list);
 #endif
 
   /* Prepare thread for first run by initializing its stack.
@@ -928,6 +938,56 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+
+static void
+thread_dir_kill (struct thread_dir *t_dir)
+{
+  inode_close (t_dir->i);
+  list_remove (&t_dir->elem);
+  free (t_dir);
+}
+
+void thread_clear_dirs (struct thread *t)
+{
+  while (!list_empty (&t->dir_list))
+  {
+    struct list_elem *e = list_pop_front (&t->dir_list);
+    struct thread_dir *t_dir = list_entry (e, struct thread_dir, elem);
+
+    thread_dir_kill (t_dir);
+  }
+}
+
+static struct thread_dir* 
+get_thread_dir (struct thread *t, struct inode *n)
+{
+  struct list_elem *e = list_begin (&t->dir_list);
+
+  for (; e != list_end (&t->dir_list); e = list_next (e))
+  {
+    struct thread_dir *t_dir = list_entry (e, struct thread_dir,elem); 
+    if (inode_get_inumber (t_dir->i) == inode_get_inumber (n))
+      return t_dir;
+  }
+  return NULL;
+}
+
+void thread_leave_dir (struct thread *t, struct inode *n)
+{
+  struct thread_dir *t_dir = get_thread_dir (t, n);
+  if (t_dir != NULL) thread_dir_kill (t_dir);
+}
+
+void thread_enter_dir (struct thread *t, struct inode *n)
+{
+  /* Make sure the inode is not in our list */
+  ASSERT (get_thread_dir (t, n) == NULL);
+
+  struct thread_dir *t_dir = malloc (sizeof (struct thread_dir));
+  t_dir->i = inode_reopen (n);
+  list_push_back (&t->dir_list, &t_dir->elem);
 }
 
 

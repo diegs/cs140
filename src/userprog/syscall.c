@@ -316,9 +316,9 @@ sys_remove (const struct intr_frame *f)
   {
     fd_found->delete = true;
     result = true;
-  } else {
-    result = filesys_remove (filename);
   }
+  result = filesys_remove (filename);
+
   return result;
 }
 
@@ -446,7 +446,7 @@ sys_chdir (struct intr_frame *f)
   char *dir = frame_arg_ptr (f, 1);
   memory_verify_string (dir);
 
-  newdir = path_traverse (dir);
+  newdir = path_traverse (dir, thread_current ());
   if (newdir == INODE_INVALID_BLOCK_SECTOR)
   {
     return false;
