@@ -68,6 +68,7 @@ bool
 filesys_mkdir (const char *path)
 {
   /* TODO implement */
+  return false;
 }
 
 /* Opens the file with the given NAME.
