@@ -21,7 +21,7 @@
 #define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
 #define INODE_DUBINDER_OFFSET INODE_INDIRECT_OFFSET + INODE_INDIRECT_SIZE
 
-#define INODE_ROOT_DIRECT_INDEX INODE_CONSISTENT_BLOCKS
+#define INODE_ROOT_INDIRECT_INDEX INODE_CONSISTENT_BLOCKS
 #define INODE_ROOT_DUBINDER_INDEX INODE_CONSISTENT_BLOCKS + 1
 
 static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_DUBINDER_SIZE };
@@ -109,6 +109,9 @@ create_new_sector (block_sector_t cur_sector, int index,
 static block_sector_t
 get_sector_from_block (block_sector_t sector, int index)
 {
+  if (sector == INODE_INVALID_BLOCK_SECTOR)
+    return INODE_INVALID_BLOCK_SECTOR;
+
   off_t offset = index_to_offset (index);
   block_sector_t next_sector;
   int bytes_read = buffercache_read (sector, METADATA, offset,
@@ -193,53 +196,87 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
 
 typedef void (*inode_sector_map_fn) (block_sector_t sector, bool meta);
 
+
+/* Iterates through all direct blocks in the given sector and applies
+  the mapping function to them. */
+static off_t
+inode_sector_map_direct_helper (block_sector_t indirect_sector, 
+  off_t bytes_traversed, off_t length, inode_sector_map_fn map_fn)
+{
+  int block_index = 0;
+  block_sector_t sector;
+  while (bytes_traversed < length 
+          && block_index < INODE_CONSISTENT_BLOCKS)
+  {
+    sector = get_sector_from_block (indirect_sector, block_index);
+    map_fn (sector, false);
+
+    block_index++;
+    bytes_traversed += BLOCK_SECTOR_SIZE;
+  }
+  return bytes_traversed;
+}
+  
+
 static void
 inode_sector_map (struct inode *root, inode_sector_map_fn map_fn)
 {
   ASSERT (root != NULL);
 
-  block_sector_t level_blocks[num_levels];
-  int level_indices[num_levels], i;
+  int j;
 
-  for (i = 0; i < num_levels; i++)
-    level_indices[i] = 0;
-
-  level_blocks[0] = root->disk_block;
-  level_blocks[1] = get_sector_from_block 
-    (level_blocks[0], INODE_ROOT_DIRECT_INDEX);
-  level_blocks[2] = get_sector_from_block 
-    (level_blocks[0], INODE_ROOT_DUBINDER_INDEX);
-
-  /* Every iteration of this loop retrieves one file level block.
-     If a level has been traversed it is also passed in to the
-     mapping function with the appropriate flag */
   off_t bytes_traversed = 0;
-  while (bytes_traversed < root->length)
+
+  /* Iterate over all direct blocks in the root level */
+  bytes_traversed = inode_sector_map_direct_helper (root->disk_block,
+    bytes_traversed, root->length, map_fn);
+  
+  /* Since the first indirect block is it's own block, we set the 
+    index high so that it rolls over to the doubly indirect block */
+  int dubinder_index = INODE_CONSISTENT_BLOCKS;
+
+  block_sector_t inder_block = get_sector_from_block 
+    (root->disk_block, INODE_ROOT_INDIRECT_INDEX);
+  block_sector_t dubinder_block = get_sector_from_block 
+    (root->disk_block, INODE_ROOT_DUBINDER_INDEX);
+
+  /* This loop handles all singly indirect blocks and their children.
+     After this loop completes, only the root block and the doubly
+     indirect block have not been passed in. */ 
+  bool end_of_file = false;
+  while (!end_of_file)
   {
-    block_sector_t sector = get_sector_from_block 
-      (level_blocks[0], level_indices[0]);
+    bytes_traversed = inode_sector_map_direct_helper
+      (inder_block, bytes_traversed, root->length, map_fn);
 
-    map_fn (sector, false);
+    end_of_file = (bytes_traversed >= root->length);
 
-    for (i = 0; i < num_levels; i--)
+    /* Handle a partially filled blocks*/
+    if (end_of_file) 
     {
-      if (level_indices[i] == INODE_CONSISTENT_BLOCKS) 
-      {
-        level_indices[i] = 0;
-        if (i < num_levels - 1)
-        {
-          map_fn (level_blocks[i], true);
-          level_blocks[i] = get_sector_from_block 
-            (level_blocks[i + 1], level_indices[i + 1]); 
-        }
-      } else {
-        level_indices[i]++;
-        break;
-      }
+      if (inder_block != INODE_INVALID_BLOCK_SECTOR)
+        map_fn (inder_block, true);
+
+      if (dubinder_block != INODE_INVALID_BLOCK_SECTOR) 
+        map_fn (dubinder_block, true);
+
+      /* Pass in the sector that contains the root inode */
+      map_fn (root->disk_block, true);
+      break;
     }
-    
-    bytes_traversed += BLOCK_SECTOR_SIZE;
+
+    /* Update indirect index in doubly indirect block */
+    dubinder_index++;
+    if (dubinder_index >= INODE_CONSISTENT_BLOCKS)
+      dubinder_index = 0;
+
+    if (inder_block != INODE_INVALID_BLOCK_SECTOR)
+      map_fn (inder_block, true);
+
+    inder_block = get_sector_from_block 
+      (dubinder_block, dubinder_index); 
   }
+
 }
 
 /* Initializes the inode module. */
@@ -327,6 +364,12 @@ inode_open (block_sector_t sector)
   return inode;
 }
 
+
+void inode_sector_free_map_fn (block_sector_t sector, bool meta)
+{
+  free_map_release (sector, 1);
+}
+
 /* Reopens and returns INODE. */
 struct inode *
 inode_reopen (struct inode *inode)
@@ -367,9 +410,7 @@ inode_close (struct inode *inode)
     /* Deallocate blocks if removed. */
     if (inode->removed) 
     {
-      free_map_release (inode->disk_block, 1);
-      /* TODO: close all blocks */
-      //    inode_sector_map (inode, inode_sector_print);
+      inode_sector_map (inode, inode_sector_free_map_fn);
     }
     buffercache_write (inode->disk_block, METADATA,
                        offsetof (struct inode_disk, length), sizeof (off_t) +
