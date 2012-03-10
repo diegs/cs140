@@ -51,7 +51,7 @@ bool
 filesys_create (const char *name, off_t initial_size) 
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open_root ();
+  struct dir *dir = dir_open_root (); /* TODO fix. */
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, false)
@@ -69,14 +69,39 @@ bool
 filesys_mkdir (const char *path)
 {
   block_sector_t sector;
+  block_sector_t newdir_sector;
+  char *basename;
+  struct inode *i;
+  bool status;
 
-  /* Traverse to end of path */
-  sector = path_get_basedir (path);
+  /* Get sector for path up to new entry */
+  sector = path_get_dirname_sector (path);
   if (sector == INODE_INVALID_BLOCK_SECTOR) return false;
 
-  /* Insert directory entry */
+  /* Get basename of entry to add */
+  basename = path_get_basename (path);
+  if (basename == NULL) return false;
 
-  return false;
+  /* Make new directory entry */
+  status = (free_map_allocate (1, &newdir_sector)
+             && dir_create (newdir_sector, sector));
+  if (!status && newdir_sector != 0)
+  {
+    free_map_release (newdir_sector, 1);
+    return false;
+  }  
+
+  /* Insert directory entry into parent */
+  i = inode_open (sector);
+  if (i == NULL)
+  {
+    free_map_release (newdir_sector, 1);
+    return false;
+  }
+
+  status = dir_add_entry (i, basename, newdir_sector);
+  inode_close (i);
+  return status;
 }
 
 /* Opens the file with the given NAME.

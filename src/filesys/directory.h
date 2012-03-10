@@ -21,6 +21,10 @@ struct dir *dir_reopen (struct dir *);
 void dir_close (struct dir *);
 struct inode *dir_get_inode (struct dir *);
 
+/* Modifying directories */
+bool dir_add_entry (struct inode *i, const char *name,
+                    block_sector_t sector);
+
 /* Reading and writing. */
 bool dir_lookup (const struct dir *, const char *name, struct inode **);
 bool dir_add (struct dir *, const char *name, block_sector_t);
@@ -28,6 +32,7 @@ bool dir_remove (struct dir *, const char *name);
 bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);
 
 /* Path traversal */
-block_sector_t path_get_basedir (const char *path);
+block_sector_t path_get_dirname_sector (const char *path);
+char *path_get_basename (const char *path);
 
 #endif /* filesys/directory.h */

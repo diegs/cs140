@@ -7,6 +7,7 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
 
 /* A directory. */
 struct dir 
@@ -25,12 +26,17 @@ struct dir_entry
 
 /* Walk through directory looking for a free entry. If no free entries,
  * append one to the end. */
-static bool
-dir_add_entry (struct inode *i, struct dir_entry *entry)
+bool
+dir_add_entry (struct inode *i, const char *name, block_sector_t sector)
 {
+  struct dir_entry entry;
   struct dir_entry e;
   int pos = 0;
   off_t bytes;
+
+  strlcpy (entry.name, name, NAME_MAX);
+  entry.inode_sector = sector;
+  entry.in_use = true;
 
   while (inode_read_at (i, &e, sizeof e, pos) == sizeof e) 
   {
@@ -38,12 +44,12 @@ dir_add_entry (struct inode *i, struct dir_entry *entry)
     if (!e.in_use) break;
   }
 
-  bytes = inode_write_at (i, entry, sizeof (struct dir_entry), pos);
+  bytes = inode_write_at (i, &entry, sizeof (struct dir_entry), pos);
   return (bytes == sizeof (struct dir_entry));
 }
 
-/* Creates a directory with space for ENTRY_CNT entries in the
-   given SECTOR.  Returns true if successful, false on failure. */
+/* Creates a directory in the given SECTOR.  Returns true if successful, false
+   on failure. */
 bool
 dir_create (block_sector_t sector, block_sector_t parent)
 {
@@ -58,11 +64,8 @@ dir_create (block_sector_t sector, block_sector_t parent)
   i = inode_open (sector);
   if (i == NULL) return false;
 
-  struct dir_entry dot = {.inode_sector = sector, .name = ".", .in_use = true};
-  struct dir_entry dotdot = {.inode_sector = parent, .name = "..", .in_use = true};
-
-  dir_add_entry (i, &dot);
-  dir_add_entry (i, &dotdot);
+  dir_add_entry (i, ".", sector);
+  dir_add_entry (i, "..", parent);
 
   return true;
 }
@@ -276,9 +279,9 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 /* Returns the sector of the directory enclosing the item at path, or
  * INODE_INVALID_BLOCK_SECTOR if the path is invalid */
 block_sector_t
-path_get_basedir (const char *path)
+path_get_dirname_sector (const char *path)
 {
-  char *basepath, *end, *cur;
+  char *dirpath, *end, *cur;
   block_sector_t sector;
   int len;
 
@@ -290,14 +293,14 @@ path_get_basedir (const char *path)
 
   /* Make a copy to tokenize */
   len = end - path;
-  basepath = malloc (len + 1);
-  if (basepath == NULL) return INODE_INVALID_BLOCK_SECTOR;
+  dirpath = malloc (len + 1);
+  if (dirpath == NULL) return INODE_INVALID_BLOCK_SECTOR;
 
-  strlcpy (basepath, path, len);
-  cur = basepath;
+  strlcpy (dirpath, path, len);
+  cur = dirpath;
 
   /* Check if absolute path */
-  if (basepath[0] == '/')
+  if (dirpath[0] == '/')
   {
     sector = free_map_root_sector ();
     cur++;
@@ -335,6 +338,19 @@ path_get_basedir (const char *path)
     }
   }
 
-  free (basepath);
+  free (dirpath);
   return sector;
+}
+
+/* Returns the basename for the given path. Does not make a copy. */
+char *
+path_get_basename (const char *path)
+{
+  char *basename;
+  char *start;
+
+  start = strrchr (path, '/');
+  if (start == NULL) start = basename;
+
+  return start;
 }
