@@ -80,7 +80,7 @@ filesys_mkdir (const char *path)
 
   /* Get basename of entry to add */
   basename = path_get_basename (path);
-  if (basename == NULL) return false;
+  if (basename == NULL || strlen (basename) == 0) return false;
 
   /* Make new directory entry */
   status = (free_map_allocate (1, &newdir_sector)
