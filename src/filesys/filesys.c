@@ -101,20 +101,13 @@ filesys_open (const char *path)
   const char *basename = dir_basename (path);
   struct dir *dir = dir_open_path (dirname);
   if (dirname != NULL) free (dirname);
-  if (basename == NULL) return NULL;
 
-  if (basename != NULL)
-  {
-    struct inode *inode = NULL;
-    if (dir != NULL)
-      dir_lookup (dir, basename, &inode);
-    dir_close (dir);
+  struct inode *inode = NULL;
+  if (dir != NULL)
+    dir_lookup (dir, basename, &inode);
+  dir_close (dir);
 
-    return file_open (inode);
-  } else {
-    if (dir != NULL) dir_close (dir);
-    return NULL;
-  }
+  return file_open (inode);
 }
 
 /* Deletes the file named NAME.

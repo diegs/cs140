@@ -192,6 +192,7 @@ bool
 file_readdir (struct file *file, char *name)
 {
   struct dir *dir = dir_open (file->inode);
+  if (dir == NULL) return false;
   bool success = dir_readdir (dir, name);
   dir_close (dir);
   return success;
