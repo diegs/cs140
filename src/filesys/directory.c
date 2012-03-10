@@ -329,14 +329,13 @@ path_traverse (char *path)
     sector = thread_get_cwd ();
   }
 
-
   for (token = strtok_r (path, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
   {
     /* Open the inode for this directory */
     dir.inode = inode_open (sector);
     dir.pos = 0;
-    if (dir.inode == NULL)
+    if (dir.inode == NULL || !inode_is_directory (dir.inode))
     {
       sector = INODE_INVALID_BLOCK_SECTOR;
       inode_close (dir.inode);

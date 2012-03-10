@@ -1,6 +1,7 @@
 #include "filesys/free-map.h"
 #include <bitmap.h>
 #include <debug.h>
+#include "threads/thread.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
