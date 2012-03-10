@@ -26,6 +26,7 @@ struct dir_entry
 
 static bool lookup (const struct dir *dir, const char *name,
                     struct dir_entry *ep, off_t *ofsp);
+static size_t dir_size (struct dir *dir);
 
 /* Walk through directory looking for a free entry. If no free entries,
  * append one to the end. */
@@ -111,8 +112,9 @@ dir_reopen (struct dir *dir)
 void
 dir_close (struct dir *dir) 
 {
-  if (dir != NULL)
+  if (dir != NULL && dir_size(dir) == 2)
   {
+	/* Don't close if it contains items other than . and .. */
     inode_close (dir->inode);
     free (dir);
   }
@@ -378,4 +380,24 @@ dir_basename (const char *path)
     return NULL;
 
   return basename;
+}
+
+/* Returns the number of entries in this directory, including '.' and
+   '..' */
+static size_t
+dir_size (struct dir *dir)
+{
+  struct dir_entry e;
+  size_t ofs;
+  size_t count;
+
+  ASSERT (dir != NULL);
+
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+       ofs += sizeof e) 
+    if (e.in_use)
+    {
+	  count++;
+    }
+  return count;
 }
