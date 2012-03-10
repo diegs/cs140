@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "threads/thread.h"
+#include "threads/malloc.h"
 #include "filesys/buffercache.h"
 #include "filesys/file.h"
 #include "filesys/free-map.h"
@@ -48,18 +49,21 @@ filesys_done (void)
    Fails if a file named NAME already exists,
    or if internal memory allocation fails. */
 bool
-filesys_create (const char *name, off_t initial_size) 
+filesys_create (const char *path, off_t initial_size) 
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open_root (); /* TODO fix. */
+  char *dirname = dir_dirname (path);
+  const char *basename = dir_basename (path);
+  struct dir *dir = dir_open_path (dirname);
   bool success = (dir != NULL
+                  && basename != NULL
                   && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, false)
-                  && dir_add (dir, name, inode_sector));
+                  && dir_add (dir, basename, inode_sector));
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   dir_close (dir);
-
+  if (dirname != NULL) free (dirname);
   return success;
 }
 
@@ -68,40 +72,21 @@ filesys_create (const char *name, off_t initial_size)
 bool
 filesys_mkdir (const char *path)
 {
-  block_sector_t sector;
   block_sector_t newdir_sector;
-  const char *basename;
-  struct inode *i;
-  bool status;
-
-  /* Get sector for path up to new entry */
-  sector = path_get_dirname_sector (path);
-  if (sector == INODE_INVALID_BLOCK_SECTOR) return false;
-
-  /* Get basename of entry to add */
-  basename = path_get_basename (path);
-  if (basename == NULL) return false;
-
-  /* Make new directory entry */
-  status = (free_map_allocate (1, &newdir_sector)
-             && dir_create (newdir_sector, sector));
-  if (!status && newdir_sector != 0)
-  {
+  char *dirname = dir_dirname (path);
+  const char *basename = dir_basename (path);
+  struct dir *dir = dir_open_path (dirname);
+  bool success = (dir != NULL
+                  && basename != NULL
+                  && free_map_allocate (1, &newdir_sector)
+                  && dir_create (newdir_sector, inode_get_inumber
+                                 (dir_get_inode (dir)))
+                  && dir_add_entry (dir, basename, newdir_sector));
+  if (!success && newdir_sector != 0)
     free_map_release (newdir_sector, 1);
-    return false;
-  }  
-
-  /* Insert directory entry into parent */
-  i = inode_open (sector);
-  if (i == NULL)
-  {
-    free_map_release (newdir_sector, 1);
-    return false;
-  }
-
-  status = dir_add_entry (i, basename, newdir_sector);
-  inode_close (i);
-  return status;
+  dir_close (dir);
+  if (dirname != NULL) free (dirname);
+  return success;
 }
 
 /* Opens the file with the given NAME.

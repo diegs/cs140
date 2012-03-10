@@ -30,7 +30,7 @@ static bool lookup (const struct dir *dir, const char *name,
 /* Walk through directory looking for a free entry. If no free entries,
  * append one to the end. */
 bool
-dir_add_entry (struct inode *i, const char *name, block_sector_t sector)
+dir_add_entry (struct dir *dir, const char *name, block_sector_t sector)
 {
   struct dir_entry entry;
   struct dir_entry e;
@@ -38,8 +38,7 @@ dir_add_entry (struct inode *i, const char *name, block_sector_t sector)
   off_t bytes;
 
   /* Make sure doesn't already exist */
-  struct dir d = {.inode = i, .pos = 0};
-  if (lookup (&d, name, NULL, NULL)) return false;
+  if (lookup (dir, name, NULL, NULL)) return false;
 
   strlcpy (entry.name, name, NAME_MAX);
   entry.inode_sector = sector;
@@ -47,13 +46,13 @@ dir_add_entry (struct inode *i, const char *name, block_sector_t sector)
   pos = 0;
 
   /* Find a free entry */
-  while (inode_read_at (i, &e, sizeof e, pos) == sizeof e) 
+  while (inode_read_at (dir->inode, &e, sizeof e, pos) == sizeof e) 
   {
     if (!e.in_use) break;
     pos += sizeof e;
   }
 
-  bytes = inode_write_at (i, &entry, sizeof (struct dir_entry), pos);
+  bytes = inode_write_at (dir->inode, &entry, sizeof (struct dir_entry), pos);
   return (bytes == sizeof (struct dir_entry));
 }
 
@@ -63,18 +62,19 @@ bool
 dir_create (block_sector_t sector, block_sector_t parent)
 {
   bool status;
-  struct inode *i;
+  struct dir *dir;
 
   /* Create sector with enough room for two entries */
   status = inode_create (sector, 2 * sizeof (struct dir_entry), true);
   if (!status) return status;
 
   /* Add entries for '.' and '..' */
-  i = inode_open (sector);
-  if (i == NULL) return false;
+  dir = dir_open (inode_open (sector));
+  if (dir == NULL) return false;
 
-  dir_add_entry (i, ".", sector);
-  dir_add_entry (i, "..", parent);
+  dir_add_entry (dir, ".", sector);
+  dir_add_entry (dir, "..", parent);
+  dir_close (dir);
 
   return true;
 }
@@ -285,29 +285,36 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   return false;
 }
 
-/* Returns the sector of the directory enclosing the item at path, or
- * INODE_INVALID_BLOCK_SECTOR if the path is invalid */
-block_sector_t
-path_get_dirname_sector (const char *path)
+/* Gets the directory component of the given path. Returns a new string that
+ * must be free'd later. */
+char *
+dir_dirname (const char *path)
 {
   char *dirpath, *end;
-  block_sector_t sector;
   int len;
 
+  /* Remove trailing stuff */
   end = strrchr (path, '/');
 
   /* No slashes, just return cwd */ 
-  if (end == NULL) return thread_get_cwd ();
+  if (end == NULL) return NULL;
 
-  /* Make a copy to tokenize */
+  /* Make a copy and return */
   len = end - path + 1;
   dirpath = malloc (len + 1);
-  if (dirpath == NULL) return INODE_INVALID_BLOCK_SECTOR;
-
+  if (dirpath == NULL) return NULL;
   strlcpy (dirpath, path, len + 1);
-  sector = path_traverse (dirpath);
-  free (dirpath);
-  return sector;
+  return dirpath;
+}
+
+/* Opens the directory for the given path. If the path is null, opens the
+ * CWD */
+struct dir *
+dir_open_path (const char *path)
+{
+  block_sector_t sector = path_traverse (path);
+  if (sector == INODE_INVALID_BLOCK_SECTOR) return NULL;
+  return dir_open (inode_open (sector));
 }
 
 /* Traverse */
@@ -319,6 +326,8 @@ path_traverse (char *path)
   struct dir dir;
   struct dir_entry entry;
   block_sector_t sector;
+
+  if (path == NULL) return thread_get_cwd ();
 
   /* Check if absolute path */
   if (path[0] == '/')
@@ -360,7 +369,7 @@ path_traverse (char *path)
 
 /* Returns the basename for the given path. Does not make a copy. */
 const char *
-path_get_basename (const char *path)
+dir_basename (const char *path)
 {
   char *start;
   const char *basename;
