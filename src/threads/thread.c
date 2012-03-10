@@ -944,6 +944,7 @@ allocate_tid (void)
 static void
 thread_dir_kill (struct thread_dir *t_dir)
 {
+  inode_allow_remove (t_dir->i);
   inode_close (t_dir->i);
   list_remove (&t_dir->elem);
   free (t_dir);
@@ -987,6 +988,7 @@ void thread_enter_dir (struct thread *t, struct inode *n)
 
   struct thread_dir *t_dir = malloc (sizeof (struct thread_dir));
   t_dir->i = inode_reopen (n);
+  inode_deny_remove (t_dir->i);
   list_push_back (&t->dir_list, &t_dir->elem);
 }
 

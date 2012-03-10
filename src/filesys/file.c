@@ -10,7 +10,9 @@ struct file
   struct inode *inode;        /* File's inode. */
   off_t pos;                  /* Current position. */
   bool deny_write;            /* Has file_deny_write() been called? */
-  bool is_directory;          /* Is this a directory */
+  
+  struct dir *dir;            /* Should only be non-null if the file
+                                 is a directory */
 };
 
 /* Opens a file for the given INODE, of which it takes ownership,
@@ -24,7 +26,8 @@ file_open (struct inode *inode)
   {
     file->inode = inode;
     file->pos = 0;
-    file->is_directory = inode_is_directory (inode);
+    if (inode_is_directory (inode)) 
+      file->dir = dir_open (file->inode);
     file->deny_write = false;
     return file;
   }
@@ -184,16 +187,14 @@ bool
 file_is_directory (struct file *file) 
 {
   ASSERT (file != NULL);
-  return file->is_directory;
+  return file->dir != NULL;
 }
 
 /* Invokes readdir on the directory */
 bool
 file_readdir (struct file *file, char *name)
 {
-  struct dir *dir = dir_open (file->inode);
-  if (dir == NULL) return false;
-  bool success = dir_readdir (dir, name);
-  dir_close (dir);
+  if (file->dir == NULL) return false;
+  bool success = dir_readdir (file->dir, name);
   return success;
 }

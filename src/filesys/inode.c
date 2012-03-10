@@ -66,6 +66,7 @@ struct inode {
   int open_cnt;                 /* Number of openers. */
   bool removed;                 /* True if deleted, false otherwise. */
   int deny_write_cnt;           /* 0: writes ok, >0: deny writes. */
+  int deny_remove_cnt;          /* 0: removes ok, >0: deny removes.*/
   struct lock lock;
 };
 
@@ -365,7 +366,7 @@ inode_open (block_sector_t sector)
 }
 
 
-void inode_sector_free_map_fn (block_sector_t sector, bool meta)
+void inode_sector_free_map_fn (block_sector_t sector, bool meta UNUSED)
 {
   free_map_release (sector, 1);
 }
@@ -422,11 +423,13 @@ inode_close (struct inode *inode)
 
 /* Marks INODE to be deleted when it is closed by the last caller who
    has it open. */
-void
+bool
 inode_remove (struct inode *inode) 
 {
   ASSERT (inode != NULL);
+  if (inode->deny_remove_cnt > 0 && !inode->removed) return false;
   inode->removed = true;
+  return true;
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
@@ -557,4 +560,18 @@ inode_is_directory (const struct inode *inode)
 bool inode_is_removed (const struct inode *i)
 {
   return i->removed;
+}
+
+void inode_deny_remove (struct inode *inode)
+{
+  lock_acquire (&inode->lock);
+  inode->deny_remove_cnt++;
+  lock_release (&inode->lock);
+}
+
+void inode_allow_remove (struct inode *inode)
+{
+  lock_acquire (&inode->lock);
+  inode->deny_remove_cnt--;
+  lock_release (&inode->lock);
 }

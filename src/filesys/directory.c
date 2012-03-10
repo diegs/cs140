@@ -75,6 +75,7 @@ dir_create (block_sector_t sector, block_sector_t parent)
 
   dir_add_entry (dir, ".", sector);
   dir_add_entry (dir, "..", parent);
+
   dir_close (dir);
 
   return true;
@@ -252,8 +253,7 @@ dir_remove (struct dir *dir, const char *name)
     goto done;
 
   /* Remove inode. */
-  inode_remove (inode);
-  success = true;
+  success = inode_remove (inode);
 
 done:
   inode_close (inode);
@@ -268,16 +268,18 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
 
-  while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
+  bool result = false;
+  while (!result && 
+      inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
   {
-    dir->pos += sizeof e;
     if (e.in_use)
     {
       strlcpy (name, e.name, NAME_MAX + 1);
-      return true;
+      result = true;
     } 
+    dir->pos += sizeof e;
   }
-  return false;
+  return result;
 }
 
 /* Gets the directory component of the given path. Returns a new string that
