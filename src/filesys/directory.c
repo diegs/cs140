@@ -272,3 +272,69 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   }
   return false;
 }
+
+/* Returns the sector of the directory enclosing the item at path, or
+ * INODE_INVALID_BLOCK_SECTOR if the path is invalid */
+block_sector_t
+path_get_basedir (const char *path)
+{
+  char *basepath, *end, *cur;
+  block_sector_t sector;
+  int len;
+
+  end = strrchr (path, '/');
+  sector = thread_get_cwd ();
+
+  /* No slashes, just return cwd */ 
+  if (end == NULL) return sector;
+
+  /* Make a copy to tokenize */
+  len = end - path;
+  basepath = malloc (len + 1);
+  if (basepath == NULL) return INODE_INVALID_BLOCK_SECTOR;
+
+  strlcpy (basepath, path, len);
+  cur = basepath;
+
+  /* Check if absolute path */
+  if (basepath[0] == '/')
+  {
+    sector = free_map_root_sector ();
+    cur++;
+  } 
+
+  /* Traverse */
+  char *token, *save_ptr;
+  bool found;
+  struct dir dir;
+  struct dir_entry entry;
+
+  for (token = strtok_r (cur, "/", &save_ptr); token != NULL;
+       token = strtok_r (NULL, "/", &save_ptr))
+  {
+    /* Open the inode for this directory */
+    dir.inode = inode_open (sector);
+    dir.pos = 0;
+    if (dir.inode == NULL)
+    {
+      sector = INODE_INVALID_BLOCK_SECTOR;
+      inode_close (dir.inode);
+      break;
+    }
+
+    /* Look up in current directory */
+    found = lookup (&dir, token, &entry, NULL);
+    if (found)
+    {
+      sector = entry.inode_sector;
+      inode_close (dir.inode);
+    } else {
+      sector = INODE_INVALID_BLOCK_SECTOR;
+      inode_close (dir.inode);
+      break;
+    }
+  }
+
+  free (basepath);
+  return sector;
+}

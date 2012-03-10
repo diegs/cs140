@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
+#include "threads/thread.h"
 #include "filesys/buffercache.h"
 #include "filesys/file.h"
 #include "filesys/free-map.h"
@@ -67,7 +68,15 @@ filesys_create (const char *name, off_t initial_size)
 bool
 filesys_mkdir (const char *path)
 {
-  /* TODO implement */
+  block_sector_t sector;
+
+  /* Traverse to end of path */
+  sector = path_get_basedir (path);
+  if (sector == INODE_INVALID_BLOCK_SECTOR) return false;
+
+  /* Insert directory entry */
+
+  return false;
 }
 
 /* Opens the file with the given NAME.
