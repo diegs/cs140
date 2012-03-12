@@ -31,6 +31,7 @@ static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
 static struct list open_inodes;
+static struct lock inodes_lock;
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -285,6 +286,7 @@ void
 inode_init (void) 
 {
   list_init (&open_inodes);
+  lock_init (&inodes_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -329,11 +331,9 @@ inode_open (block_sector_t sector)
   struct inode *inode;
 
   /* Check whether this inode is already open. */
+  lock_acquire (&inodes_lock);
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e)) 
-  {
-    inode = list_entry (e, struct inode, elem);
-    if (inode->disk_block == sector) 
     {
       inode = list_entry (e, struct inode, elem);
       if (inode->disk_block == sector) 
@@ -342,7 +342,6 @@ inode_open (block_sector_t sector)
           return inode; 
         }
     }
-  }
 
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
