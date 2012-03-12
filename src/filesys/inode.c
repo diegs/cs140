@@ -319,33 +319,26 @@ inode_create (block_sector_t sector, off_t length, const bool directory)
   return success;
 }
 
-static struct inode*
-inode_find (block_sector_t sector)
-{
-  struct list_elem *e;
-  struct inode *inode = NULL;
-  /* Check whether this inode is already open. */
-  for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
-       e = list_next (e)) 
-  {
-    inode = list_entry (e, struct inode, elem);
-    if (inode->disk_block == sector) 
-      {
-        inode_reopen (inode);
-        return inode; 
-      }
-  }
-  return inode;
-}
-
-
 /* Reads an inode from SECTOR
    and returns a `struct inode' that contains it.
    Returns a null pointer if memory allocation fails. */
 struct inode *
 inode_open (block_sector_t sector)
 {
-  struct inode *inode = inode_find (sector);
+  struct list_elem *e;
+  struct inode *inode;
+
+  /* Check whether this inode is already open. */
+  for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
+       e = list_next (e)) 
+    {
+      inode = list_entry (e, struct inode, elem);
+      if (inode->disk_block == sector) 
+        {
+          inode_reopen (inode);
+          return inode; 
+        }
+    }
 
   /* Allocate memory. */
   inode = malloc (sizeof *inode);

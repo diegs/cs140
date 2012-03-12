@@ -113,8 +113,9 @@ dir_reopen (struct dir *dir)
 void
 dir_close (struct dir *dir) 
 {
-  if (dir != NULL)
+  if (dir != NULL && dir_size(dir) == 2)
   {
+	/* Don't close if it contains items other than . and .. */
     inode_close (dir->inode);
     free (dir);
   }
@@ -144,7 +145,6 @@ lookup (const struct dir *dir, const char *name,
 
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
-	{
     if (e.in_use && !strcmp (name, e.name)) 
     {
       if (ep != NULL)
@@ -153,7 +153,6 @@ lookup (const struct dir *dir, const char *name,
         *ofsp = ofs;
       return true;
     }
-	}
   return false;
 }
 
@@ -231,7 +230,6 @@ done:
 bool
 dir_remove (struct dir *dir, const char *name) 
 {
-  /* TODO: only remove if the directory doesn't contain items */
   struct dir_entry e;
   struct inode *inode = NULL;
   bool success = false;
