@@ -325,6 +325,7 @@ inode_create (block_sector_t sector, off_t length, const bool directory)
 struct inode *
 inode_open (block_sector_t sector)
 {
+  printf("opening %u\n", sector);
   struct list_elem *e;
   struct inode *inode;
 
@@ -396,6 +397,7 @@ void
 inode_close (struct inode *inode) 
 {
   /* Ignore null pointer. */
+  printf("closing inode %u\n", inode->disk_block);
   if (inode == NULL)
     return;
 
