@@ -8,6 +8,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -31,6 +32,7 @@ static int num_levels = sizeof (level_offsets) / sizeof (size_t);
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
 static struct list open_inodes;
+static struct lock inodes_lock;
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -285,6 +287,7 @@ void
 inode_init (void) 
 {
   list_init (&open_inodes);
+  lock_init (&inodes_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -329,6 +332,7 @@ inode_open (block_sector_t sector)
   struct inode *inode;
 
   /* Check whether this inode is already open. */
+  lock_acquire (&inodes_lock);
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e)) 
     {
@@ -336,33 +340,37 @@ inode_open (block_sector_t sector)
       if (inode->disk_block == sector) 
         {
           inode_reopen (inode);
-          return inode; 
+          break;
         }
     }
 
-  /* Allocate memory. */
-  inode = malloc (sizeof *inode);
-  if (inode == NULL)
-    return NULL;
-
-  /* Initialize. */
-  list_push_front (&open_inodes, &inode->elem);
-  inode->disk_block = sector;
-  /* Read length and directory flag from block */
-  int read = buffercache_read (sector, METADATA,
-                               offsetof (struct inode_disk, length),
-                               sizeof (off_t) + sizeof (bool), &inode->length,
-                               INODE_INVALID_BLOCK_SECTOR);
-  if (read != (sizeof (off_t) + sizeof (bool)))
+  if (inode == NULL) 
   {
-    free(inode);
-    return NULL;
+    /* Allocate memory. */
+    inode = malloc (sizeof *inode);
+    if (inode == NULL)
+      return NULL;
+
+    /* Initialize. */
+    inode->disk_block = sector;
+    /* Read length and directory flag from block */
+    int read = buffercache_read (sector, METADATA,
+                                 offsetof (struct inode_disk, length),
+                                 sizeof (off_t) + sizeof (bool), &inode->length,
+                                 INODE_INVALID_BLOCK_SECTOR);
+    if (read != (sizeof (off_t) + sizeof (bool)))
+    {
+      free(inode);
+      return NULL;
+    }
+    inode->open_cnt = 1;
+    inode->deny_write_cnt = 0;
+    inode->deny_remove_cnt = 0;
+    inode->removed = false;
+    lock_init (&inode->lock);
+    list_push_front (&open_inodes, &inode->elem);
   }
-  inode->open_cnt = 1;
-  inode->deny_write_cnt = 0;
-  inode->deny_remove_cnt = 0;
-  inode->removed = false;
-  lock_init (&inode->lock);
+  lock_release (&inodes_lock);
   return inode;
 }
 
