@@ -62,7 +62,6 @@ dir_add_entry (struct dir *dir, const char *name, block_sector_t sector)
 bool
 dir_create (block_sector_t sector, block_sector_t parent)
 {
-  printf("creating directory %u \n", sector);
   bool status;
   struct dir *dir;
 
@@ -114,7 +113,6 @@ dir_reopen (struct dir *dir)
 void
 dir_close (struct dir *dir) 
 {
-  printf("closing dir!\n");
   if (dir != NULL)
   {
     inode_close (dir->inode);
@@ -144,11 +142,9 @@ lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
   struct inode * i = dir->inode;
-  printf("looking up %s\n", name);
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
 	{
-	  printf("got %s at %u \n", e.name, e.inode_sector);
     if (e.in_use && !strcmp (name, e.name)) 
     {
       if (ep != NULL)
@@ -315,7 +311,6 @@ dir_dirname (const char *path)
 struct dir *
 dir_open_path (const char *path)
 {
-  printf("opening path %s\n", path);
   block_sector_t sector = path_traverse (path, NULL);
   if (sector == INODE_INVALID_BLOCK_SECTOR) return NULL;
   struct dir *d = dir_open (inode_open (sector));
