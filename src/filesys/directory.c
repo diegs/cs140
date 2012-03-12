@@ -169,8 +169,6 @@ dir_lookup (const struct dir *dir, const char *name,
 
   ASSERT (dir != NULL);
 
-  printf("lookup %d, %s\n", inode_get_inumber (dir_get_inode(dir)), name);
-  debug_backtrace ();
   if (name == NULL)
     *inode = inode_open (inode_get_inumber (dir->inode));
   else if (lookup (dir, name, &e, NULL))
