@@ -362,7 +362,6 @@ sys_open (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
-
   return syscall_open (filename);
 }
 
@@ -481,15 +480,24 @@ static bool
 sys_readdir (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
-  char *name = frame_arg_ptr (f, 2);
-  memory_verify_string (name);
+  char *dst = frame_arg_ptr (f, 2);
+  char name[READDIR_MAX_LEN+1];
+  int i;
 
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return false;
   
   if (!file_is_directory (pfd->file)) return false;
 
-  return file_readdir (pfd->file, name);
+  bool result = file_readdir (pfd->file, name);
+
+  for (i=0; i<=READDIR_MAX_LEN+1; i++)
+  {
+    put_byte(dst, name[i]);
+    if (name[i] == '\0') break;
+  }
+
+  return result;
 }
 
 /**
