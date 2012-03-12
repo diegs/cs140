@@ -8,7 +8,6 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
-#include "threads/synch.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -336,37 +335,38 @@ inode_open (block_sector_t sector)
     inode = list_entry (e, struct inode, elem);
     if (inode->disk_block == sector) 
     {
-      inode_reopen (inode);
-      break;
+      inode = list_entry (e, struct inode, elem);
+      if (inode->disk_block == sector) 
+        {
+          inode_reopen (inode);
+          return inode; 
+        }
     }
   }
 
-  if (inode == NULL) 
+  /* Allocate memory. */
+  inode = malloc (sizeof *inode);
+  if (inode == NULL)
+    return NULL;
+
+  /* Initialize. */
+  list_push_front (&open_inodes, &inode->elem);
+  inode->disk_block = sector;
+  /* Read length and directory flag from block */
+  int read = buffercache_read (sector, METADATA,
+                               offsetof (struct inode_disk, length),
+                               sizeof (off_t) + sizeof (bool), &inode->length,
+                               INODE_INVALID_BLOCK_SECTOR);
+  if (read != (sizeof (off_t) + sizeof (bool)))
   {
-    /* Allocate memory. */
-    inode = malloc (sizeof *inode);
-    if (inode == NULL)
-      return NULL;
-
-    /* Initialize. */
-    inode->disk_block = sector;
-    /* Read length and directory flag from block */
-    int read = buffercache_read (sector, METADATA,
-                                 offsetof (struct inode_disk, length),
-                                 sizeof (off_t) + sizeof (bool), &inode->length,
-                                 INODE_INVALID_BLOCK_SECTOR);
-    if (read != (sizeof (off_t) + sizeof (bool)))
-    {
-      free(inode);
-      return NULL;
-    }
-    inode->open_cnt = 1;
-    inode->deny_write_cnt = 0;
-    inode->deny_remove_cnt = 0;
-    inode->removed = false;
-    lock_init (&inode->lock);
-    list_push_front (&open_inodes, &inode->elem);
+    free(inode);
+    return NULL;
   }
+  inode->open_cnt = 1;
+  inode->deny_write_cnt = 0;
+  inode->deny_remove_cnt = 0;
+  inode->removed = false;
+  lock_init (&inode->lock);
   return inode;
 }
 
