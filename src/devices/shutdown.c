@@ -58,6 +58,10 @@ shutdown_reboot (void)
 {
   printf ("Rebooting...\n");
 
+#ifdef FILESYS
+  filesys_done ();
+#endif
+
     /* See [kbd] for details on how to program the keyboard
      * controller. */
   for (;;)
