@@ -113,9 +113,9 @@ dir_reopen (struct dir *dir)
 void
 dir_close (struct dir *dir) 
 {
-  if (dir != NULL && dir_size(dir) == 2)
+  if (dir != NULL)
   {
-	/* Don't close if it contains items other than . and .. */
+    /* Don't close if it contains items other than . and .. */
     inode_close (dir->inode);
     free (dir);
   }

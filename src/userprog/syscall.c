@@ -362,7 +362,8 @@ sys_open (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
-  return syscall_open (filename);
+  int fd = syscall_open (filename);
+  return fd;
 }
 
 static int32_t
@@ -493,7 +494,7 @@ sys_readdir (struct intr_frame *f)
 
   for (i=0; i<=READDIR_MAX_LEN+1; i++)
   {
-    put_byte(dst, name[i]);
+    put_byte(dst++, name[i]);
     if (name[i] == '\0') break;
   }
 
