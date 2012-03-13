@@ -127,7 +127,7 @@ filesys_remove (const char *path)
   bool success = false;
   if (basename != NULL) 
     success = dir != NULL && dir_remove (dir, basename);
-
+  
   dir_close (dir); 
   return success;
 }

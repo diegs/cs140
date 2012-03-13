@@ -277,6 +277,7 @@ sys_wait (const struct intr_frame *f UNUSED)
 /* Check to see if filename is our hash table */
 static struct fd_hash* get_fd_hash (const char* filename)
 {
+  /*TODO: LOCKS!!!*/
   struct fd_hash fd_sample;
   fd_sample.filename = (char*) filename;
 
