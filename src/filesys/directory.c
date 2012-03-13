@@ -247,6 +247,10 @@ dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
+  /* Check size */
+  if (dir_size (dir) != 0)
+    goto done;
+
   /* Erase directory entry. */
   e.in_use = false;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e) 
@@ -397,7 +401,7 @@ dir_basename (const char *path)
   return basename;
 }
 
-/* Returns the number of entries in this directory, including '.' and
+/* Returns the num of entries in this directory, EXCLUDING '.' and
    '..' */
 static size_t
 dir_size (struct dir *dir)
@@ -415,5 +419,5 @@ dir_size (struct dir *dir)
       count++;
   }
 
-  return count;
+  return count - 2;
 }
