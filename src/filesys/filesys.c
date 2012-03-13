@@ -62,8 +62,8 @@ filesys_create (const char *path, off_t initial_size)
                   && dir_add (dir, basename, inode_sector));
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
-  dir_close (dir);
   if (dirname != NULL) free (dirname);
+  dir_close (dir);
   return success;
 }
 
