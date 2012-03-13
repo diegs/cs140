@@ -315,8 +315,9 @@ sys_remove (const struct intr_frame *f)
   {
     fd_found->delete = true;
     result = true;
+  } else {
+    result = filesys_remove (filename);
   }
-  result = filesys_remove (filename);
 
   return result;
 }

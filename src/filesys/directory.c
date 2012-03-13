@@ -218,9 +218,15 @@ dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
-  /* Check size */
-  if (dir_size (dir) != 0)
-    goto done;
+  /* If directory, make sure it's empty */
+  if (inode_is_directory (inode))
+  {
+    struct dir *inner = dir_open (inode);
+    int size = dir_size (inner);
+    dir_close (inner);
+    if (size != 0)
+      goto done;
+  }
 
   /* Erase directory entry. */
   e.in_use = false;
