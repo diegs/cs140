@@ -28,35 +28,6 @@ static bool lookup (const struct dir *dir, const char *name,
                     struct dir_entry *ep, off_t *ofsp);
 static size_t dir_size (struct dir *dir);
 
-/* Walk through directory looking for a free entry. If no free entries,
- * append one to the end. */
-bool
-dir_add_entry (struct dir *dir, const char *name, block_sector_t sector)
-{
-  struct dir_entry entry;
-  struct dir_entry e;
-  int pos;
-  off_t bytes;
-
-  /* Make sure doesn't already exist */
-  if (lookup (dir, name, NULL, NULL)) return false;
-
-  strlcpy (entry.name, name, NAME_MAX);
-  entry.inode_sector = sector;
-  entry.in_use = true;
-  pos = 0;
-
-  /* Find a free entry */
-  while (inode_read_at (dir->inode, &e, sizeof e, pos) == sizeof e) 
-  {
-    if (!e.in_use) break;
-    pos += sizeof e;
-  }
-
-  bytes = inode_write_at (dir->inode, &entry, sizeof (struct dir_entry), pos);
-  return (bytes == sizeof (struct dir_entry));
-}
-
 /* Creates a directory in the given SECTOR.  Returns true if successful, false
    on failure. */
 bool
@@ -73,8 +44,8 @@ dir_create (block_sector_t sector, block_sector_t parent)
   dir = dir_open (inode_open (sector));
   if (dir == NULL) return false;
 
-  dir_add_entry (dir, ".", sector);
-  dir_add_entry (dir, "..", parent);
+  dir_add (dir, ".", sector);
+  dir_add (dir, "..", parent);
 
   dir_close (dir);
 

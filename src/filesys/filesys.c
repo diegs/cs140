@@ -63,7 +63,7 @@ filesys_create (const char *path, off_t initial_size)
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   if (dirname != NULL) free (dirname);
-  dir_close (dir);
+  if (dir != NULL) dir_close (dir);
   return success;
 }
 
@@ -72,7 +72,7 @@ filesys_create (const char *path, off_t initial_size)
 bool
 filesys_mkdir (const char *path)
 {
-  block_sector_t newdir_sector;
+  block_sector_t newdir_sector = 0;
   char *dirname = dir_dirname (path);
   const char *basename = dir_basename (path);
   struct dir *dir = dir_open_path (dirname);
@@ -81,11 +81,11 @@ filesys_mkdir (const char *path)
                   && free_map_allocate (1, &newdir_sector)
                   && dir_create (newdir_sector, inode_get_inumber
                                  (dir_get_inode (dir)))
-                  && dir_add_entry (dir, basename, newdir_sector));
+                  && dir_add (dir, basename, newdir_sector));
   if (!success && newdir_sector != 0)
     free_map_release (newdir_sector, 1);
   if (dirname != NULL) free (dirname);
-  dir_close (dir);
+  if (dir != NULL) dir_close (dir);
   return success;
 }
 

@@ -297,9 +297,7 @@ sys_create (const struct intr_frame *f)
 
   memory_verify_string (filename);
 
-  bool ret = filesys_create (filename, initial_size);
-
-  return ret;
+  return filesys_create (filename, initial_size);
 }
 
 static bool 
@@ -326,10 +324,7 @@ int
 syscall_open (const char *filename) 
 {
   struct file* file = filesys_open (filename); 
-  if (file == NULL) 
-  {
-    return -1;
-  }
+  if (file == NULL) return -1;
 
   struct fd_hash *fd_found = get_fd_hash (filename); 
 
@@ -362,8 +357,7 @@ sys_open (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
-  int fd = syscall_open (filename);
-  return fd;
+  return syscall_open (filename);
 }
 
 static int32_t
