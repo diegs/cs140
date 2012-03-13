@@ -84,8 +84,8 @@ filesys_mkdir (const char *path)
                   && dir_add_entry (dir, basename, newdir_sector));
   if (!success && newdir_sector != 0)
     free_map_release (newdir_sector, 1);
-  dir_close (dir);
   if (dirname != NULL) free (dirname);
+  dir_close (dir);
   return success;
 }
 
