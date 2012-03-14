@@ -26,6 +26,7 @@ struct fd_hash
 };
 
 struct hash fd_all;
+struct lock fd_all_lock;
 
 static struct fd_hash*
 fd_hash_init (void)
@@ -274,16 +275,15 @@ sys_wait (const struct intr_frame *f UNUSED)
   return process_wait (frame_arg_int (f, 1));
 }
 
-/* Check to see if filename is our hash table */
+/* Check to see if filename is our hash table. The fd_all_lock must be held
+ * prior to calling. */
 static struct fd_hash* get_fd_hash (const char* filename)
 {
-  /*TODO: LOCKS!!!*/
-  struct fd_hash fd_sample;
-  fd_sample.filename = (char*) filename;
+  ASSERT (lock_held_by_current_thread (&fd_all_lock));
 
+  struct fd_hash fd_sample = {.filename = (char*)filename};
   struct hash_elem *elem = hash_find (&fd_all, &fd_sample.elem);
   struct fd_hash *fd_found = NULL;
-
   if (elem != NULL)
     fd_found = hash_entry (elem, struct fd_hash, elem);
 
@@ -304,9 +304,12 @@ sys_create (const struct intr_frame *f)
 static bool 
 sys_remove (const struct intr_frame *f) 
 {
+  ASSERT (!lock_held_by_current_thread (&fd_all_lock));
+
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
 
+  lock_acquire (&fd_all_lock);
   struct fd_hash *fd_found = get_fd_hash (filename); 
 
   bool result = false;
@@ -318,6 +321,7 @@ sys_remove (const struct intr_frame *f)
   } else {
     result = filesys_remove (filename);
   }
+  lock_release (&fd_all_lock);
 
   return result;
 }
@@ -325,9 +329,12 @@ sys_remove (const struct intr_frame *f)
 int
 syscall_open (const char *filename) 
 {
+  ASSERT (!lock_held_by_current_thread (&fd_all_lock));
+
   struct file* file = filesys_open (filename); 
   if (file == NULL) return -1;
 
+  lock_acquire (&fd_all_lock);
   struct fd_hash *fd_found = get_fd_hash (filename); 
 
   /* Update count */
@@ -336,6 +343,7 @@ syscall_open (const char *filename)
     fd_found = fd_hash_init ();
     if (fd_found == NULL)
     {
+      lock_release (&fd_all_lock);
       return -1;
     }
     fd_found->filename = strdup (filename);
@@ -344,10 +352,13 @@ syscall_open (const char *filename)
   /* Makes sure it isn't marked for deletion */
   if (fd_found->delete)
   {
+    lock_release (&fd_all_lock);
     return -1;
   }
 
   fd_found->count++;
+  lock_release (&fd_all_lock);
+
   int fd = process_add_file (thread_current (), 
                              file, fd_found->filename);
 
@@ -401,13 +412,18 @@ sys_tell (struct intr_frame *f)
 void
 syscall_close (int fd)
 {
+  ASSERT (!lock_held_by_current_thread (&fd_all_lock));
+
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) {
     return;
   }
+
+  lock_acquire (&fd_all_lock);
   struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
   if (fd_found == NULL)
   {
+    lock_release (&fd_all_lock);
     return;
   }
   file_close (pfd->file);
@@ -419,6 +435,7 @@ syscall_close (int fd)
     if (fd_found->delete) filesys_remove (pfd->filename);
     fd_hash_destroy(fd_found);
   }
+  lock_release (&fd_all_lock);
 
   /* Remove the file from the process */
   process_remove_file (thread_current (), fd);
@@ -679,6 +696,7 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   
   hash_init (&fd_all, hash_hash_fd_hash, hash_less_fd_hash, NULL);
+  lock_init (&fd_all_lock);
 }
 
 /* Handles system calls using the internal interrupt mechanism. The
