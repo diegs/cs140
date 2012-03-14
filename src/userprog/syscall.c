@@ -288,6 +288,23 @@ static struct fd_hash* get_fd_hash (int inumber)
   return fd_found;
 }
 
+
+/* If relative path, make sure cwd is not marked for deletion */
+static bool
+cwd_deleted (const char *filename)
+{
+  struct fd_hash *fd_found = NULL;
+
+  if (filename[0] != '/')
+  {
+    lock_acquire (&fd_all_lock);
+    fd_found = get_fd_hash (thread_get_cwd ());
+    lock_release (&fd_all_lock);
+    if (fd_found != NULL) return true;
+  }
+  return false;
+}
+
 static bool
 sys_create (const struct intr_frame *f)
 {
@@ -295,6 +312,8 @@ sys_create (const struct intr_frame *f)
   uint32_t initial_size = frame_arg_int (f, 2);
 
   memory_verify_string (filename);
+
+  if (cwd_deleted (filename)) return false;
 
   return filesys_create (filename, initial_size);
 }
@@ -334,11 +353,16 @@ syscall_open (const char *filename)
 {
   ASSERT (!lock_held_by_current_thread (&fd_all_lock));
 
-  struct file* file = filesys_open (filename);
+  struct fd_hash *fd_found;
+  struct file* file;
+
+  if (cwd_deleted (filename)) return -1;
+
+  file = filesys_open (filename);
   if (file == NULL) return -1;
 
   lock_acquire (&fd_all_lock);
-  struct fd_hash *fd_found = get_fd_hash (file_inumber (file));
+  fd_found = get_fd_hash (file_inumber (file));
 
   /* Update count */
   if (fd_found == NULL)
