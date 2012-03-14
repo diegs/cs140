@@ -194,7 +194,7 @@ done:
   return success;
 }
 
-/* Removes any entry for NAME in DIR.
+/* Deletes NAME from DIR.
    Returns true if successful, false on failure,
    which occurs only if there is no file with the given NAME. */
 bool
