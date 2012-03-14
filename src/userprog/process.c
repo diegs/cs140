@@ -665,7 +665,7 @@ get_process_fd (struct thread *t, int fd)
    it to be valid memory while the process fd is still in the list */
 int 
 process_add_file (struct thread *t, struct file *file, 
-    const char* filename)
+                  const char* filename)
 {
   struct list *fd_list = &t->fd_list;
 
@@ -673,9 +673,15 @@ process_add_file (struct thread *t, struct file *file,
   if (new_fd == NULL) return -1;
   new_fd->file = file;
   new_fd->fd = t->next_fd++;
-  new_fd->filename = filename;
-  list_push_back (fd_list, &new_fd->elem);
+  new_fd->filename = strdup (filename);
 
+  if (new_fd->filename == NULL) 
+  {
+    free (new_fd);
+    return -1;
+  }
+
+  list_push_back (fd_list, &new_fd->elem);
   return new_fd->fd;
 }
 
@@ -686,7 +692,6 @@ process_get_file (struct thread *t, int fd)
   return pfd;
 }
 
-
 void
 process_remove_file (struct thread *t, int fd) 
 {
@@ -694,6 +699,7 @@ process_remove_file (struct thread *t, int fd)
 
   if (pfd == NULL) return;
   list_remove (&pfd->elem);
+  free (pfd->filename);
   free (pfd);
 }
 

@@ -19,7 +19,7 @@
 
 struct fd_hash
 {
-  char *filename;
+  block_sector_t inumber;
   int count;
   bool delete;
   struct hash_elem elem;
@@ -39,15 +39,14 @@ static void
 fd_hash_destroy (struct fd_hash *h)
 {
   hash_delete (&fd_all, &h->elem);
-  if (h->filename != NULL) free (h->filename);
   free (h);
 }
 
 static unsigned
-hash_hash_fd_hash (const struct hash_elem *e, void *aux UNUSED) 
+hash_hash_fd_hash (const struct hash_elem *e, void *aux UNUSED)
 {
   struct fd_hash *e_fd = hash_entry (e, struct fd_hash, elem);
-  unsigned hash_val = hash_string (e_fd->filename);
+  unsigned hash_val = e_fd->inumber;
   return hash_val;
 }
 
@@ -58,7 +57,7 @@ hash_less_fd_hash (const struct hash_elem *a, const struct hash_elem *b,
   struct fd_hash *a_fd = hash_entry (a, struct fd_hash, elem);
   struct fd_hash *b_fd = hash_entry (b, struct fd_hash, elem);
 
-  return strcmp (a_fd->filename, b_fd->filename) < 0;
+  return a_fd->inumber < b_fd->inumber;
 }
 
 static void syscall_handler (struct intr_frame *);
@@ -74,7 +73,7 @@ get_user (const uint8_t *uaddr)
        : "=&a" (result) : "m" (*uaddr));
   return result;
 }
- 
+
 /* Writes BYTE to user address UDST. UDST must be below PHYS_BASE.
    Returns true if successful, false if a segfault occurred. */
 static bool
@@ -126,7 +125,7 @@ memory_verify (void *ptr, size_t size)
 
   /*Get the last page this data spans */
   uint32_t end_page = (uint32_t)(ptr + size - 1) / PGSIZE;
-	
+
   /* Check the first byte of each page */
   uint32_t page;
   for (page = start_page; page <= end_page; page++)
@@ -150,7 +149,7 @@ memory_verify_write (void *ptr, size_t size)
 
   /*Get the last page this data spans */
   uint32_t end_page = (uint32_t)(ptr + size - 1) / PGSIZE;
-	
+
   /* Check the first byte of each page */
   uint32_t page;
   for (page = start_page; page <= end_page; page++)
@@ -181,13 +180,13 @@ memory_verify_string (const char *str)
 }
 
 /* Convenience method for dereferencing a frame argument */
-static inline void* frame_arg (const struct intr_frame *f, const int i) 
+static inline void* frame_arg (const struct intr_frame *f, const int i)
 {
   return ((uint32_t*)f->esp) + i;
 }
 
 /* Convenience method for getting an int out of a frame argument safely */
-static inline int 
+static inline int
 frame_arg_int (const struct intr_frame *f, const int i)
 {
   void *arg = frame_arg (f, i);
@@ -206,7 +205,7 @@ frame_arg_ptr (const struct intr_frame *f, const int i)
 
 /* Convenience method for accessing the syscall safely */
 static uint32_t
-get_frame_syscall (const struct intr_frame *f) 
+get_frame_syscall (const struct intr_frame *f)
 {
   return frame_arg_int (f, 0);
 }
@@ -216,7 +215,7 @@ get_frame_syscall (const struct intr_frame *f)
  *
  * Arguments:
  * - none
- * Returns: 
+ * Returns:
  * - none
  */
 static void
@@ -228,9 +227,9 @@ sys_halt (const struct intr_frame *f UNUSED)
 /**
  * Terminates the current user program, returning status to the kernel.
  *
- * Arguments: 
+ * Arguments:
  * - int status: status that is returned to the parent process
- * Returns: 
+ * Returns:
  * - none
  */
 static void
@@ -244,9 +243,9 @@ sys_exit (const struct intr_frame *f)
  * Runs the executable whose name is given in cmd_line, passing any given
  * arguments, and returns the new process's program id (pid).
  *
- * Arguments: 
+ * Arguments:
  * - const char *cmd_line: the command line to invoke.
- * Returns: 
+ * Returns:
  * - the new process' pid, or -1 if the program cannot load or run.
  */
 static int
@@ -264,9 +263,9 @@ sys_exec (const struct intr_frame *f)
 /**
  * Waits for a child process pid and retrieves the child's exit status.
  *
- * Arguments: 
+ * Arguments:
  * - int pid: the pid of the child process to wait on
- * Returns: 
+ * Returns:
  * - the exit status of the child process, or -1 if it not a valid child process
  */
 static int
@@ -277,15 +276,14 @@ sys_wait (const struct intr_frame *f UNUSED)
 
 /* Check to see if filename is our hash table. The fd_all_lock must be held
  * prior to calling. */
-static struct fd_hash* get_fd_hash (const char* filename)
+static struct fd_hash* get_fd_hash (int inumber)
 {
   ASSERT (lock_held_by_current_thread (&fd_all_lock));
 
-  struct fd_hash fd_sample = {.filename = (char*)filename};
+  struct fd_hash fd_sample = {.inumber = inumber};
   struct hash_elem *elem = hash_find (&fd_all, &fd_sample.elem);
   struct fd_hash *fd_found = NULL;
-  if (elem != NULL)
-    fd_found = hash_entry (elem, struct fd_hash, elem);
+  if (elem != NULL) fd_found = hash_entry (elem, struct fd_hash, elem);
 
   return fd_found;
 }
@@ -301,20 +299,25 @@ sys_create (const struct intr_frame *f)
   return filesys_create (filename, initial_size);
 }
 
-static bool 
-sys_remove (const struct intr_frame *f) 
+static bool
+sys_remove (const struct intr_frame *f)
 {
   ASSERT (!lock_held_by_current_thread (&fd_all_lock));
 
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
 
+  struct file* file = filesys_open (filename);
+  if (file == NULL) return -1;
+  int inumber = file_inumber (file);
+  file_close (file);
+
   lock_acquire (&fd_all_lock);
-  struct fd_hash *fd_found = get_fd_hash (filename); 
+  struct fd_hash *fd_found = get_fd_hash (inumber);
 
   bool result = false;
   /* Only entries with count > 0 are stored */
-  if (fd_found) 
+  if (fd_found)
   {
     fd_found->delete = true;
     result = true;
@@ -327,18 +330,18 @@ sys_remove (const struct intr_frame *f)
 }
 
 int
-syscall_open (const char *filename) 
+syscall_open (const char *filename)
 {
   ASSERT (!lock_held_by_current_thread (&fd_all_lock));
 
-  struct file* file = filesys_open (filename); 
+  struct file* file = filesys_open (filename);
   if (file == NULL) return -1;
 
   lock_acquire (&fd_all_lock);
-  struct fd_hash *fd_found = get_fd_hash (filename); 
+  struct fd_hash *fd_found = get_fd_hash (file_inumber (file));
 
   /* Update count */
-  if (fd_found == NULL) 
+  if (fd_found == NULL)
   {
     fd_found = fd_hash_init ();
     if (fd_found == NULL)
@@ -346,7 +349,7 @@ syscall_open (const char *filename)
       lock_release (&fd_all_lock);
       return -1;
     }
-    fd_found->filename = strdup (filename);
+    fd_found->inumber = file_inumber (file);
     hash_insert (&fd_all, &fd_found->elem);
   }
   /* Makes sure it isn't marked for deletion */
@@ -359,14 +362,14 @@ syscall_open (const char *filename)
   fd_found->count++;
   lock_release (&fd_all_lock);
 
-  int fd = process_add_file (thread_current (), 
-                             file, fd_found->filename);
+  int fd = process_add_file (thread_current (),
+                             file, filename);
 
   return fd;
 }
 
 static int
-sys_open (const struct intr_frame *f) 
+sys_open (const struct intr_frame *f)
 {
   const char *filename = frame_arg_ptr (f, 1);
   memory_verify_string (filename);
@@ -374,7 +377,7 @@ sys_open (const struct intr_frame *f)
 }
 
 static int32_t
-sys_filesize (struct intr_frame *f) 
+sys_filesize (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
 
@@ -386,25 +389,25 @@ sys_filesize (struct intr_frame *f)
 }
 
 static void
-sys_seek (struct intr_frame *f) 
+sys_seek (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   off_t pos = *(off_t*)frame_arg (f, 2);
 
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return;
- 
+
   file_seek (pfd->file, pos);
 }
 
 static uint32_t
-sys_tell (struct intr_frame *f) 
+sys_tell (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
 
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return -1;
- 
+
   uint32_t tell = file_tell (pfd->file);
   return tell;
 }
@@ -420,7 +423,7 @@ syscall_close (int fd)
   }
 
   lock_acquire (&fd_all_lock);
-  struct fd_hash *fd_found = get_fd_hash (pfd->filename); 
+  struct fd_hash *fd_found = get_fd_hash (file_inumber (pfd->file));
   if (fd_found == NULL)
   {
     lock_release (&fd_all_lock);
@@ -430,7 +433,7 @@ syscall_close (int fd)
 
   /* Perform syscall level bookkeeping */
   fd_found->count--;
-  if (fd_found->count == 0) 
+  if (fd_found->count == 0)
   {
     if (fd_found->delete) filesys_remove (pfd->filename);
     fd_hash_destroy(fd_found);
@@ -442,7 +445,7 @@ syscall_close (int fd)
 }
 
 static void
-sys_close (struct intr_frame *f) 
+sys_close (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   syscall_close (fd);
@@ -500,7 +503,7 @@ sys_readdir (struct intr_frame *f)
 
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return false;
-  
+
   if (!file_is_directory (pfd->file)) return false;
 
   bool result = file_readdir (pfd->file, name);
@@ -517,7 +520,7 @@ sys_readdir (struct intr_frame *f)
 /**
  * Returns true if fd represents a directory, false if it represents an
  * ordinary file.
- */ 
+ */
 static bool
 sys_isdir (struct intr_frame *f)
 {
@@ -556,7 +559,7 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
   char *tmp_buf = malloc(PGSIZE);
   if (tmp_buf == NULL) return -1;
 
-  while (size_accum < size) 
+  while (size_accum < size)
   {
     int cur_size = size - size_accum;
     if (cur_size > PGSIZE) cur_size = PGSIZE;
@@ -575,15 +578,15 @@ safe_file_block_ops (struct file *file, char *buffer, size_t size, bool write)
       memcpy(cur_buff, tmp_buf, cur_size);
 
     size_accum += op_result;
-    
+
     if (op_result != cur_size) break;
   }
   free(tmp_buf);
   return size_accum;
 }
 
-static int32_t 
-sys_read (struct intr_frame *f) 
+static int32_t
+sys_read (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   char *user_buffer = frame_arg_ptr (f, 2);
@@ -616,7 +619,7 @@ sys_read (struct intr_frame *f)
 }
 
 static int
-sys_write (const struct intr_frame *f) 
+sys_write (const struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   const char* buffer = frame_arg_ptr (f, 2);
@@ -624,24 +627,24 @@ sys_write (const struct intr_frame *f)
   memory_verify ((void *)buffer, size);
 
   // Handle special case for writing to the console
-  if (fd == 1) 
+  if (fd == 1)
   {
     putbuf (buffer, size);
     return size;
-  } 
+  }
 
   // Handle rest of file descriptors
   struct process_fd *pfd = process_get_file (thread_current (), fd);
   if (pfd == NULL) return 0;
 
-  int result = safe_file_block_ops 
+  int result = safe_file_block_ops
     (pfd->file, (void*)buffer, size, true);
 
   return result;
 }
 
 static int
-sys_mmap (struct intr_frame *f) 
+sys_mmap (struct intr_frame *f)
 {
   int fd = frame_arg_int (f, 1);
   void *uaddr = frame_arg_ptr (f, 2);
@@ -662,13 +665,13 @@ sys_mmap (struct intr_frame *f)
      in the remainder of the last page, and making sure that none of
      the addresses we want to add overlap with the stack, the data
      segment or the code segment (i.e. there is no existing virtual
-     mapping in the page directory). All of this 
+     mapping in the page directory). All of this
      checking/miscellaneous stuff is handled by mmap_add*/
   uint32_t offset = 0;
   while (offset < mmap->size)
   {
     bool success = mmap_add (mmap, uaddr + offset, offset);
-    if (!success) 
+    if (!success)
     {
       mmap_destroy (mmap);
       return -1;
@@ -681,7 +684,7 @@ sys_mmap (struct intr_frame *f)
   return process_add_mmap (mmap);
 }
 
-static void 
+static void
 sys_munmap (struct intr_frame *f UNUSED)
 {
   int id = frame_arg_int (f, 1);
@@ -691,10 +694,10 @@ sys_munmap (struct intr_frame *f UNUSED)
 
 /* Registers the system call handler for internal interrupts. */
 void
-syscall_init (void) 
+syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  
+
   hash_init (&fd_all, hash_hash_fd_hash, hash_less_fd_hash, NULL);
   lock_init (&fd_all_lock);
 }
@@ -702,7 +705,7 @@ syscall_init (void)
 /* Handles system calls using the internal interrupt mechanism. The
    supported system calls are defined in lib/user/syscall.h */
 static void
-syscall_handler (struct intr_frame *f) 
+syscall_handler (struct intr_frame *f)
 {
   /* Integrity-check the return pointer */
   memory_verify ((void*)f->esp, sizeof (void*));
@@ -713,7 +716,7 @@ syscall_handler (struct intr_frame *f)
   uint32_t syscall = get_frame_syscall (f);
   uint32_t eax = f->eax;
 
-  switch (syscall) 
+  switch (syscall)
   {
   case SYS_HALT:
     sys_halt (f);
