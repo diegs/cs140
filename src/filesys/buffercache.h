@@ -5,8 +5,12 @@
 #include "filesys/off_t.h"
 #include "threads/synch.h"
 
+/* Size of buffercache -- 64 blocks */
 #define BUFFERCACHE_SIZE 64
 
+/**
+ * Denotes the type of sector held in the cache block
+ */
 enum sector_type
 {
   METADATA,                     /* Metadata sector */

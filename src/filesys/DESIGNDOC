@@ -17,7 +17,7 @@ Diego Pontoriero dpontori@stanford.edu
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
-No comments.
+We did the assignment with the VM project enabled.
 
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
@@ -104,14 +104,119 @@ No additional sources consulted.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* Size of buffercache -- 64 blocks */
+#define BUFFERCACHE_SIZE 64
+
+/**
+ * Denotes the type of sector held in the cache block
+ */
+enum sector_type
+{
+  METADATA,                     /* Metadata sector */
+  REGULAR                       /* Regular sector */
+};
+
+/**
+ * Flags to denote the state of a cache block
+ */
+enum cache_state
+{
+  READING = 0,
+  WRITE_REQUESTED,
+  WRITING,
+  CLOCK,
+  READY
+};
+
+/**
+ * Names various states for buffer cache blocks for use with the clock
+ * algorithm.
+ */
+enum cache_accessed
+{
+  CLEAN = 0x00,                 /* Untouched */
+  ACCESSED = 0x01,              /* Accessed bit */
+  DIRTY = 0x02,                 /* Dirty bit */
+  META = 0x04,                  /* Metadata bit */
+};
+
+/**
+ * A single entry in the buffer cache
+ */
+struct cache_entry
+{
+  void *kaddr;                  /* Address of cache block */
+  int accessors;                /* Number of threads accessing buffer */
+  block_sector_t sector;        /* Sector of block */
+  block_sector_t next_sector;   /* Sector block will contain next */
+  enum cache_state state;       /* Current state of block */
+  enum cache_accessed accessed;	/* Accessed bits for block */
+  enum sector_type type;        /* The type of sector */
+  struct condition c;           /* To notify waiting threads */
+};
+
+ /* 30 second buffercache flush frequency */
+#define BUFFERCACHE_FLUSH_FREQUENCY 30 * 1000
+
+/**
+ * List entry for a sector readahead action
+ */
+struct readahead_entry
+{
+  block_sector_t sector;        /* Sector to read ahead */
+  struct list_elem elem;        /* List element */
+};
+
+static struct cache_entry *cache;      /* Cache entry table */
+static struct lock cache_lock;         /* Lock for entry table */
+static struct condition entries_ready; /* Signal for clock algorithm if no
+                                        * blocks available */
+static int cache_size;                 /* Size of the cache */
+static int clock_hand;                 /* For clock algorithm */
+static struct list readahead_list;     /* List of readahead blocks */
+static struct lock readahead_lock;     /* Protects readahead_list */
+static struct condition readahead_data; /* Notifies for readahead_list */
+
 ---- ALGORITHMS ----
 
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 
+Our cache replacement system implements the clock algorithm to choose a block
+to evict. Each cache entry has flags for accessed and dirty bits. As with
+virtual memory page tables, we reset flip the accessed bit to give entries a
+second chance if they have been recently accessed.
+
+Instead of pinning, our cache state machine has other cache entry states
+(READING, WRITING, etc.) that cause entries to be ignored when those blocks are
+being operated on, since reading and writing are non-blocking and so the cache
+lock isn't actually held while those operations occur.
+
+One optimization is that we added an additional bit called METADATA which
+essentially gives METADATA (i.e. inode) blocks an additional chance before
+being evicted, since these are ostensibly more useful to keep in memory.
+
 >> C3: Describe your implementation of write-behind.
 
+Write-behind is implemented by a daemon thread that is started immediately
+after the buffercache is brought online. In an infinite loop it sleeps for 30
+seconds before waking and invoking a flush on each of the 64 entries in the
+cache. It is non-blocking, that is, if a block is currently reading or writing
+the worker simply ignores it.
+
 >> C4: Describe your implementation of read-ahead.
+
+Read-ahead is implemented by another daemon thread that is started after the
+buffercache is brought online. There is a shared linked list queue, lock, and
+condition variable that are used to create a producer-consumer releationship
+between the buffercache_read () and buffercache_write () methods and the
+readahead worker.
+
+Each time a read occurs the "next" block is added to the queue by the calling
+thread, followed by a cond_broadcast (). The daemon thread then awakes,
+shifts all of the readahead list entries to its own private list (so it doesn't
+have to hold the lock on the shared list) and then performs the I/O needed to
+bring each of them into the cache in turn.
 
 ---- SYNCHRONIZATION ----
 
@@ -119,13 +224,48 @@ No additional sources consulted.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
+Reading and writing to the actual block data has to support concurrency, so we
+do not simply lock the entry. Instead, we have a count of accessors that is
+updated within a critical section that does lock the cache entry. If a block is
+evicted it has to wait until this count reaches 0, which is signaled using a
+condition variable.
+
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
+
+To implement non-blocking I/O for reading and writing we had to ensure that we
+were not holding any locks that protect the cache entries while the I/O
+occurred. We accomplished this by creating a state machine. Each cache entry
+has a cache_state field which denotes several states, such as READY,
+WRITE_REQUESTED, WRITING, READING, etc. Each of these states prevents blocks
+from being evicted or brought in if they are currently being reading or writing
+from/to disk.
+
+In conjuction with the counter described in C5 that prevents this I/O from
+ocurring until all threads currently accessing the block are done (and the state
+machine uses non-ready states to prevent new threads from coming in, since this
+could lead to starvation), if a thread requests reading or writing to a block
+that is being brought into cache, it blocks and waits for the condition
+variable for that entry to be signaled.
+
+In order to make this work we needed to include one additional field: the next
+sector that an entry is scheduled to hold. This was necessary to eliminate a
+race when one thread requested to read a block, was waiting for another block
+to be evicted before reading it in, and while the write-out occurred another
+block requested to read the same block. However, this seems to work, again with
+absolutely no cache locks held during any I/O.
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
+
+File workloads likely to benefit from buffer caching will read and write
+repeatedly to the same blocks before closing the files. Workloads likely to
+benefit from read-ahead are ones that access the data in files sequentially
+(likely a common occurrence). Workloads likely to benefit from write-behind are
+ones that open many files and keep them open until they close, but don't modify
+all of them that frequently.
 
                            SURVEY QUESTIONS
                            ================
@@ -139,14 +279,27 @@ the quarter.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+It felt average. In fact, we were expecting more work.
+
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+
+Yes, the filesystem aspect was interesting. However, it did feel like it was a
+little more tightly-coupled with the OS than one might expect (given that in
+Linux, for example, one can choose between different filesystems, leading one
+to believe that typically they are more modular).
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
 
+No, the assignment was straightforward.
+
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students in future quarters?
 
+No suggestions.
+
 >> Any other comments?
+
+No other comments.

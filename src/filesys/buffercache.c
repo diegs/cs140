@@ -12,7 +12,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-#define BUFFERCACHE_FLUSH_FREQUENCY 30 * 1000 /* 30 seconds */
+ /* 30 second buffercache flush frequency */
+#define BUFFERCACHE_FLUSH_FREQUENCY 30 * 1000
 
 /**
  * List entry for a sector readahead action
