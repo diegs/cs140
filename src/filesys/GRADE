@@ -1,0 +1,4 @@
+cd build && make grade
+make[1]: Entering directory `/afs/ir.stanford.edu/users/d/p/dpontori/cs140/pintos/src/filesys/build'
+make[1]: `grade' is up to date.
+make[1]: Leaving directory `/afs/ir.stanford.edu/users/d/p/dpontori/cs140/pintos/src/filesys/build'
