@@ -14,19 +14,19 @@
 
 /* The number of sector references in an inode */
 #define INODE_NUM_BLOCKS 125
-#define INODE_CONSISTENT_BLOCKS 123
-#define INODE_DIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
-#define INODE_INDIRECT_SIZE INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE
-#define INODE_DUBINDER_SIZE INODE_INDIRECT_SIZE*INODE_CONSISTENT_BLOCKS
+#define INODE_CONSISTENT_BLOCKS 122
+#define INODE_DIRECT_SIZE (INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE)
+#define INODE_INDIRECT_SIZE (INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE)
+#define INODE_DUBINDER_SIZE (INODE_INDIRECT_SIZE*INODE_CONSISTENT_BLOCKS)
+
+#define INODE_NUM_INDIRECT_BLOCKS 1
+#define INODE_NUM_DUBINDER_BLOCKS 2
+
 #define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
-#define INODE_DUBINDER_OFFSET INODE_INDIRECT_OFFSET + INODE_INDIRECT_SIZE
+#define INODE_DUBINDER_OFFSET (INODE_INDIRECT_OFFSET+INODE_NUM_INDIRECT_BLOCKS*INODE_INDIRECT_SIZE)
 
-#define INODE_ROOT_INDIRECT_INDEX INODE_CONSISTENT_BLOCKS
-#define INODE_ROOT_DUBINDER_INDEX INODE_CONSISTENT_BLOCKS + 1
-
-static int level_sizes[] = { BLOCK_SECTOR_SIZE, INODE_DIRECT_SIZE, INODE_DUBINDER_SIZE };
-static int level_offsets[] = { 0, INODE_INDIRECT_OFFSET, INODE_DUBINDER_OFFSET };
-static int num_levels = sizeof (level_offsets) / sizeof (size_t);
+#define INODE_INDIRECT_INDEX_BASE INODE_CONSISTENT_BLOCKS
+#define INODE_DUBINDER_INDEX_BASE (INODE_CONSISTENT_BLOCKS+INODE_NUM_INDIRECT_BLOCKS)
 
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
@@ -127,6 +127,27 @@ get_sector_from_block (block_sector_t sector, int index)
   return next_sector;
 }
 
+/* Returns the sector at index if it is a valid sector or if create is 
+   true */
+static block_sector_t
+verify_sector (block_sector_t cur_sector, int index, bool
+    is_direct_level, bool create)
+{
+  if (cur_sector == INODE_INVALID_BLOCK_SECTOR) 
+    return INODE_INVALID_BLOCK_SECTOR;
+
+  block_sector_t next_sector = 
+    get_sector_from_block (cur_sector, index);
+
+  /* Allocate a new sector if necessary*/
+  if (next_sector == INODE_INVALID_BLOCK_SECTOR && create) {
+    enum sector_type type = is_direct_level ? REGULAR : METADATA;
+    next_sector = create_new_sector (cur_sector, index, type);
+  }
+  
+  return next_sector;
+}
+
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -137,64 +158,64 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
   ASSERT (root != NULL);
 
   lock_acquire (&root->lock);
-  block_sector_t cur_sector = root->disk_block;
+
+  block_sector_t indirect_sector = root->disk_block;
+  block_sector_t dubindirect_sector = INODE_INVALID_BLOCK_SECTOR;
+  block_sector_t result = INODE_INVALID_BLOCK_SECTOR;
   off_t cur_pos = pos;
 
-  int i;
-  bool root_block = true;
-  for (i = num_levels - 1; i >= 0; i--) 
+  /* If we did not get a sector index, but we are still within
+     the length of the file, we can create a new block */
+  bool within_length = pos < root->length;
+  bool create_final = create || within_length;
+
+  /* Move down from the doubly indirect level if needed */
+  if (cur_pos >= INODE_DUBINDER_OFFSET)
   {
-    /* Figure out the index from which we would like to read 
-       the next sector index */
-    int index = -1;
-    block_sector_t next_sector;
-    if (root_block && cur_pos >= level_offsets[i] && i > 0) 
-    {
-      /* At the root level, we need to select the doubly indirect
-         block and the singly indirect block manually */
-      index = INODE_CONSISTENT_BLOCKS + i - 1;
-      cur_pos = cur_pos - level_offsets[i];
-      root_block = false;
-    } else if ((i < 2 && !root_block && cur_pos < level_sizes[i+1]) 
-                || i == 0) {
-      off_t divisor = level_sizes[i];
+    cur_pos -= INODE_DUBINDER_OFFSET;
+    int dubinder_index = 
+        INODE_DUBINDER_INDEX_BASE + cur_pos/INODE_DUBINDER_SIZE;
 
-      /* Get index into current block for next sector */
-      index = cur_pos/divisor;
-      cur_pos = cur_pos - level_sizes[i]*index;
+    cur_pos %= INODE_DUBINDER_SIZE;
+    dubindirect_sector = verify_sector (root->disk_block,
+        dubinder_index, false, create_final);
+  }
 
-      ASSERT (index >= 0 && index < INODE_CONSISTENT_BLOCKS);
-    }
+  /* Move down from the singly indirect level if needed the first 
+   case handles the case in which we still need to step off of the
+   root block into the indirect block and the other deals with 
+   stepping forward in the case we are in the doubly indirect path.*/
+  int indir_index = -1;
+  if (cur_pos >= INODE_INDIRECT_OFFSET 
+      && dubindirect_sector == INODE_INVALID_BLOCK_SECTOR) 
+  {
+    cur_pos -= INODE_INDIRECT_OFFSET;
+    indir_index = 
+      INODE_INDIRECT_INDEX_BASE + (cur_pos/INODE_INDIRECT_SIZE);
+    dubindirect_sector = root->disk_block;
+  } else if (dubindirect_sector != INODE_INVALID_BLOCK_SECTOR) {
+    indir_index = cur_pos /INODE_INDIRECT_SIZE;
+  }
 
-    /* Perform the traversal if we need to perform one at this level
-       of indirection */
-    if (index != -1) 
-    {
-      next_sector = get_sector_from_block (cur_sector, index);
+  /* Actually make the step at the indirect level */
+  if (indir_index != -1)
+  {
+    cur_pos %= INODE_INDIRECT_SIZE;
+    indirect_sector = verify_sector (dubindirect_sector, indir_index,
+        false, create_final); 
+  }
 
-      /* Allocate a new sector if necessary*/
-      if (next_sector == INODE_INVALID_BLOCK_SECTOR) {
-      /* If we did not get a sector index, but we are still within
-         the length of the file, we can zero out a block size of 
-         data in the buffer */
-        bool within_length = pos < root->length;
-
-        if (create || within_length)
-        {
-          enum sector_type type = i > 0 ? METADATA : REGULAR;
-          next_sector = create_new_sector (cur_sector, index, type);
-        } else {
-          cur_sector = INODE_INVALID_BLOCK_SECTOR;
-          break;
-        }
-      }
-      cur_sector = next_sector;
-    }
+  /* Find final block */
+  if (cur_pos < INODE_DIRECT_SIZE) 
+  {
+    int direct_index = cur_pos/BLOCK_SECTOR_SIZE;
+    result = verify_sector (indirect_sector, direct_index,
+        true, create_final); 
   }
 
   lock_release (&root->lock);
 
-  return cur_sector;
+  return result;
 }
 
 typedef void (*inode_sector_map_fn) (block_sector_t sector, bool meta);
@@ -208,23 +229,29 @@ inode_sector_map_direct_helper (block_sector_t indirect_sector,
 {
   int block_index = 0;
   block_sector_t sector;
-  while (bytes_traversed < length 
-          && block_index < INODE_CONSISTENT_BLOCKS)
-  {
-    sector = get_sector_from_block (indirect_sector, block_index);
-    map_fn (sector, false);
 
-    block_index++;
-    bytes_traversed += BLOCK_SECTOR_SIZE;
+  if (indirect_sector != INODE_INVALID_BLOCK_SECTOR)
+  {
+    while (bytes_traversed < length 
+            && block_index < INODE_CONSISTENT_BLOCKS)
+    {
+      sector = get_sector_from_block (indirect_sector, block_index);
+      if (sector != INODE_INVALID_BLOCK_SECTOR) map_fn (sector, false);
+
+      block_index++;
+      bytes_traversed += BLOCK_SECTOR_SIZE;
+    }
+
   }
+
   return bytes_traversed;
 }
-  
 
 static void
 inode_sector_map (struct inode *root, inode_sector_map_fn map_fn)
 {
   ASSERT (root != NULL);
+  ASSERT (root->disk_block != INODE_INVALID_BLOCK_SECTOR);
 
   off_t bytes_traversed = 0;
 
@@ -232,53 +259,50 @@ inode_sector_map (struct inode *root, inode_sector_map_fn map_fn)
   bytes_traversed = inode_sector_map_direct_helper (root->disk_block,
     bytes_traversed, root->length, map_fn);
   
-  /* Since the first indirect block is it's own block, we set the 
-    index high so that it rolls over to the doubly indirect block */
-  int dubinder_index = INODE_CONSISTENT_BLOCKS;
+  int i;
 
-  block_sector_t inder_block = get_sector_from_block 
-    (root->disk_block, INODE_ROOT_INDIRECT_INDEX);
-  block_sector_t dubinder_block = get_sector_from_block 
-    (root->disk_block, INODE_ROOT_DUBINDER_INDEX);
-
-  /* This loop handles all singly indirect blocks and their children.
-     After this loop completes, only the root block and the doubly
-     indirect block have not been passed in. */ 
-  bool end_of_file = false;
-  while (!end_of_file)
+  /* Iterate over all indirect blocks at the root level */
+  for (i = 0; i < INODE_NUM_INDIRECT_BLOCKS; i++)
   {
-    bytes_traversed = inode_sector_map_direct_helper
-      (inder_block, bytes_traversed, root->length, map_fn);
+    int indir_index = INODE_INDIRECT_INDEX_BASE + i;
+    block_sector_t indirect_sector = get_sector_from_block 
+      (root->disk_block, indir_index);
 
-    end_of_file = (bytes_traversed >= root->length);
+    bytes_traversed = inode_sector_map_direct_helper (indirect_sector,
+        bytes_traversed, root->length, map_fn);
 
-    /* Handle a partially filled blocks*/
-    if (end_of_file) 
-    {
-      if (inder_block != INODE_INVALID_BLOCK_SECTOR)
-        map_fn (inder_block, true);
-
-      if (dubinder_block != INODE_INVALID_BLOCK_SECTOR) 
-        map_fn (dubinder_block, true);
-
-      /* Pass in the sector that contains the root inode */
-      map_fn (root->disk_block, true);
-      break;
-    }
-
-    /* Update indirect index in doubly indirect block */
-    dubinder_index++;
-    if (dubinder_index >= INODE_CONSISTENT_BLOCKS)
-      dubinder_index = 0;
-
-    if (inder_block != INODE_INVALID_BLOCK_SECTOR)
-      map_fn (inder_block, true);
-
-    inder_block = get_sector_from_block 
-      (dubinder_block, dubinder_index); 
+    if (indirect_sector != INODE_INVALID_BLOCK_SECTOR) 
+      map_fn (indirect_sector, false);
   }
 
+  /* Iterate over all the doubly indirect blocks at root level */
+  for (i = 0; i < INODE_NUM_DUBINDER_BLOCKS; i++)
+  {
+    int dubinder_index = INODE_DUBINDER_INDEX_BASE + i;
+    block_sector_t dubinder_sector = get_sector_from_block
+      (root->disk_block, dubinder_index);
+
+    int indir_index = 0;
+    while (bytes_traversed < root->length 
+        && indir_index < INODE_CONSISTENT_BLOCKS)
+    {
+      block_sector_t indirect_sector = 
+        get_sector_from_block (dubinder_sector, indir_index);
+      bytes_traversed = inode_sector_map_direct_helper
+        (indirect_sector, bytes_traversed, root->length, map_fn);
+      indir_index++;
+      if (indirect_sector != INODE_INVALID_BLOCK_SECTOR) 
+        map_fn (indirect_sector, false);
+    }
+
+    if (dubinder_sector != INODE_INVALID_BLOCK_SECTOR)
+      map_fn (dubinder_sector, true);
+  }
+
+  /* Map over the root inode sector */
+  map_fn (root->disk_block, true);
 }
+  
 
 /* Initializes the inode module. */
 void
@@ -351,7 +375,8 @@ inode_open (block_sector_t sector)
   /* Read length and directory flag from block */
   int read = buffercache_read (sector, METADATA,
                                offsetof (struct inode_disk, length),
-                               sizeof (off_t) + sizeof (bool), &inode->length,
+                               sizeof (off_t) + sizeof (bool),
+                               &inode->length,
                                INODE_INVALID_BLOCK_SECTOR);
   if (read != (sizeof (off_t) + sizeof (bool)))
   {

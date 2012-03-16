@@ -34,8 +34,73 @@ No additional sources consulted.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+// This is the number of block slots total in a sector
+#define INODE_NUM_BLOCKS 125
+
+// This is the number of blocks that consistently exists at any level
+// of indirection
+#define INODE_CONSISTENT_BLOCKS 122
+
+// These are the total sizes for each level from the perspective of
+// the root inode sector
+#define INODE_DIRECT_SIZE (INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE)
+#define INODE_INDIRECT_SIZE (INODE_CONSISTENT_BLOCKS*BLOCK_SECTOR_SIZE)
+#define INODE_DUBINDER_SIZE (INODE_INDIRECT_SIZE*INODE_CONSISTENT_BLOCKS)
+
+// These are the number of blocks of these levels at the root level
+#define INODE_NUM_INDIRECT_BLOCKS 1
+#define INODE_NUM_DUBINDER_BLOCKS 2
+
+// These are the offsets in terms of bytes into each of the following
+// levels
+#define INODE_INDIRECT_OFFSET INODE_DIRECT_SIZE
+#define INODE_DUBINDER_OFFSET (INODE_INDIRECT_OFFSET+INODE_NUM_INDIRECT_BLOCKS*INODE_INDIRECT_SIZE)
+
+// These are the indices of the block in the array of blocks
+#define INODE_INDIRECT_INDEX_BASE INODE_CONSISTENT_BLOCKS
+#define INODE_DUBINDER_INDEX_BASE (INODE_CONSISTENT_BLOCKS+INODE_NUM_INDIRECT_BLOCKS)
+
+/* On-disk inode.
+   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
+struct inode_disk
+{
+  /* All of the inode blocks contains INODE_CONSISTENT_BLOCKS of 
+     blocks for the next level of indirection. The root block uses
+     INODE_CONSISTENT_BLOCKS + 1 for the singly indirect block and
+     INODE_CONSISTENT_BLOCKS + 2 for the doubly indirect block */
+  block_sector_t sectors[INODE_NUM_BLOCKS];
+  off_t length;                 /* File size in bytes. */
+  bool directory;               /* true if this inode represents a directory */
+  uint8_t padding[3];           /* padding */
+  unsigned magic;               /* Magic number. */
+};
+
+/* In-memory inode. */
+struct inode {
+  block_sector_t disk_block;    /* Sector of this inode on disk*/
+  struct list_elem elem;        /* Element in inode list. */
+  off_t length;
+  bool directory;               /* true if this inode represents a directory */
+  int open_cnt;                 /* Number of openers. */
+  bool removed;                 /* True if deleted, false otherwise. */
+  int deny_write_cnt;           /* 0: writes ok, >0: deny writes. */
+  int deny_remove_cnt;          /* 0: removes ok, >0: deny removes.*/
+  struct lock lock;             
+};
+
+
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
+
+Level 0 -- 122 sectors * 512 bytes per sector 
+          = 62,464 bytes
+Level 1 -- 1 indirect block * 122 sectors * 512 bytes per sector 
+          = 62,464 bytes
+Level 2 -- 2 doubly indirect blocks * 122 indirect blocks *
+            62,464 bytes per indirect block
+          = 15,241,216 bytes
+Total   -- 15,366,144 bytes
+
 
 ---- SYNCHRONIZATION ----
 
@@ -63,6 +128,17 @@ No additional sources consulted.
 >> indirect blocks?  If not, why did you choose an alternative inode
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
+
+Our inode struct is a multilevel index. We chose 2 doubly indirect 
+blocks because it would easily get us the needed file size 
+representation. There is a single singly indirect block but this was
+more or less arbitrary. It is possible to modify the number of each of
+these blocks in our implementation.  In general, one would want to
+have a number of indirect blocks such that the number of bytes
+representable covers most of the "medium sized" files in the system.
+Since we wanted to keep the one to one mapping between inodes and
+sector numbers, we filled the rest of the root inode sector with
+direct blocks.
 
                             SUBDIRECTORIES
                             ==============
