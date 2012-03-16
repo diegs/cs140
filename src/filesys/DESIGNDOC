@@ -107,6 +107,17 @@ Total   -- 15,366,144 bytes
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
 
+A query for the sector that contains a particular offset into the file
+is atomic along with allocating the sector if it doesn't exist. This
+means that if there are two threads trying to write to the same offset
+beyond the end of the file, exactly one sector will be allocated for
+it. We accomplish this simply by locking the entire byte_to_sector
+function based on the inode lock. We also lock the statement that
+updates the length of the inode after a write beyond the end of the
+file if the logical length is smaller than the offset of the last byte
+we wrote. Thus, in a race condition, the larger length will always 
+persist after all threads are done.
+
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
 >> time, A may read all, part, or none of what B writes.  However, A
@@ -114,12 +125,22 @@ Total   -- 15,366,144 bytes
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
+Since an update to the length field happens only after the entire
+extension has been written, A will see no data in our implementation 
+if it tries to read while B is writing. A will see the entire 
+extension if it tries to read after B has finished writing.
+
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
 >> or vice versa.  That is, many processes reading from a file cannot
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
+
+Our synchronization scheme provides as much fairness as the thread
+scheduler because we have no condition variables at the inode level;
+readers and writers are not treated differently when they are trying
+to acquire a lock.
 
 ---- RATIONALE ----
 

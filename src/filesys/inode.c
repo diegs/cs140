@@ -515,32 +515,37 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     return 0;
 
   while (size > 0) 
-    {
-      /* Sector to write, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset, true);
-	  if (sector_idx == INODE_INVALID_BLOCK_SECTOR) break;
-      int sector_ofs = offset % BLOCK_SECTOR_SIZE;
+  {
+    /* Sector to write, starting byte offset within sector. */
+    block_sector_t sector_idx = byte_to_sector (inode, offset, true);
+    if (sector_idx == INODE_INVALID_BLOCK_SECTOR) break;
+    int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
-      /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
+    /* Bytes left in inode, bytes left in sector, lesser of the two. */
+    int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
 
-      /* Number of bytes to actually write into this sector. */
-      int chunk_size = size < sector_left ? size : sector_left;
-      if (chunk_size <= 0)
-        break;
+    /* Number of bytes to actually write into this sector. */
+    int chunk_size = size < sector_left ? size : sector_left;
+    if (chunk_size <= 0)
+      break;
 
-      /* Write chunk to this sector. */
-      int wrote = buffercache_write (sector_idx, REGULAR, sector_ofs,
-                                     chunk_size, buffer + bytes_written,
-                                     byte_to_sector (inode, offset+chunk_size,
-                                                     false));
-      /* Advance. */
-      size -= wrote;
-      offset += wrote;
-      bytes_written += wrote;
-	  if (wrote != chunk_size) break;
-    }
+    /* Write chunk to this sector. */
+    int wrote = buffercache_write (sector_idx, REGULAR, sector_ofs,
+        chunk_size, buffer + bytes_written,
+        byte_to_sector (inode, offset+chunk_size,
+          false));
+    /* Advance. */
+    size -= wrote;
+    offset += wrote;
+    bytes_written += wrote;
+    if (wrote != chunk_size) break;
+  }
+
+  /* Handle file extension */
+  lock_acquire (&inode->lock);
   if (offset + bytes_written > inode->length) inode->length = offset;
+  lock_release (&inode->lock);
+
   return bytes_written;
 }
 
