@@ -228,6 +228,14 @@ it open.
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
 
+We chose to represent the current directory of a process as a field in
+struct thread, which stores the block number of the current directory.  On
+thread creation, we initialize it to the root directory's sector, or an
+inherited directory's sector.  We chose the sector number over, say, the
+directory's string representation because this was more robust when it
+came to name changes -- the directory's name may change, but the sector
+backing it shouldn't change. 
+
                              BUFFER CACHE
                              ============
 
