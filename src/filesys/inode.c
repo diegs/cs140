@@ -157,7 +157,9 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
 {
   ASSERT (root != NULL);
 
-  lock_acquire (&root->lock);
+  bool lock_held = lock_held_by_current_thread (&root->lock);
+  if (!lock_held)
+	lock_acquire (&root->lock);
 
   block_sector_t indirect_sector = root->disk_block;
   block_sector_t dubindirect_sector = INODE_INVALID_BLOCK_SECTOR;
@@ -212,8 +214,8 @@ byte_to_sector (struct inode *root, off_t pos, bool create)
     result = verify_sector (indirect_sector, direct_index,
         true, create_final); 
   }
-
-  lock_release (&root->lock);
+  if (!lock_held)
+	lock_release (&root->lock);
 
   return result;
 }
@@ -542,9 +544,12 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   }
 
   /* Handle file extension */
-  lock_acquire (&inode->lock);
+  bool lock_held = lock_held_by_current_thread (&inode->lock);
+  if (!lock_held)
+	lock_acquire (&inode->lock);
   if (offset + bytes_written > inode->length) inode->length = offset;
-  lock_release (&inode->lock);
+  if (!lock_held)
+	lock_release (&inode->lock);
 
   return bytes_written;
 }

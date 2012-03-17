@@ -38,15 +38,16 @@ dir_create (block_sector_t sector, block_sector_t parent)
 
   /* Create sector with enough room for two entries */
   status = inode_create (sector, 2 * sizeof (struct dir_entry), true);
+	
   if (!status) return status;
 
   /* Add entries for '.' and '..' */
-  dir = dir_open (inode_open (sector));
+  struct inode *i = inode_open (sector);
+  dir = dir_open (i);
   if (dir == NULL) return false;
 
   dir_add (dir, ".", sector);
   dir_add (dir, "..", parent);
-
   dir_close (dir);
 
   return true;
@@ -179,6 +180,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
      inode_read_at() will only return a short read at end of file.
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
+  inode_lock_acquire (dir->inode);
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
     if (!e.in_use)
@@ -189,7 +191,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-
+  inode_lock_release (dir->inode);
 done:
   return success;
 }
@@ -208,6 +210,7 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
+  inode_lock_acquire (dir->inode);
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
@@ -236,6 +239,7 @@ dir_remove (struct dir *dir, const char *name)
   success = inode_remove (inode);
 
 done:
+  inode_lock_release (dir->inode);
   inode_close (inode);
   return success;
 }
@@ -249,6 +253,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   struct dir_entry e;
 
   bool result = false;
+  inode_lock_acquire (dir->inode);
   while (!result && 
       inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
   {
@@ -259,6 +264,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
     } 
     dir->pos += sizeof e;
   }
+  inode_lock_release (dir->inode);
   return result;
 }
 
@@ -387,13 +393,13 @@ dir_size (struct dir *dir)
   size_t count = 0;
 
   ASSERT (dir != NULL);
-
+  inode_lock_acquire (dir->inode);
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
   {
     if (e.in_use)
       count++;
   }
-
+  inode_lock_release (dir->inode);
   return count - 2;
 }
