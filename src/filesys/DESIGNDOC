@@ -170,10 +170,36 @@ direct blocks.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* A directory. */
+struct dir 
+{
+  struct inode *inode;   /* Backing store. */
+  off_t pos;             /* Current position. */
+};
+
+/* A single entry within a directory. */
+struct dir_entry 
+{
+  block_sector_t inode_sector;        /* Sector number of header. */
+  char name[NAME_MAX + 1];            /* Null terminated file name. */
+  bool in_use;                        /* In use or free? */
+};
+
+
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
+
+When we start to parse a path, we first identify the starting point from
+which we traverse the file system.  If the first character in the path is
+'/', we start from the root, and if it isn't, then we start from the
+thread's current working directory.  Then, with this starting point saved
+as our "traversal current directory", we iterate over the path string,
+looking up every token separated by '/' in our traversal current working
+directory, and updating our traversal cwd to that entry if it is found.
+If we couldn't find it, we return error.  When we reach the last token in
+the string, we return that directory.
 
 ---- SYNCHRONIZATION ----
 
@@ -186,6 +212,11 @@ direct blocks.
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
+
+We abstract a lot of the directory logic to the inode layer.  When we call
+dir_remove, that calls inode_remove, which marks an inode for deletion,
+and it will only get deleted when it is closed by all processes who have
+it open.
 
 ---- RATIONALE ----
 
