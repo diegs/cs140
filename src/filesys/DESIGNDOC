@@ -208,8 +208,10 @@ the string, we return that directory.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
-Reads and writes to the directory are protected by the lock of the
-inode backing the directory.
+Reads and writes to the directory are protected by a directory lock.  In
+the case where two processes try to delete an entry, one will execute
+dir_remove atomically and remove the entry, and the next will acquire the
+lock and won't be able to find the entry it's trying to remove.
 
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
