@@ -14,6 +14,7 @@ struct dir
 {
   struct inode *inode;   /* Backing store. */
   off_t pos;             /* Current position. */
+  struct lock l;		 /* Directory lock */
 };
 
 /* A single directory entry. */
@@ -63,6 +64,7 @@ dir_open (struct inode *inode)
   {
     dir->inode = inode;
     dir->pos = 2 * sizeof (struct dir_entry);
+	lock_init (&dir->l);
     return dir;
   }
   else
@@ -169,6 +171,8 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
 
+  lock_acquire (&dir->l);
+
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
     goto done;
@@ -180,7 +184,6 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
      inode_read_at() will only return a short read at end of file.
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
-  inode_lock_acquire (dir->inode);
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
     if (!e.in_use)
@@ -191,8 +194,8 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-  inode_lock_release (dir->inode);
 done:
+  lock_release (&dir->l);
   return success;
 }
 
@@ -210,7 +213,7 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  inode_lock_acquire (dir->inode);
+  lock_acquire (&dir->l);
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
@@ -239,7 +242,7 @@ dir_remove (struct dir *dir, const char *name)
   success = inode_remove (inode);
 
 done:
-  inode_lock_release (dir->inode);
+  lock_release (&dir->l);
   inode_close (inode);
   return success;
 }
@@ -253,7 +256,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   struct dir_entry e;
 
   bool result = false;
-  inode_lock_acquire (dir->inode);
+  lock_acquire (&dir->l);
   while (!result && 
       inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
   {
@@ -264,7 +267,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
     } 
     dir->pos += sizeof e;
   }
-  inode_lock_release (dir->inode);
+  lock_release (&dir->l);
   return result;
 }
 
@@ -319,7 +322,6 @@ path_traverse (char *path, struct thread *t)
   {
     sector = free_map_root_sector ();
     path++;
-
     if (t != NULL) thread_clear_dirs (t);
   } else {
     sector = thread_get_cwd ();
@@ -393,13 +395,13 @@ dir_size (struct dir *dir)
   size_t count = 0;
 
   ASSERT (dir != NULL);
-  inode_lock_acquire (dir->inode);
+  lock_acquire (&dir->l);
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
   {
     if (e.in_use)
       count++;
   }
-  inode_lock_release (dir->inode);
+  lock_release (&dir->l);
   return count - 2;
 }

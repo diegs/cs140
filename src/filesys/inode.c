@@ -611,12 +611,3 @@ void inode_allow_remove (struct inode *inode)
   lock_release (&inode->lock);
 }
 
-void inode_lock_acquire (struct inode *inode)
-{
-  lock_acquire (&inode->lock);
-}
-
-void inode_lock_release (struct inode *inode)
-{
-  lock_release (&inode->lock);
-}

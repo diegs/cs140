@@ -208,6 +208,9 @@ the string, we return that directory.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
+Reads and writes to the directory are protected by the lock of the
+inode backing the directory.
+
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
