@@ -170,15 +170,15 @@ direct blocks.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* A directory. */
 struct dir 
 {
   struct inode *inode;   /* Backing store. */
   off_t pos;             /* Current position. */
-  struct lock l;
+  struct lock l;		 /* Directory lock */
 };
+This is our in-memory directory representation.  Each directory is backed
+by an inode.
 
-/* A single entry within a directory. */
 struct dir_entry 
 {
   block_sector_t inode_sector;        /* Sector number of header. */
@@ -186,6 +186,9 @@ struct dir_entry
   bool in_use;                        /* In use or free? */
 };
 
+Each entry within a directory contains a flag indicating that it's free or
+in use, and if it's in use, it contains the file or directory's sector and
+its name.
 
 ---- ALGORITHMS ----
 
