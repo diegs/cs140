@@ -175,6 +175,7 @@ struct dir
 {
   struct inode *inode;   /* Backing store. */
   off_t pos;             /* Current position. */
+  struct lock l;
 };
 
 /* A single entry within a directory. */
