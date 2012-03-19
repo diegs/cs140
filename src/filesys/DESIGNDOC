@@ -188,7 +188,7 @@ struct dir_entry
 
 Each entry within a directory contains a flag indicating that it's free or
 in use, and if it's in use, it contains the file or directory's sector and
-its name.
+name.
 
 ---- ALGORITHMS ----
 
@@ -215,7 +215,12 @@ the string, we return that directory.
 Reads and writes to the directory are protected by a directory lock.  In
 the case where two processes try to delete an entry, one will execute
 dir_remove atomically and remove the entry, and the next will acquire the
-lock and won't be able to find the entry it's trying to remove.
+lock and won't be able to find the entry it's trying to remove.  In the
+case where two threads try to create a file with the same name, one will
+execute atomically under the directory lock, release the lock, and the
+second thread will acquire the directory lock, see that something by that
+name already exists, and return without re-adding the file.  All
+operations that modify a directory are run under the directory lock.
 
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
@@ -225,7 +230,15 @@ lock and won't be able to find the entry it's trying to remove.
 We abstract a lot of the directory logic to the inode layer.  When we call
 dir_remove, that calls inode_remove, which marks an inode for deletion,
 and it will only get deleted when it is closed by all processes who have
-it open.
+it open.  
+If we remove a process' current working directory, we don't take
+any action immediately, but the next time that thread attempts an
+operation using its current working directory, it won't be able to see the
+removed directory entries, including '.'.  That thread can escape the bad
+state by changing directories using an absolute path, however.  We chose
+to model this after the Linux style of directory deletion -- a directory
+can be deleted from underneath a process, but the process doesn't discover
+this until it attempts an operation on the current directory.
 
 ---- RATIONALE ----
 

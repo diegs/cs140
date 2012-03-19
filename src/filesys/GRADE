@@ -1,4 +1,832 @@
 cd build && make grade
-make[1]: Entering directory `/afs/ir.stanford.edu/users/d/p/dpontori/cs140/pintos/src/filesys/build'
-make[1]: `grade' is up to date.
-make[1]: Leaving directory `/afs/ir.stanford.edu/users/d/p/dpontori/cs140/pintos/src/filesys/build'
+make[1]: Entering directory `/afs/ir.stanford.edu/users/e/g/egillie/cs140/pintos/src/filesys/build'
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-none -a args-none --swap-size=4 -- -q  -f run args-none < /dev/null 2> tests/userprog/args-none.errors > tests/userprog/args-none.output
+perl -I../.. ../../tests/userprog/args-none.ck tests/userprog/args-none tests/userprog/args-none.result
+pass tests/userprog/args-none
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-single -a args-single --swap-size=4 -- -q  -f run 'args-single onearg' < /dev/null 2> tests/userprog/args-single.errors > tests/userprog/args-single.output
+perl -I../.. ../../tests/userprog/args-single.ck tests/userprog/args-single tests/userprog/args-single.result
+pass tests/userprog/args-single
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-multiple -a args-multiple --swap-size=4 -- -q  -f run 'args-multiple some arguments for you!' < /dev/null 2> tests/userprog/args-multiple.errors > tests/userprog/args-multiple.output
+perl -I../.. ../../tests/userprog/args-multiple.ck tests/userprog/args-multiple tests/userprog/args-multiple.result
+pass tests/userprog/args-multiple
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-many -a args-many --swap-size=4 -- -q  -f run 'args-many a b c d e f g h i j k l m n o p q r s t u v' < /dev/null 2> tests/userprog/args-many.errors > tests/userprog/args-many.output
+perl -I../.. ../../tests/userprog/args-many.ck tests/userprog/args-many tests/userprog/args-many.result
+pass tests/userprog/args-many
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/args-dbl-space -a args-dbl-space --swap-size=4 -- -q  -f run 'args-dbl-space two  spaces!' < /dev/null 2> tests/userprog/args-dbl-space.errors > tests/userprog/args-dbl-space.output
+perl -I../.. ../../tests/userprog/args-dbl-space.ck tests/userprog/args-dbl-space tests/userprog/args-dbl-space.result
+pass tests/userprog/args-dbl-space
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-bad-sp -a sc-bad-sp --swap-size=4 -- -q  -f run sc-bad-sp < /dev/null 2> tests/userprog/sc-bad-sp.errors > tests/userprog/sc-bad-sp.output
+perl -I../.. ../../tests/userprog/sc-bad-sp.ck tests/userprog/sc-bad-sp tests/userprog/sc-bad-sp.result
+pass tests/userprog/sc-bad-sp
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-bad-arg -a sc-bad-arg --swap-size=4 -- -q  -f run sc-bad-arg < /dev/null 2> tests/userprog/sc-bad-arg.errors > tests/userprog/sc-bad-arg.output
+perl -I../.. ../../tests/userprog/sc-bad-arg.ck tests/userprog/sc-bad-arg tests/userprog/sc-bad-arg.result
+pass tests/userprog/sc-bad-arg
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-boundary -a sc-boundary --swap-size=4 -- -q  -f run sc-boundary < /dev/null 2> tests/userprog/sc-boundary.errors > tests/userprog/sc-boundary.output
+perl -I../.. ../../tests/userprog/sc-boundary.ck tests/userprog/sc-boundary tests/userprog/sc-boundary.result
+pass tests/userprog/sc-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/sc-boundary-2 -a sc-boundary-2 --swap-size=4 -- -q  -f run sc-boundary-2 < /dev/null 2> tests/userprog/sc-boundary-2.errors > tests/userprog/sc-boundary-2.output
+perl -I../.. ../../tests/userprog/sc-boundary-2.ck tests/userprog/sc-boundary-2 tests/userprog/sc-boundary-2.result
+pass tests/userprog/sc-boundary-2
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/halt -a halt --swap-size=4 -- -q  -f run halt < /dev/null 2> tests/userprog/halt.errors > tests/userprog/halt.output
+perl -I../.. ../../tests/userprog/halt.ck tests/userprog/halt tests/userprog/halt.result
+pass tests/userprog/halt
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exit -a exit --swap-size=4 -- -q  -f run exit < /dev/null 2> tests/userprog/exit.errors > tests/userprog/exit.output
+perl -I../.. ../../tests/userprog/exit.ck tests/userprog/exit tests/userprog/exit.result
+pass tests/userprog/exit
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-normal -a create-normal --swap-size=4 -- -q  -f run create-normal < /dev/null 2> tests/userprog/create-normal.errors > tests/userprog/create-normal.output
+perl -I../.. ../../tests/userprog/create-normal.ck tests/userprog/create-normal tests/userprog/create-normal.result
+pass tests/userprog/create-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-empty -a create-empty --swap-size=4 -- -q  -f run create-empty < /dev/null 2> tests/userprog/create-empty.errors > tests/userprog/create-empty.output
+perl -I../.. ../../tests/userprog/create-empty.ck tests/userprog/create-empty tests/userprog/create-empty.result
+pass tests/userprog/create-empty
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-null -a create-null --swap-size=4 -- -q  -f run create-null < /dev/null 2> tests/userprog/create-null.errors > tests/userprog/create-null.output
+perl -I../.. ../../tests/userprog/create-null.ck tests/userprog/create-null tests/userprog/create-null.result
+pass tests/userprog/create-null
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-bad-ptr -a create-bad-ptr --swap-size=4 -- -q  -f run create-bad-ptr < /dev/null 2> tests/userprog/create-bad-ptr.errors > tests/userprog/create-bad-ptr.output
+perl -I../.. ../../tests/userprog/create-bad-ptr.ck tests/userprog/create-bad-ptr tests/userprog/create-bad-ptr.result
+pass tests/userprog/create-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-long -a create-long --swap-size=4 -- -q  -f run create-long < /dev/null 2> tests/userprog/create-long.errors > tests/userprog/create-long.output
+perl -I../.. ../../tests/userprog/create-long.ck tests/userprog/create-long tests/userprog/create-long.result
+pass tests/userprog/create-long
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-exists -a create-exists --swap-size=4 -- -q  -f run create-exists < /dev/null 2> tests/userprog/create-exists.errors > tests/userprog/create-exists.output
+perl -I../.. ../../tests/userprog/create-exists.ck tests/userprog/create-exists tests/userprog/create-exists.result
+pass tests/userprog/create-exists
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/create-bound -a create-bound --swap-size=4 -- -q  -f run create-bound < /dev/null 2> tests/userprog/create-bound.errors > tests/userprog/create-bound.output
+perl -I../.. ../../tests/userprog/create-bound.ck tests/userprog/create-bound tests/userprog/create-bound.result
+pass tests/userprog/create-bound
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-normal -a open-normal -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run open-normal < /dev/null 2> tests/userprog/open-normal.errors > tests/userprog/open-normal.output
+perl -I../.. ../../tests/userprog/open-normal.ck tests/userprog/open-normal tests/userprog/open-normal.result
+pass tests/userprog/open-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-missing -a open-missing --swap-size=4 -- -q  -f run open-missing < /dev/null 2> tests/userprog/open-missing.errors > tests/userprog/open-missing.output
+perl -I../.. ../../tests/userprog/open-missing.ck tests/userprog/open-missing tests/userprog/open-missing.result
+pass tests/userprog/open-missing
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-boundary -a open-boundary -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run open-boundary < /dev/null 2> tests/userprog/open-boundary.errors > tests/userprog/open-boundary.output
+perl -I../.. ../../tests/userprog/open-boundary.ck tests/userprog/open-boundary tests/userprog/open-boundary.result
+pass tests/userprog/open-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-empty -a open-empty --swap-size=4 -- -q  -f run open-empty < /dev/null 2> tests/userprog/open-empty.errors > tests/userprog/open-empty.output
+perl -I../.. ../../tests/userprog/open-empty.ck tests/userprog/open-empty tests/userprog/open-empty.result
+pass tests/userprog/open-empty
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-null -a open-null --swap-size=4 -- -q  -f run open-null < /dev/null 2> tests/userprog/open-null.errors > tests/userprog/open-null.output
+perl -I../.. ../../tests/userprog/open-null.ck tests/userprog/open-null tests/userprog/open-null.result
+pass tests/userprog/open-null
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-bad-ptr -a open-bad-ptr --swap-size=4 -- -q  -f run open-bad-ptr < /dev/null 2> tests/userprog/open-bad-ptr.errors > tests/userprog/open-bad-ptr.output
+perl -I../.. ../../tests/userprog/open-bad-ptr.ck tests/userprog/open-bad-ptr tests/userprog/open-bad-ptr.result
+pass tests/userprog/open-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/open-twice -a open-twice -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run open-twice < /dev/null 2> tests/userprog/open-twice.errors > tests/userprog/open-twice.output
+perl -I../.. ../../tests/userprog/open-twice.ck tests/userprog/open-twice tests/userprog/open-twice.result
+pass tests/userprog/open-twice
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-normal -a close-normal -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run close-normal < /dev/null 2> tests/userprog/close-normal.errors > tests/userprog/close-normal.output
+perl -I../.. ../../tests/userprog/close-normal.ck tests/userprog/close-normal tests/userprog/close-normal.result
+pass tests/userprog/close-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-twice -a close-twice -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run close-twice < /dev/null 2> tests/userprog/close-twice.errors > tests/userprog/close-twice.output
+perl -I../.. ../../tests/userprog/close-twice.ck tests/userprog/close-twice tests/userprog/close-twice.result
+pass tests/userprog/close-twice
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-stdin -a close-stdin --swap-size=4 -- -q  -f run close-stdin < /dev/null 2> tests/userprog/close-stdin.errors > tests/userprog/close-stdin.output
+perl -I../.. ../../tests/userprog/close-stdin.ck tests/userprog/close-stdin tests/userprog/close-stdin.result
+pass tests/userprog/close-stdin
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-stdout -a close-stdout --swap-size=4 -- -q  -f run close-stdout < /dev/null 2> tests/userprog/close-stdout.errors > tests/userprog/close-stdout.output
+perl -I../.. ../../tests/userprog/close-stdout.ck tests/userprog/close-stdout tests/userprog/close-stdout.result
+pass tests/userprog/close-stdout
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/close-bad-fd -a close-bad-fd --swap-size=4 -- -q  -f run close-bad-fd < /dev/null 2> tests/userprog/close-bad-fd.errors > tests/userprog/close-bad-fd.output
+perl -I../.. ../../tests/userprog/close-bad-fd.ck tests/userprog/close-bad-fd tests/userprog/close-bad-fd.result
+pass tests/userprog/close-bad-fd
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-normal -a read-normal -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run read-normal < /dev/null 2> tests/userprog/read-normal.errors > tests/userprog/read-normal.output
+perl -I../.. ../../tests/userprog/read-normal.ck tests/userprog/read-normal tests/userprog/read-normal.result
+pass tests/userprog/read-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-bad-ptr -a read-bad-ptr -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run read-bad-ptr < /dev/null 2> tests/userprog/read-bad-ptr.errors > tests/userprog/read-bad-ptr.output
+perl -I../.. ../../tests/userprog/read-bad-ptr.ck tests/userprog/read-bad-ptr tests/userprog/read-bad-ptr.result
+pass tests/userprog/read-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-boundary -a read-boundary -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run read-boundary < /dev/null 2> tests/userprog/read-boundary.errors > tests/userprog/read-boundary.output
+perl -I../.. ../../tests/userprog/read-boundary.ck tests/userprog/read-boundary tests/userprog/read-boundary.result
+pass tests/userprog/read-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-zero -a read-zero -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run read-zero < /dev/null 2> tests/userprog/read-zero.errors > tests/userprog/read-zero.output
+perl -I../.. ../../tests/userprog/read-zero.ck tests/userprog/read-zero tests/userprog/read-zero.result
+pass tests/userprog/read-zero
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-stdout -a read-stdout --swap-size=4 -- -q  -f run read-stdout < /dev/null 2> tests/userprog/read-stdout.errors > tests/userprog/read-stdout.output
+perl -I../.. ../../tests/userprog/read-stdout.ck tests/userprog/read-stdout tests/userprog/read-stdout.result
+pass tests/userprog/read-stdout
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/read-bad-fd -a read-bad-fd --swap-size=4 -- -q  -f run read-bad-fd < /dev/null 2> tests/userprog/read-bad-fd.errors > tests/userprog/read-bad-fd.output
+perl -I../.. ../../tests/userprog/read-bad-fd.ck tests/userprog/read-bad-fd tests/userprog/read-bad-fd.result
+pass tests/userprog/read-bad-fd
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/write-normal -a write-normal -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run write-normal < /dev/null 2> tests/userprog/write-normal.errors > tests/userprog/write-normal.output
+perl -I../.. ../../tests/userprog/write-normal.ck tests/userprog/write-normal tests/userprog/write-normal.result
+pass tests/userprog/write-normal
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/write-bad-ptr -a write-bad-ptr -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run write-bad-ptr < /dev/null 2> tests/userprog/write-bad-ptr.errors > tests/userprog/write-bad-ptr.output
+perl -I../.. ../../tests/userprog/write-bad-ptr.ck tests/userprog/write-bad-ptr tests/userprog/write-bad-ptr.result
+pass tests/userprog/write-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/write-boundary -a write-boundary -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run write-boundary < /dev/null 2> tests/userprog/write-boundary.errors > tests/userprog/write-boundary.output
+perl -I../.. ../../tests/userprog/write-boundary.ck tests/userprog/write-boundary tests/userprog/write-boundary.result
+pass tests/userprog/write-boundary
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/write-zero -a write-zero -p ../../tests/userprog/sample.txt -a sample.txt --swap-size=4 -- -q  -f run write-zero < /dev/null 2> tests/userprog/write-zero.errors > tests/userprog/write-zero.output
+perl -I../.. ../../tests/userprog/write-zero.ck tests/userprog/write-zero tests/userprog/write-zero.result
+pass tests/userprog/write-zero
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/write-stdin -a write-stdin --swap-size=4 -- -q  -f run write-stdin < /dev/null 2> tests/userprog/write-stdin.errors > tests/userprog/write-stdin.output
+perl -I../.. ../../tests/userprog/write-stdin.ck tests/userprog/write-stdin tests/userprog/write-stdin.result
+pass tests/userprog/write-stdin
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/write-bad-fd -a write-bad-fd --swap-size=4 -- -q  -f run write-bad-fd < /dev/null 2> tests/userprog/write-bad-fd.errors > tests/userprog/write-bad-fd.output
+perl -I../.. ../../tests/userprog/write-bad-fd.ck tests/userprog/write-bad-fd tests/userprog/write-bad-fd.result
+pass tests/userprog/write-bad-fd
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exec-once -a exec-once -p tests/userprog/child-simple -a child-simple --swap-size=4 -- -q  -f run exec-once < /dev/null 2> tests/userprog/exec-once.errors > tests/userprog/exec-once.output
+perl -I../.. ../../tests/userprog/exec-once.ck tests/userprog/exec-once tests/userprog/exec-once.result
+pass tests/userprog/exec-once
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exec-arg -a exec-arg -p tests/userprog/child-args -a child-args --swap-size=4 -- -q  -f run exec-arg < /dev/null 2> tests/userprog/exec-arg.errors > tests/userprog/exec-arg.output
+perl -I../.. ../../tests/userprog/exec-arg.ck tests/userprog/exec-arg tests/userprog/exec-arg.result
+pass tests/userprog/exec-arg
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exec-multiple -a exec-multiple -p tests/userprog/child-simple -a child-simple --swap-size=4 -- -q  -f run exec-multiple < /dev/null 2> tests/userprog/exec-multiple.errors > tests/userprog/exec-multiple.output
+perl -I../.. ../../tests/userprog/exec-multiple.ck tests/userprog/exec-multiple tests/userprog/exec-multiple.result
+pass tests/userprog/exec-multiple
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exec-missing -a exec-missing --swap-size=4 -- -q  -f run exec-missing < /dev/null 2> tests/userprog/exec-missing.errors > tests/userprog/exec-missing.output
+perl -I../.. ../../tests/userprog/exec-missing.ck tests/userprog/exec-missing tests/userprog/exec-missing.result
+pass tests/userprog/exec-missing
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/exec-bad-ptr -a exec-bad-ptr --swap-size=4 -- -q  -f run exec-bad-ptr < /dev/null 2> tests/userprog/exec-bad-ptr.errors > tests/userprog/exec-bad-ptr.output
+perl -I../.. ../../tests/userprog/exec-bad-ptr.ck tests/userprog/exec-bad-ptr tests/userprog/exec-bad-ptr.result
+pass tests/userprog/exec-bad-ptr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/wait-simple -a wait-simple -p tests/userprog/child-simple -a child-simple --swap-size=4 -- -q  -f run wait-simple < /dev/null 2> tests/userprog/wait-simple.errors > tests/userprog/wait-simple.output
+perl -I../.. ../../tests/userprog/wait-simple.ck tests/userprog/wait-simple tests/userprog/wait-simple.result
+pass tests/userprog/wait-simple
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/wait-twice -a wait-twice -p tests/userprog/child-simple -a child-simple --swap-size=4 -- -q  -f run wait-twice < /dev/null 2> tests/userprog/wait-twice.errors > tests/userprog/wait-twice.output
+perl -I../.. ../../tests/userprog/wait-twice.ck tests/userprog/wait-twice tests/userprog/wait-twice.result
+pass tests/userprog/wait-twice
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/wait-killed -a wait-killed -p tests/userprog/child-bad -a child-bad --swap-size=4 -- -q  -f run wait-killed < /dev/null 2> tests/userprog/wait-killed.errors > tests/userprog/wait-killed.output
+perl -I../.. ../../tests/userprog/wait-killed.ck tests/userprog/wait-killed tests/userprog/wait-killed.result
+pass tests/userprog/wait-killed
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/wait-bad-pid -a wait-bad-pid --swap-size=4 -- -q  -f run wait-bad-pid < /dev/null 2> tests/userprog/wait-bad-pid.errors > tests/userprog/wait-bad-pid.output
+perl -I../.. ../../tests/userprog/wait-bad-pid.ck tests/userprog/wait-bad-pid tests/userprog/wait-bad-pid.result
+pass tests/userprog/wait-bad-pid
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/multi-recurse -a multi-recurse --swap-size=4 -- -q  -f run 'multi-recurse 15' < /dev/null 2> tests/userprog/multi-recurse.errors > tests/userprog/multi-recurse.output
+perl -I../.. ../../tests/userprog/multi-recurse.ck tests/userprog/multi-recurse tests/userprog/multi-recurse.result
+pass tests/userprog/multi-recurse
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/multi-child-fd -a multi-child-fd -p ../../tests/userprog/sample.txt -a sample.txt -p tests/userprog/child-close -a child-close --swap-size=4 -- -q  -f run multi-child-fd < /dev/null 2> tests/userprog/multi-child-fd.errors > tests/userprog/multi-child-fd.output
+perl -I../.. ../../tests/userprog/multi-child-fd.ck tests/userprog/multi-child-fd tests/userprog/multi-child-fd.result
+pass tests/userprog/multi-child-fd
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/rox-simple -a rox-simple --swap-size=4 -- -q  -f run rox-simple < /dev/null 2> tests/userprog/rox-simple.errors > tests/userprog/rox-simple.output
+perl -I../.. ../../tests/userprog/rox-simple.ck tests/userprog/rox-simple tests/userprog/rox-simple.result
+pass tests/userprog/rox-simple
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/rox-child -a rox-child -p tests/userprog/child-rox -a child-rox --swap-size=4 -- -q  -f run rox-child < /dev/null 2> tests/userprog/rox-child.errors > tests/userprog/rox-child.output
+perl -I../.. ../../tests/userprog/rox-child.ck tests/userprog/rox-child tests/userprog/rox-child.result
+pass tests/userprog/rox-child
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/rox-multichild -a rox-multichild -p tests/userprog/child-rox -a child-rox --swap-size=4 -- -q  -f run rox-multichild < /dev/null 2> tests/userprog/rox-multichild.errors > tests/userprog/rox-multichild.output
+perl -I../.. ../../tests/userprog/rox-multichild.ck tests/userprog/rox-multichild tests/userprog/rox-multichild.result
+pass tests/userprog/rox-multichild
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/bad-read -a bad-read --swap-size=4 -- -q  -f run bad-read < /dev/null 2> tests/userprog/bad-read.errors > tests/userprog/bad-read.output
+perl -I../.. ../../tests/userprog/bad-read.ck tests/userprog/bad-read tests/userprog/bad-read.result
+pass tests/userprog/bad-read
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/bad-write -a bad-write --swap-size=4 -- -q  -f run bad-write < /dev/null 2> tests/userprog/bad-write.errors > tests/userprog/bad-write.output
+perl -I../.. ../../tests/userprog/bad-write.ck tests/userprog/bad-write tests/userprog/bad-write.result
+pass tests/userprog/bad-write
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/bad-read2 -a bad-read2 --swap-size=4 -- -q  -f run bad-read2 < /dev/null 2> tests/userprog/bad-read2.errors > tests/userprog/bad-read2.output
+perl -I../.. ../../tests/userprog/bad-read2.ck tests/userprog/bad-read2 tests/userprog/bad-read2.result
+pass tests/userprog/bad-read2
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/bad-write2 -a bad-write2 --swap-size=4 -- -q  -f run bad-write2 < /dev/null 2> tests/userprog/bad-write2.errors > tests/userprog/bad-write2.output
+perl -I../.. ../../tests/userprog/bad-write2.ck tests/userprog/bad-write2 tests/userprog/bad-write2.result
+pass tests/userprog/bad-write2
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/bad-jump -a bad-jump --swap-size=4 -- -q  -f run bad-jump < /dev/null 2> tests/userprog/bad-jump.errors > tests/userprog/bad-jump.output
+perl -I../.. ../../tests/userprog/bad-jump.ck tests/userprog/bad-jump tests/userprog/bad-jump.result
+pass tests/userprog/bad-jump
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/userprog/bad-jump2 -a bad-jump2 --swap-size=4 -- -q  -f run bad-jump2 < /dev/null 2> tests/userprog/bad-jump2.errors > tests/userprog/bad-jump2.output
+perl -I../.. ../../tests/userprog/bad-jump2.ck tests/userprog/bad-jump2 tests/userprog/bad-jump2.result
+pass tests/userprog/bad-jump2
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/lg-create -a lg-create --swap-size=4 -- -q  -f run lg-create < /dev/null 2> tests/filesys/base/lg-create.errors > tests/filesys/base/lg-create.output
+perl -I../.. ../../tests/filesys/base/lg-create.ck tests/filesys/base/lg-create tests/filesys/base/lg-create.result
+pass tests/filesys/base/lg-create
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/lg-full -a lg-full --swap-size=4 -- -q  -f run lg-full < /dev/null 2> tests/filesys/base/lg-full.errors > tests/filesys/base/lg-full.output
+perl -I../.. ../../tests/filesys/base/lg-full.ck tests/filesys/base/lg-full tests/filesys/base/lg-full.result
+pass tests/filesys/base/lg-full
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/lg-random -a lg-random --swap-size=4 -- -q  -f run lg-random < /dev/null 2> tests/filesys/base/lg-random.errors > tests/filesys/base/lg-random.output
+perl -I../.. ../../tests/filesys/base/lg-random.ck tests/filesys/base/lg-random tests/filesys/base/lg-random.result
+pass tests/filesys/base/lg-random
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/lg-seq-block -a lg-seq-block --swap-size=4 -- -q  -f run lg-seq-block < /dev/null 2> tests/filesys/base/lg-seq-block.errors > tests/filesys/base/lg-seq-block.output
+perl -I../.. ../../tests/filesys/base/lg-seq-block.ck tests/filesys/base/lg-seq-block tests/filesys/base/lg-seq-block.result
+pass tests/filesys/base/lg-seq-block
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/lg-seq-random -a lg-seq-random --swap-size=4 -- -q  -f run lg-seq-random < /dev/null 2> tests/filesys/base/lg-seq-random.errors > tests/filesys/base/lg-seq-random.output
+perl -I../.. ../../tests/filesys/base/lg-seq-random.ck tests/filesys/base/lg-seq-random tests/filesys/base/lg-seq-random.result
+pass tests/filesys/base/lg-seq-random
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/sm-create -a sm-create --swap-size=4 -- -q  -f run sm-create < /dev/null 2> tests/filesys/base/sm-create.errors > tests/filesys/base/sm-create.output
+perl -I../.. ../../tests/filesys/base/sm-create.ck tests/filesys/base/sm-create tests/filesys/base/sm-create.result
+pass tests/filesys/base/sm-create
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/sm-full -a sm-full --swap-size=4 -- -q  -f run sm-full < /dev/null 2> tests/filesys/base/sm-full.errors > tests/filesys/base/sm-full.output
+perl -I../.. ../../tests/filesys/base/sm-full.ck tests/filesys/base/sm-full tests/filesys/base/sm-full.result
+pass tests/filesys/base/sm-full
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/sm-random -a sm-random --swap-size=4 -- -q  -f run sm-random < /dev/null 2> tests/filesys/base/sm-random.errors > tests/filesys/base/sm-random.output
+perl -I../.. ../../tests/filesys/base/sm-random.ck tests/filesys/base/sm-random tests/filesys/base/sm-random.result
+pass tests/filesys/base/sm-random
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/sm-seq-block -a sm-seq-block --swap-size=4 -- -q  -f run sm-seq-block < /dev/null 2> tests/filesys/base/sm-seq-block.errors > tests/filesys/base/sm-seq-block.output
+perl -I../.. ../../tests/filesys/base/sm-seq-block.ck tests/filesys/base/sm-seq-block tests/filesys/base/sm-seq-block.result
+pass tests/filesys/base/sm-seq-block
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/sm-seq-random -a sm-seq-random --swap-size=4 -- -q  -f run sm-seq-random < /dev/null 2> tests/filesys/base/sm-seq-random.errors > tests/filesys/base/sm-seq-random.output
+perl -I../.. ../../tests/filesys/base/sm-seq-random.ck tests/filesys/base/sm-seq-random tests/filesys/base/sm-seq-random.result
+pass tests/filesys/base/sm-seq-random
+pintos -v -k -T 300 --qemu  --filesys-size=2 -p tests/filesys/base/syn-read -a syn-read -p tests/filesys/base/child-syn-read -a child-syn-read --swap-size=4 -- -q  -f run syn-read < /dev/null 2> tests/filesys/base/syn-read.errors > tests/filesys/base/syn-read.output
+perl -I../.. ../../tests/filesys/base/syn-read.ck tests/filesys/base/syn-read tests/filesys/base/syn-read.result
+pass tests/filesys/base/syn-read
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/syn-remove -a syn-remove --swap-size=4 -- -q  -f run syn-remove < /dev/null 2> tests/filesys/base/syn-remove.errors > tests/filesys/base/syn-remove.output
+perl -I../.. ../../tests/filesys/base/syn-remove.ck tests/filesys/base/syn-remove tests/filesys/base/syn-remove.result
+pass tests/filesys/base/syn-remove
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/filesys/base/syn-write -a syn-write -p tests/filesys/base/child-syn-wrt -a child-syn-wrt --swap-size=4 -- -q  -f run syn-write < /dev/null 2> tests/filesys/base/syn-write.errors > tests/filesys/base/syn-write.output
+perl -I../.. ../../tests/filesys/base/syn-write.ck tests/filesys/base/syn-write tests/filesys/base/syn-write.result
+pass tests/filesys/base/syn-write
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-empty-name -a dir-empty-name -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-empty-name < /dev/null 2> tests/filesys/extended/dir-empty-name.errors > tests/filesys/extended/dir-empty-name.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-empty-name.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-empty-name-persistence.errors > tests/filesys/extended/dir-empty-name-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-empty-name.ck tests/filesys/extended/dir-empty-name tests/filesys/extended/dir-empty-name.result
+pass tests/filesys/extended/dir-empty-name
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-mk-tree -a dir-mk-tree -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-mk-tree < /dev/null 2> tests/filesys/extended/dir-mk-tree.errors > tests/filesys/extended/dir-mk-tree.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-mk-tree.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-mk-tree-persistence.errors > tests/filesys/extended/dir-mk-tree-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-mk-tree.ck tests/filesys/extended/dir-mk-tree tests/filesys/extended/dir-mk-tree.result
+pass tests/filesys/extended/dir-mk-tree
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-mkdir -a dir-mkdir -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-mkdir < /dev/null 2> tests/filesys/extended/dir-mkdir.errors > tests/filesys/extended/dir-mkdir.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-mkdir.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-mkdir-persistence.errors > tests/filesys/extended/dir-mkdir-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-mkdir.ck tests/filesys/extended/dir-mkdir tests/filesys/extended/dir-mkdir.result
+pass tests/filesys/extended/dir-mkdir
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-open -a dir-open -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-open < /dev/null 2> tests/filesys/extended/dir-open.errors > tests/filesys/extended/dir-open.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-open.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-open-persistence.errors > tests/filesys/extended/dir-open-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-open.ck tests/filesys/extended/dir-open tests/filesys/extended/dir-open.result
+pass tests/filesys/extended/dir-open
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-over-file -a dir-over-file -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-over-file < /dev/null 2> tests/filesys/extended/dir-over-file.errors > tests/filesys/extended/dir-over-file.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-over-file.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-over-file-persistence.errors > tests/filesys/extended/dir-over-file-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-over-file.ck tests/filesys/extended/dir-over-file tests/filesys/extended/dir-over-file.result
+pass tests/filesys/extended/dir-over-file
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-rm-cwd -a dir-rm-cwd -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-rm-cwd < /dev/null 2> tests/filesys/extended/dir-rm-cwd.errors > tests/filesys/extended/dir-rm-cwd.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-rm-cwd.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-rm-cwd-persistence.errors > tests/filesys/extended/dir-rm-cwd-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-rm-cwd.ck tests/filesys/extended/dir-rm-cwd tests/filesys/extended/dir-rm-cwd.result
+pass tests/filesys/extended/dir-rm-cwd
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-rm-parent -a dir-rm-parent -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-rm-parent < /dev/null 2> tests/filesys/extended/dir-rm-parent.errors > tests/filesys/extended/dir-rm-parent.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-rm-parent.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-rm-parent-persistence.errors > tests/filesys/extended/dir-rm-parent-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-rm-parent.ck tests/filesys/extended/dir-rm-parent tests/filesys/extended/dir-rm-parent.result
+pass tests/filesys/extended/dir-rm-parent
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-rm-root -a dir-rm-root -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-rm-root < /dev/null 2> tests/filesys/extended/dir-rm-root.errors > tests/filesys/extended/dir-rm-root.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-rm-root.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-rm-root-persistence.errors > tests/filesys/extended/dir-rm-root-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-rm-root.ck tests/filesys/extended/dir-rm-root tests/filesys/extended/dir-rm-root.result
+pass tests/filesys/extended/dir-rm-root
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-rm-tree -a dir-rm-tree -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-rm-tree < /dev/null 2> tests/filesys/extended/dir-rm-tree.errors > tests/filesys/extended/dir-rm-tree.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-rm-tree.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-rm-tree-persistence.errors > tests/filesys/extended/dir-rm-tree-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-rm-tree.ck tests/filesys/extended/dir-rm-tree tests/filesys/extended/dir-rm-tree.result
+pass tests/filesys/extended/dir-rm-tree
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-rmdir -a dir-rmdir -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-rmdir < /dev/null 2> tests/filesys/extended/dir-rmdir.errors > tests/filesys/extended/dir-rmdir.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-rmdir.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-rmdir-persistence.errors > tests/filesys/extended/dir-rmdir-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-rmdir.ck tests/filesys/extended/dir-rmdir tests/filesys/extended/dir-rmdir.result
+pass tests/filesys/extended/dir-rmdir
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-under-file -a dir-under-file -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-under-file < /dev/null 2> tests/filesys/extended/dir-under-file.errors > tests/filesys/extended/dir-under-file.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-under-file.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-under-file-persistence.errors > tests/filesys/extended/dir-under-file-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-under-file.ck tests/filesys/extended/dir-under-file tests/filesys/extended/dir-under-file.result
+pass tests/filesys/extended/dir-under-file
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 150 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-vine -a dir-vine -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run dir-vine < /dev/null 2> tests/filesys/extended/dir-vine.errors > tests/filesys/extended/dir-vine.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/dir-vine.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/dir-vine-persistence.errors > tests/filesys/extended/dir-vine-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/dir-vine.ck tests/filesys/extended/dir-vine tests/filesys/extended/dir-vine.result
+pass tests/filesys/extended/dir-vine
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-create -a grow-create -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-create < /dev/null 2> tests/filesys/extended/grow-create.errors > tests/filesys/extended/grow-create.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-create.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-create-persistence.errors > tests/filesys/extended/grow-create-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-create.ck tests/filesys/extended/grow-create tests/filesys/extended/grow-create.result
+pass tests/filesys/extended/grow-create
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-dir-lg -a grow-dir-lg -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-dir-lg < /dev/null 2> tests/filesys/extended/grow-dir-lg.errors > tests/filesys/extended/grow-dir-lg.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-dir-lg.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-dir-lg-persistence.errors > tests/filesys/extended/grow-dir-lg-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-dir-lg.ck tests/filesys/extended/grow-dir-lg tests/filesys/extended/grow-dir-lg.result
+pass tests/filesys/extended/grow-dir-lg
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-file-size -a grow-file-size -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-file-size < /dev/null 2> tests/filesys/extended/grow-file-size.errors > tests/filesys/extended/grow-file-size.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-file-size.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-file-size-persistence.errors > tests/filesys/extended/grow-file-size-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-file-size.ck tests/filesys/extended/grow-file-size tests/filesys/extended/grow-file-size.result
+pass tests/filesys/extended/grow-file-size
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-root-lg -a grow-root-lg -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-root-lg < /dev/null 2> tests/filesys/extended/grow-root-lg.errors > tests/filesys/extended/grow-root-lg.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-root-lg.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-root-lg-persistence.errors > tests/filesys/extended/grow-root-lg-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-root-lg.ck tests/filesys/extended/grow-root-lg tests/filesys/extended/grow-root-lg.result
+pass tests/filesys/extended/grow-root-lg
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-root-sm -a grow-root-sm -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-root-sm < /dev/null 2> tests/filesys/extended/grow-root-sm.errors > tests/filesys/extended/grow-root-sm.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-root-sm.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-root-sm-persistence.errors > tests/filesys/extended/grow-root-sm-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-root-sm.ck tests/filesys/extended/grow-root-sm tests/filesys/extended/grow-root-sm.result
+pass tests/filesys/extended/grow-root-sm
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-seq-lg -a grow-seq-lg -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-seq-lg < /dev/null 2> tests/filesys/extended/grow-seq-lg.errors > tests/filesys/extended/grow-seq-lg.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-seq-lg.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-seq-lg-persistence.errors > tests/filesys/extended/grow-seq-lg-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-seq-lg.ck tests/filesys/extended/grow-seq-lg tests/filesys/extended/grow-seq-lg.result
+pass tests/filesys/extended/grow-seq-lg
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-seq-sm -a grow-seq-sm -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-seq-sm < /dev/null 2> tests/filesys/extended/grow-seq-sm.errors > tests/filesys/extended/grow-seq-sm.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-seq-sm.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-seq-sm-persistence.errors > tests/filesys/extended/grow-seq-sm-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-seq-sm.ck tests/filesys/extended/grow-seq-sm tests/filesys/extended/grow-seq-sm.result
+pass tests/filesys/extended/grow-seq-sm
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-sparse -a grow-sparse -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-sparse < /dev/null 2> tests/filesys/extended/grow-sparse.errors > tests/filesys/extended/grow-sparse.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-sparse.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-sparse-persistence.errors > tests/filesys/extended/grow-sparse-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-sparse.ck tests/filesys/extended/grow-sparse tests/filesys/extended/grow-sparse.result
+pass tests/filesys/extended/grow-sparse
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-tell -a grow-tell -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-tell < /dev/null 2> tests/filesys/extended/grow-tell.errors > tests/filesys/extended/grow-tell.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-tell.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-tell-persistence.errors > tests/filesys/extended/grow-tell-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-tell.ck tests/filesys/extended/grow-tell tests/filesys/extended/grow-tell.result
+pass tests/filesys/extended/grow-tell
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/grow-two-files -a grow-two-files -p tests/filesys/extended/tar -a tar --swap-size=4 -- -q  -f run grow-two-files < /dev/null 2> tests/filesys/extended/grow-two-files.errors > tests/filesys/extended/grow-two-files.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/grow-two-files.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/grow-two-files-persistence.errors > tests/filesys/extended/grow-two-files-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/grow-two-files.ck tests/filesys/extended/grow-two-files tests/filesys/extended/grow-two-files.result
+pass tests/filesys/extended/grow-two-files
+rm -f tmp.dsk
+pintos-mkdisk tmp.dsk --filesys-size=2
+pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/syn-rw -a syn-rw -p tests/filesys/extended/tar -a tar -p tests/filesys/extended/child-syn-rw -a child-syn-rw --swap-size=4 -- -q  -f run syn-rw < /dev/null 2> tests/filesys/extended/syn-rw.errors > tests/filesys/extended/syn-rw.output
+pintos -v -k -T 60  --qemu --disk=tmp.dsk -g fs.tar -a tests/filesys/extended/syn-rw.tar --swap-size=4 -- -q  run 'tar fs.tar /' < /dev/null 2> tests/filesys/extended/syn-rw-persistence.errors > tests/filesys/extended/syn-rw-persistence.output
+rm -f tmp.dsk
+perl -I../.. ../../tests/filesys/extended/syn-rw.ck tests/filesys/extended/syn-rw tests/filesys/extended/syn-rw.result
+pass tests/filesys/extended/syn-rw
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-grow-stack -a pt-grow-stack --swap-size=4 -- -q  -f run pt-grow-stack < /dev/null 2> tests/vm/pt-grow-stack.errors > tests/vm/pt-grow-stack.output
+perl -I../.. ../../tests/vm/pt-grow-stack.ck tests/vm/pt-grow-stack tests/vm/pt-grow-stack.result
+pass tests/vm/pt-grow-stack
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-grow-pusha -a pt-grow-pusha --swap-size=4 -- -q  -f run pt-grow-pusha < /dev/null 2> tests/vm/pt-grow-pusha.errors > tests/vm/pt-grow-pusha.output
+perl -I../.. ../../tests/vm/pt-grow-pusha.ck tests/vm/pt-grow-pusha tests/vm/pt-grow-pusha.result
+pass tests/vm/pt-grow-pusha
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-grow-bad -a pt-grow-bad --swap-size=4 -- -q  -f run pt-grow-bad < /dev/null 2> tests/vm/pt-grow-bad.errors > tests/vm/pt-grow-bad.output
+perl -I../.. ../../tests/vm/pt-grow-bad.ck tests/vm/pt-grow-bad tests/vm/pt-grow-bad.result
+pass tests/vm/pt-grow-bad
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-big-stk-obj -a pt-big-stk-obj --swap-size=4 -- -q  -f run pt-big-stk-obj < /dev/null 2> tests/vm/pt-big-stk-obj.errors > tests/vm/pt-big-stk-obj.output
+perl -I../.. ../../tests/vm/pt-big-stk-obj.ck tests/vm/pt-big-stk-obj tests/vm/pt-big-stk-obj.result
+pass tests/vm/pt-big-stk-obj
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-bad-addr -a pt-bad-addr --swap-size=4 -- -q  -f run pt-bad-addr < /dev/null 2> tests/vm/pt-bad-addr.errors > tests/vm/pt-bad-addr.output
+perl -I../.. ../../tests/vm/pt-bad-addr.ck tests/vm/pt-bad-addr tests/vm/pt-bad-addr.result
+pass tests/vm/pt-bad-addr
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-bad-read -a pt-bad-read -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run pt-bad-read < /dev/null 2> tests/vm/pt-bad-read.errors > tests/vm/pt-bad-read.output
+perl -I../.. ../../tests/vm/pt-bad-read.ck tests/vm/pt-bad-read tests/vm/pt-bad-read.result
+pass tests/vm/pt-bad-read
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-write-code -a pt-write-code --swap-size=4 -- -q  -f run pt-write-code < /dev/null 2> tests/vm/pt-write-code.errors > tests/vm/pt-write-code.output
+perl -I../.. ../../tests/vm/pt-write-code.ck tests/vm/pt-write-code tests/vm/pt-write-code.result
+pass tests/vm/pt-write-code
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-write-code2 -a pt-write-code2 -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run pt-write-code2 < /dev/null 2> tests/vm/pt-write-code2.errors > tests/vm/pt-write-code2.output
+perl -I../.. ../../tests/vm/pt-write-code2.ck tests/vm/pt-write-code2 tests/vm/pt-write-code2.result
+pass tests/vm/pt-write-code2
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/pt-grow-stk-sc -a pt-grow-stk-sc --swap-size=4 -- -q  -f run pt-grow-stk-sc < /dev/null 2> tests/vm/pt-grow-stk-sc.errors > tests/vm/pt-grow-stk-sc.output
+perl -I../.. ../../tests/vm/pt-grow-stk-sc.ck tests/vm/pt-grow-stk-sc tests/vm/pt-grow-stk-sc.result
+pass tests/vm/pt-grow-stk-sc
+pintos -v -k -T 300 --qemu  --filesys-size=2 -p tests/vm/page-linear -a page-linear --swap-size=4 -- -q  -f run page-linear < /dev/null 2> tests/vm/page-linear.errors > tests/vm/page-linear.output
+perl -I../.. ../../tests/vm/page-linear.ck tests/vm/page-linear tests/vm/page-linear.result
+pass tests/vm/page-linear
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-parallel -a page-parallel -p tests/vm/child-linear -a child-linear --swap-size=4 -- -q  -f run page-parallel < /dev/null 2> tests/vm/page-parallel.errors > tests/vm/page-parallel.output
+perl -I../.. ../../tests/vm/page-parallel.ck tests/vm/page-parallel tests/vm/page-parallel.result
+pass tests/vm/page-parallel
+pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-merge-seq -a page-merge-seq -p tests/vm/child-sort -a child-sort --swap-size=4 -- -q  -f run page-merge-seq < /dev/null 2> tests/vm/page-merge-seq.errors > tests/vm/page-merge-seq.output
+perl -I../.. ../../tests/vm/page-merge-seq.ck tests/vm/page-merge-seq tests/vm/page-merge-seq.result
+pass tests/vm/page-merge-seq
+pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-merge-par -a page-merge-par -p tests/vm/child-sort -a child-sort --swap-size=4 -- -q  -f run page-merge-par < /dev/null 2> tests/vm/page-merge-par.errors > tests/vm/page-merge-par.output
+perl -I../.. ../../tests/vm/page-merge-par.ck tests/vm/page-merge-par tests/vm/page-merge-par.result
+pass tests/vm/page-merge-par
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-merge-stk -a page-merge-stk -p tests/vm/child-qsort -a child-qsort --swap-size=4 -- -q  -f run page-merge-stk < /dev/null 2> tests/vm/page-merge-stk.errors > tests/vm/page-merge-stk.output
+perl -I../.. ../../tests/vm/page-merge-stk.ck tests/vm/page-merge-stk tests/vm/page-merge-stk.result
+pass tests/vm/page-merge-stk
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-merge-mm -a page-merge-mm -p tests/vm/child-qsort-mm -a child-qsort-mm --swap-size=4 -- -q  -f run page-merge-mm < /dev/null 2> tests/vm/page-merge-mm.errors > tests/vm/page-merge-mm.output
+perl -I../.. ../../tests/vm/page-merge-mm.ck tests/vm/page-merge-mm tests/vm/page-merge-mm.result
+pass tests/vm/page-merge-mm
+pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-shuffle -a page-shuffle --swap-size=4 -- -q  -f run page-shuffle < /dev/null 2> tests/vm/page-shuffle.errors > tests/vm/page-shuffle.output
+perl -I../.. ../../tests/vm/page-shuffle.ck tests/vm/page-shuffle tests/vm/page-shuffle.result
+pass tests/vm/page-shuffle
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-read -a mmap-read -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-read < /dev/null 2> tests/vm/mmap-read.errors > tests/vm/mmap-read.output
+perl -I../.. ../../tests/vm/mmap-read.ck tests/vm/mmap-read tests/vm/mmap-read.result
+pass tests/vm/mmap-read
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-close -a mmap-close -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-close < /dev/null 2> tests/vm/mmap-close.errors > tests/vm/mmap-close.output
+perl -I../.. ../../tests/vm/mmap-close.ck tests/vm/mmap-close tests/vm/mmap-close.result
+pass tests/vm/mmap-close
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-unmap -a mmap-unmap -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-unmap < /dev/null 2> tests/vm/mmap-unmap.errors > tests/vm/mmap-unmap.output
+perl -I../.. ../../tests/vm/mmap-unmap.ck tests/vm/mmap-unmap tests/vm/mmap-unmap.result
+pass tests/vm/mmap-unmap
+dd if=/dev/zero of=tests/vm/zeros bs=1024 count=6
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-overlap -a mmap-overlap -p tests/vm/zeros -a zeros --swap-size=4 -- -q  -f run mmap-overlap < /dev/null 2> tests/vm/mmap-overlap.errors > tests/vm/mmap-overlap.output
+perl -I../.. ../../tests/vm/mmap-overlap.ck tests/vm/mmap-overlap tests/vm/mmap-overlap.result
+pass tests/vm/mmap-overlap
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-twice -a mmap-twice -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-twice < /dev/null 2> tests/vm/mmap-twice.errors > tests/vm/mmap-twice.output
+perl -I../.. ../../tests/vm/mmap-twice.ck tests/vm/mmap-twice tests/vm/mmap-twice.result
+pass tests/vm/mmap-twice
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-write -a mmap-write --swap-size=4 -- -q  -f run mmap-write < /dev/null 2> tests/vm/mmap-write.errors > tests/vm/mmap-write.output
+perl -I../.. ../../tests/vm/mmap-write.ck tests/vm/mmap-write tests/vm/mmap-write.result
+pass tests/vm/mmap-write
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-exit -a mmap-exit -p tests/vm/child-mm-wrt -a child-mm-wrt --swap-size=4 -- -q  -f run mmap-exit < /dev/null 2> tests/vm/mmap-exit.errors > tests/vm/mmap-exit.output
+perl -I../.. ../../tests/vm/mmap-exit.ck tests/vm/mmap-exit tests/vm/mmap-exit.result
+pass tests/vm/mmap-exit
+pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/mmap-shuffle -a mmap-shuffle --swap-size=4 -- -q  -f run mmap-shuffle < /dev/null 2> tests/vm/mmap-shuffle.errors > tests/vm/mmap-shuffle.output
+perl -I../.. ../../tests/vm/mmap-shuffle.ck tests/vm/mmap-shuffle tests/vm/mmap-shuffle.result
+pass tests/vm/mmap-shuffle
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-bad-fd -a mmap-bad-fd --swap-size=4 -- -q  -f run mmap-bad-fd < /dev/null 2> tests/vm/mmap-bad-fd.errors > tests/vm/mmap-bad-fd.output
+perl -I../.. ../../tests/vm/mmap-bad-fd.ck tests/vm/mmap-bad-fd tests/vm/mmap-bad-fd.result
+pass tests/vm/mmap-bad-fd
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-clean -a mmap-clean -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-clean < /dev/null 2> tests/vm/mmap-clean.errors > tests/vm/mmap-clean.output
+perl -I../.. ../../tests/vm/mmap-clean.ck tests/vm/mmap-clean tests/vm/mmap-clean.result
+pass tests/vm/mmap-clean
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-inherit -a mmap-inherit -p ../../tests/vm/sample.txt -a sample.txt -p tests/vm/child-inherit -a child-inherit --swap-size=4 -- -q  -f run mmap-inherit < /dev/null 2> tests/vm/mmap-inherit.errors > tests/vm/mmap-inherit.output
+perl -I../.. ../../tests/vm/mmap-inherit.ck tests/vm/mmap-inherit tests/vm/mmap-inherit.result
+pass tests/vm/mmap-inherit
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-misalign -a mmap-misalign -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-misalign < /dev/null 2> tests/vm/mmap-misalign.errors > tests/vm/mmap-misalign.output
+perl -I../.. ../../tests/vm/mmap-misalign.ck tests/vm/mmap-misalign tests/vm/mmap-misalign.result
+pass tests/vm/mmap-misalign
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-null -a mmap-null -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-null < /dev/null 2> tests/vm/mmap-null.errors > tests/vm/mmap-null.output
+perl -I../.. ../../tests/vm/mmap-null.ck tests/vm/mmap-null tests/vm/mmap-null.result
+pass tests/vm/mmap-null
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-over-code -a mmap-over-code -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-over-code < /dev/null 2> tests/vm/mmap-over-code.errors > tests/vm/mmap-over-code.output
+perl -I../.. ../../tests/vm/mmap-over-code.ck tests/vm/mmap-over-code tests/vm/mmap-over-code.result
+pass tests/vm/mmap-over-code
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-over-data -a mmap-over-data -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-over-data < /dev/null 2> tests/vm/mmap-over-data.errors > tests/vm/mmap-over-data.output
+perl -I../.. ../../tests/vm/mmap-over-data.ck tests/vm/mmap-over-data tests/vm/mmap-over-data.result
+pass tests/vm/mmap-over-data
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-over-stk -a mmap-over-stk -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-over-stk < /dev/null 2> tests/vm/mmap-over-stk.errors > tests/vm/mmap-over-stk.output
+perl -I../.. ../../tests/vm/mmap-over-stk.ck tests/vm/mmap-over-stk tests/vm/mmap-over-stk.result
+pass tests/vm/mmap-over-stk
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-remove -a mmap-remove -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-remove < /dev/null 2> tests/vm/mmap-remove.errors > tests/vm/mmap-remove.output
+perl -I../.. ../../tests/vm/mmap-remove.ck tests/vm/mmap-remove tests/vm/mmap-remove.result
+pass tests/vm/mmap-remove
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-zero -a mmap-zero --swap-size=4 -- -q  -f run mmap-zero < /dev/null 2> tests/vm/mmap-zero.errors > tests/vm/mmap-zero.output
+perl -I../.. ../../tests/vm/mmap-zero.ck tests/vm/mmap-zero tests/vm/mmap-zero.result
+pass tests/vm/mmap-zero
+perl -I../.. ../../tests/filesys/extended/dir-empty-name-persistence.ck tests/filesys/extended/dir-empty-name-persistence tests/filesys/extended/dir-empty-name-persistence.result
+pass tests/filesys/extended/dir-empty-name-persistence
+perl -I../.. ../../tests/filesys/extended/dir-mk-tree-persistence.ck tests/filesys/extended/dir-mk-tree-persistence tests/filesys/extended/dir-mk-tree-persistence.result
+pass tests/filesys/extended/dir-mk-tree-persistence
+perl -I../.. ../../tests/filesys/extended/dir-mkdir-persistence.ck tests/filesys/extended/dir-mkdir-persistence tests/filesys/extended/dir-mkdir-persistence.result
+pass tests/filesys/extended/dir-mkdir-persistence
+perl -I../.. ../../tests/filesys/extended/dir-open-persistence.ck tests/filesys/extended/dir-open-persistence tests/filesys/extended/dir-open-persistence.result
+pass tests/filesys/extended/dir-open-persistence
+perl -I../.. ../../tests/filesys/extended/dir-over-file-persistence.ck tests/filesys/extended/dir-over-file-persistence tests/filesys/extended/dir-over-file-persistence.result
+pass tests/filesys/extended/dir-over-file-persistence
+perl -I../.. ../../tests/filesys/extended/dir-rm-cwd-persistence.ck tests/filesys/extended/dir-rm-cwd-persistence tests/filesys/extended/dir-rm-cwd-persistence.result
+pass tests/filesys/extended/dir-rm-cwd-persistence
+perl -I../.. ../../tests/filesys/extended/dir-rm-parent-persistence.ck tests/filesys/extended/dir-rm-parent-persistence tests/filesys/extended/dir-rm-parent-persistence.result
+pass tests/filesys/extended/dir-rm-parent-persistence
+perl -I../.. ../../tests/filesys/extended/dir-rm-root-persistence.ck tests/filesys/extended/dir-rm-root-persistence tests/filesys/extended/dir-rm-root-persistence.result
+pass tests/filesys/extended/dir-rm-root-persistence
+perl -I../.. ../../tests/filesys/extended/dir-rm-tree-persistence.ck tests/filesys/extended/dir-rm-tree-persistence tests/filesys/extended/dir-rm-tree-persistence.result
+pass tests/filesys/extended/dir-rm-tree-persistence
+perl -I../.. ../../tests/filesys/extended/dir-rmdir-persistence.ck tests/filesys/extended/dir-rmdir-persistence tests/filesys/extended/dir-rmdir-persistence.result
+pass tests/filesys/extended/dir-rmdir-persistence
+perl -I../.. ../../tests/filesys/extended/dir-under-file-persistence.ck tests/filesys/extended/dir-under-file-persistence tests/filesys/extended/dir-under-file-persistence.result
+pass tests/filesys/extended/dir-under-file-persistence
+perl -I../.. ../../tests/filesys/extended/dir-vine-persistence.ck tests/filesys/extended/dir-vine-persistence tests/filesys/extended/dir-vine-persistence.result
+pass tests/filesys/extended/dir-vine-persistence
+perl -I../.. ../../tests/filesys/extended/grow-create-persistence.ck tests/filesys/extended/grow-create-persistence tests/filesys/extended/grow-create-persistence.result
+pass tests/filesys/extended/grow-create-persistence
+perl -I../.. ../../tests/filesys/extended/grow-dir-lg-persistence.ck tests/filesys/extended/grow-dir-lg-persistence tests/filesys/extended/grow-dir-lg-persistence.result
+pass tests/filesys/extended/grow-dir-lg-persistence
+perl -I../.. ../../tests/filesys/extended/grow-file-size-persistence.ck tests/filesys/extended/grow-file-size-persistence tests/filesys/extended/grow-file-size-persistence.result
+pass tests/filesys/extended/grow-file-size-persistence
+perl -I../.. ../../tests/filesys/extended/grow-root-lg-persistence.ck tests/filesys/extended/grow-root-lg-persistence tests/filesys/extended/grow-root-lg-persistence.result
+pass tests/filesys/extended/grow-root-lg-persistence
+perl -I../.. ../../tests/filesys/extended/grow-root-sm-persistence.ck tests/filesys/extended/grow-root-sm-persistence tests/filesys/extended/grow-root-sm-persistence.result
+pass tests/filesys/extended/grow-root-sm-persistence
+perl -I../.. ../../tests/filesys/extended/grow-seq-lg-persistence.ck tests/filesys/extended/grow-seq-lg-persistence tests/filesys/extended/grow-seq-lg-persistence.result
+pass tests/filesys/extended/grow-seq-lg-persistence
+perl -I../.. ../../tests/filesys/extended/grow-seq-sm-persistence.ck tests/filesys/extended/grow-seq-sm-persistence tests/filesys/extended/grow-seq-sm-persistence.result
+pass tests/filesys/extended/grow-seq-sm-persistence
+perl -I../.. ../../tests/filesys/extended/grow-sparse-persistence.ck tests/filesys/extended/grow-sparse-persistence tests/filesys/extended/grow-sparse-persistence.result
+pass tests/filesys/extended/grow-sparse-persistence
+perl -I../.. ../../tests/filesys/extended/grow-tell-persistence.ck tests/filesys/extended/grow-tell-persistence tests/filesys/extended/grow-tell-persistence.result
+pass tests/filesys/extended/grow-tell-persistence
+perl -I../.. ../../tests/filesys/extended/grow-two-files-persistence.ck tests/filesys/extended/grow-two-files-persistence tests/filesys/extended/grow-two-files-persistence.result
+pass tests/filesys/extended/grow-two-files-persistence
+perl -I../.. ../../tests/filesys/extended/syn-rw-persistence.ck tests/filesys/extended/syn-rw-persistence tests/filesys/extended/syn-rw-persistence.result
+pass tests/filesys/extended/syn-rw-persistence
+../../tests/make-grade ../.. results ../../tests/filesys/Grading.with-vm | tee grade
+TOTAL TESTING SCORE: 110.0%
+ALL TESTED PASSED -- PERFECT SCORE
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+SUMMARY BY TEST SET
+
+Test Set                                      Pts Max  % Ttl  % Max
+--------------------------------------------- --- --- ------ ------
+tests/filesys/extended/Rubric.functionality    34/ 34  30.0%/ 30.0%
+tests/filesys/extended/Rubric.robustness       10/ 10  15.0%/ 15.0%
+tests/filesys/extended/Rubric.persistence      23/ 23  20.0%/ 20.0%
+tests/filesys/base/Rubric                      30/ 30  20.0%/ 20.0%
+tests/userprog/Rubric.functionality           108/108  10.0%/ 10.0%
+tests/userprog/Rubric.robustness               88/ 88   5.0%/  5.0%
+tests/vm/Rubric.functionality                  55/ 55   8.0%/  8.0%
+tests/vm/Rubric.robustness                     28/ 28   2.0%/  2.0%
+--------------------------------------------- --- --- ------ ------
+Total                                                 110.0%/110.0%
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+SUMMARY OF INDIVIDUAL TESTS
+
+Functionality of extended file system (tests/filesys/extended/Rubric.functionality):
+	- Test directory support.
+	     1/ 1 tests/filesys/extended/dir-mkdir
+	     3/ 3 tests/filesys/extended/dir-mk-tree
+
+	     1/ 1 tests/filesys/extended/dir-rmdir
+	     3/ 3 tests/filesys/extended/dir-rm-tree
+
+	     5/ 5 tests/filesys/extended/dir-vine
+
+	- Test file growth.
+	     1/ 1 tests/filesys/extended/grow-create
+	     1/ 1 tests/filesys/extended/grow-seq-sm
+	     3/ 3 tests/filesys/extended/grow-seq-lg
+	     3/ 3 tests/filesys/extended/grow-sparse
+	     3/ 3 tests/filesys/extended/grow-two-files
+	     1/ 1 tests/filesys/extended/grow-tell
+	     1/ 1 tests/filesys/extended/grow-file-size
+
+	- Test directory growth.
+	     1/ 1 tests/filesys/extended/grow-dir-lg
+	     1/ 1 tests/filesys/extended/grow-root-sm
+	     1/ 1 tests/filesys/extended/grow-root-lg
+
+	- Test writing from multiple processes.
+	     5/ 5 tests/filesys/extended/syn-rw
+
+	- Section summary.
+	     16/ 16 tests passed
+	     34/ 34 points subtotal
+
+Robustness of file system (tests/filesys/extended/Rubric.robustness):
+	     1/ 1 tests/filesys/extended/dir-empty-name
+	     1/ 1 tests/filesys/extended/dir-open
+	     1/ 1 tests/filesys/extended/dir-over-file
+	     1/ 1 tests/filesys/extended/dir-under-file
+
+	     3/ 3 tests/filesys/extended/dir-rm-cwd
+	     2/ 2 tests/filesys/extended/dir-rm-parent
+	     1/ 1 tests/filesys/extended/dir-rm-root
+
+	- Section summary.
+	      7/  7 tests passed
+	     10/ 10 points subtotal
+
+Persistence of file system (tests/filesys/extended/Rubric.persistence):
+	     1/ 1 tests/filesys/extended/dir-empty-name-persistence
+	     1/ 1 tests/filesys/extended/dir-mk-tree-persistence
+	     1/ 1 tests/filesys/extended/dir-mkdir-persistence
+	     1/ 1 tests/filesys/extended/dir-open-persistence
+	     1/ 1 tests/filesys/extended/dir-over-file-persistence
+	     1/ 1 tests/filesys/extended/dir-rm-cwd-persistence
+	     1/ 1 tests/filesys/extended/dir-rm-parent-persistence
+	     1/ 1 tests/filesys/extended/dir-rm-root-persistence
+	     1/ 1 tests/filesys/extended/dir-rm-tree-persistence
+	     1/ 1 tests/filesys/extended/dir-rmdir-persistence
+	     1/ 1 tests/filesys/extended/dir-under-file-persistence
+	     1/ 1 tests/filesys/extended/dir-vine-persistence
+	     1/ 1 tests/filesys/extended/grow-create-persistence
+	     1/ 1 tests/filesys/extended/grow-dir-lg-persistence
+	     1/ 1 tests/filesys/extended/grow-file-size-persistence
+	     1/ 1 tests/filesys/extended/grow-root-lg-persistence
+	     1/ 1 tests/filesys/extended/grow-root-sm-persistence
+	     1/ 1 tests/filesys/extended/grow-seq-lg-persistence
+	     1/ 1 tests/filesys/extended/grow-seq-sm-persistence
+	     1/ 1 tests/filesys/extended/grow-sparse-persistence
+	     1/ 1 tests/filesys/extended/grow-tell-persistence
+	     1/ 1 tests/filesys/extended/grow-two-files-persistence
+	     1/ 1 tests/filesys/extended/syn-rw-persistence
+
+	- Section summary.
+	     23/ 23 tests passed
+	     23/ 23 points subtotal
+
+Functionality of base file system (tests/filesys/base/Rubric):
+	- Test basic support for small files.
+	     1/ 1 tests/filesys/base/sm-create
+	     2/ 2 tests/filesys/base/sm-full
+	     2/ 2 tests/filesys/base/sm-random
+	     2/ 2 tests/filesys/base/sm-seq-block
+	     3/ 3 tests/filesys/base/sm-seq-random
+
+	- Test basic support for large files.
+	     1/ 1 tests/filesys/base/lg-create
+	     2/ 2 tests/filesys/base/lg-full
+	     2/ 2 tests/filesys/base/lg-random
+	     2/ 2 tests/filesys/base/lg-seq-block
+	     3/ 3 tests/filesys/base/lg-seq-random
+
+	- Test synchronized multiprogram access to files.
+	     4/ 4 tests/filesys/base/syn-read
+	     4/ 4 tests/filesys/base/syn-write
+	     2/ 2 tests/filesys/base/syn-remove
+
+	- Section summary.
+	     13/ 13 tests passed
+	     30/ 30 points subtotal
+
+Functionality of system calls (tests/userprog/Rubric.functionality):
+	- Test argument passing on Pintos command line.
+	     3/ 3 tests/userprog/args-none
+	     3/ 3 tests/userprog/args-single
+	     3/ 3 tests/userprog/args-multiple
+	     3/ 3 tests/userprog/args-many
+	     3/ 3 tests/userprog/args-dbl-space
+
+	- Test "create" system call.
+	     3/ 3 tests/userprog/create-empty
+	     3/ 3 tests/userprog/create-long
+	     3/ 3 tests/userprog/create-normal
+	     3/ 3 tests/userprog/create-exists
+
+	- Test "open" system call.
+	     3/ 3 tests/userprog/open-missing
+	     3/ 3 tests/userprog/open-normal
+	     3/ 3 tests/userprog/open-twice
+
+	- Test "read" system call.
+	     3/ 3 tests/userprog/read-normal
+	     3/ 3 tests/userprog/read-zero
+
+	- Test "write" system call.
+	     3/ 3 tests/userprog/write-normal
+	     3/ 3 tests/userprog/write-zero
+
+	- Test "close" system call.
+	     3/ 3 tests/userprog/close-normal
+
+	- Test "exec" system call.
+	     5/ 5 tests/userprog/exec-once
+	     5/ 5 tests/userprog/exec-multiple
+	     5/ 5 tests/userprog/exec-arg
+
+	- Test "wait" system call.
+	     5/ 5 tests/userprog/wait-simple
+	     5/ 5 tests/userprog/wait-twice
+
+	- Test "exit" system call.
+	     5/ 5 tests/userprog/exit
+
+	- Test "halt" system call.
+	     3/ 3 tests/userprog/halt
+
+	- Test recursive execution of user programs.
+	    15/15 tests/userprog/multi-recurse
+
+	- Test read-only executable feature.
+	     3/ 3 tests/userprog/rox-simple
+	     3/ 3 tests/userprog/rox-child
+	     3/ 3 tests/userprog/rox-multichild
+
+	- Section summary.
+	     28/ 28 tests passed
+	    108/108 points subtotal
+
+Robustness of system calls (tests/userprog/Rubric.robustness):
+	- Test robustness of file descriptor handling.
+	     2/ 2 tests/userprog/close-stdin
+	     2/ 2 tests/userprog/close-stdout
+	     2/ 2 tests/userprog/close-bad-fd
+	     2/ 2 tests/userprog/close-twice
+	     2/ 2 tests/userprog/read-bad-fd
+	     2/ 2 tests/userprog/read-stdout
+	     2/ 2 tests/userprog/write-bad-fd
+	     2/ 2 tests/userprog/write-stdin
+	     2/ 2 tests/userprog/multi-child-fd
+
+	- Test robustness of pointer handling.
+	     3/ 3 tests/userprog/create-bad-ptr
+	     3/ 3 tests/userprog/exec-bad-ptr
+	     3/ 3 tests/userprog/open-bad-ptr
+	     3/ 3 tests/userprog/read-bad-ptr
+	     3/ 3 tests/userprog/write-bad-ptr
+
+	- Test robustness of buffer copying across page boundaries.
+	     3/ 3 tests/userprog/create-bound
+	     3/ 3 tests/userprog/open-boundary
+	     3/ 3 tests/userprog/read-boundary
+	     3/ 3 tests/userprog/write-boundary
+
+	- Test handling of null pointer and empty strings.
+	     2/ 2 tests/userprog/create-null
+	     2/ 2 tests/userprog/open-null
+	     2/ 2 tests/userprog/open-empty
+
+	- Test robustness of system call implementation.
+	     3/ 3 tests/userprog/sc-bad-arg
+	     3/ 3 tests/userprog/sc-bad-sp
+	     5/ 5 tests/userprog/sc-boundary
+	     5/ 5 tests/userprog/sc-boundary-2
+
+	- Test robustness of "exec" and "wait" system calls.
+	     5/ 5 tests/userprog/exec-missing
+	     5/ 5 tests/userprog/wait-bad-pid
+	     5/ 5 tests/userprog/wait-killed
+
+	- Test robustness of exception handling.
+	     1/ 1 tests/userprog/bad-read
+	     1/ 1 tests/userprog/bad-write
+	     1/ 1 tests/userprog/bad-jump
+	     1/ 1 tests/userprog/bad-read2
+	     1/ 1 tests/userprog/bad-write2
+	     1/ 1 tests/userprog/bad-jump2
+
+	- Section summary.
+	     34/ 34 tests passed
+	     88/ 88 points subtotal
+
+Functionality of virtual memory subsystem (tests/vm/Rubric.functionality):
+	- Test stack growth.
+	     3/ 3 tests/vm/pt-grow-stack
+	     3/ 3 tests/vm/pt-grow-stk-sc
+	     3/ 3 tests/vm/pt-big-stk-obj
+	     3/ 3 tests/vm/pt-grow-pusha
+
+	- Test paging behavior.
+	     3/ 3 tests/vm/page-linear
+	     3/ 3 tests/vm/page-parallel
+	     3/ 3 tests/vm/page-shuffle
+	     4/ 4 tests/vm/page-merge-seq
+	     4/ 4 tests/vm/page-merge-par
+	     4/ 4 tests/vm/page-merge-mm
+	     4/ 4 tests/vm/page-merge-stk
+
+	- Test "mmap" system call.
+	     2/ 2 tests/vm/mmap-read
+	     2/ 2 tests/vm/mmap-write
+	     2/ 2 tests/vm/mmap-shuffle
+
+	     2/ 2 tests/vm/mmap-twice
+
+	     2/ 2 tests/vm/mmap-unmap
+	     1/ 1 tests/vm/mmap-exit
+
+	     3/ 3 tests/vm/mmap-clean
+
+	     2/ 2 tests/vm/mmap-close
+	     2/ 2 tests/vm/mmap-remove
+
+	- Section summary.
+	     20/ 20 tests passed
+	     55/ 55 points subtotal
+
+Robustness of virtual memory subsystem (tests/vm/Rubric.robustness):
+	- Test robustness of page table support.
+	     2/ 2 tests/vm/pt-bad-addr
+	     3/ 3 tests/vm/pt-bad-read
+	     2/ 2 tests/vm/pt-write-code
+	     3/ 3 tests/vm/pt-write-code2
+	     4/ 4 tests/vm/pt-grow-bad
+
+	- Test robustness of "mmap" system call.
+	     1/ 1 tests/vm/mmap-bad-fd
+	     1/ 1 tests/vm/mmap-inherit
+	     1/ 1 tests/vm/mmap-null
+	     1/ 1 tests/vm/mmap-zero
+
+	     2/ 2 tests/vm/mmap-misalign
+
+	     2/ 2 tests/vm/mmap-over-code
+	     2/ 2 tests/vm/mmap-over-data
+	     2/ 2 tests/vm/mmap-over-stk
+	     2/ 2 tests/vm/mmap-overlap
+
+
+	- Section summary.
+	     14/ 14 tests passed
+	     28/ 28 points subtotal
+
+make[1]: Leaving directory `/afs/ir.stanford.edu/users/e/g/egillie/cs140/pintos/src/filesys/build'
