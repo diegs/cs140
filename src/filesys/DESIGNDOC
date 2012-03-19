@@ -231,14 +231,12 @@ We abstract a lot of the directory logic to the inode layer.  When we call
 dir_remove, that calls inode_remove, which marks an inode for deletion,
 and it will only get deleted when it is closed by all processes who have
 it open.  
-If we remove a process' current working directory, we don't take
-any action immediately, but the next time that thread attempts an
-operation using its current working directory, it won't be able to see the
-removed directory entries, including '.'.  That thread can escape the bad
-state by changing directories using an absolute path, however.  We chose
-to model this after the Linux style of directory deletion -- a directory
-can be deleted from underneath a process, but the process doesn't discover
-this until it attempts an operation on the current directory.
+If we remove a process' current working directory, we allow
+inode_close to handle the logic of when it should actually close.  Because
+a thread reopens inodes as it changes its current working directory, and
+an inode won't close until no one still has it open, a directory won't
+really be closed until that thread changes its cwd or exits, in which case
+it calls inode_close ().
 
 ---- RATIONALE ----
 
@@ -251,7 +249,10 @@ thread creation, we initialize it to the root directory's sector, or an
 inherited directory's sector.  We chose the sector number over, say, the
 directory's string representation because this was more robust when it
 came to name changes -- the directory's name may change, but the sector
-backing it shouldn't change. 
+backing it shouldn't change.  Further, whenever we change the current
+working directory of a thread, that thread will reopen the inode of the
+directory it entered (and close the inode of the one it left), which
+simplifies a lot of the logic around directory removal.
 
                              BUFFER CACHE
                              ============
